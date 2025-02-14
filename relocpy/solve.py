@@ -88,7 +88,59 @@ class EventLocator:
         dt_dz = (tt_right - tt_left) / (2 * epsilon)
         return dt_dz
     
-    def _iterate_locate_2d(self, event_initials, arrivals_times, epsilon=0.01):
+    def _num_dt(self, distance_km, source_depth, receiver_depth, epsilon=0.01):
+        """
+        Calculate the numerical derivative of travel time with respect to distance and source depth.
+
+        This function computes the numerical derivative of the travel time with respect to the distance between the source and receiver
+        and the source depth using a central difference method. It perturbs the distance and source depth by a small value epsilon
+        and calculates the travel times for the perturbed distances and depths to estimate the derivatives.
+
+        WARNING: This method is not efficient (because it computes the travel times twice) and should be used for testing purposes only.
+
+        Parameters:
+        -----------
+        distance_km : float
+            The distance between the source and receiver in kilometers.
+        source_depth : float
+            The depth of the source in kilometers.
+        receiver_depth : float
+            The depth of the receiver in kilometers.
+        epsilon : float, optional
+            The small perturbation value for the distance and source depth (default is 0.01 km).
+
+        Returns:
+        --------
+        tuple
+            A tuple containing the numerical derivatives of the travel time with respect to distance and source depth.
+        """
+        dt_dr = self._dt_dr_num(distance_km, source_depth, receiver_depth, epsilon=epsilon)
+        dt_dz = self._dt_dz_num(distance_km, source_depth, receiver_depth, epsilon=epsilon)
+        return dt_dr, dt_dz
+
+    def _analyt_dt(self, arrival):
+        """
+        Calculate the derivatives of travel time with respect to radial distance and depth.
+
+        Parameters:
+        ----------
+        arrival (Arrival): An object containing information about the arrival, including the path and takeoff angle.
+        
+        Returns:
+        --------
+        tuple: A tuple containing two elements:
+            - dt_dr (float): The derivative of travel time with respect to radial distance.
+            - dt_dz (float): The derivative of travel time with respect to depth.
+        """
+        
+        path = arrival.path
+        depth = path[np.argmax([p[-1] for p in path])][-1]
+        vel_p = self.model.model.s_mod.v_mod.evaluate_below(depth , "p")[0]
+        dt_dr = np.sin(np.deg2rad(arrival.takeoff_angle)) / vel_p
+        dt_dz = -np.cos(np.deg2rad(arrival.takeoff_angle)) / vel_p
+        return dt_dr, dt_dz
+
+    def _iterate_locate_2d(self, event_initials, arrivals_times, method="analytical", epsilon=0.01):
         for event_idx, event_initial in enumerate(event_initials):
             for station_idx, station in enumerate(self.stations):
                 distance_km = np.sqrt((event_initial[1] - station[1]) ** 2)
@@ -98,12 +150,12 @@ class EventLocator:
                                                     distance_in_degree=distance_deg, 
                                                     phase_list=["P", "p"])
                 arrival = arrivals[0]
-
-                path = arrival.path
-                depth = path[np.argmax([p[-1] for p in path])][-1]
-                vel_p = self.model.model.s_mod.v_mod.evaluate_below(depth , "p")[0]
-                dt_dr = np.sin(np.deg2rad(arrival.takeoff_angle)) / vel_p
-                dt_dz = -np.cos(np.deg2rad(arrival.takeoff_angle)) / vel_p
+                if method == "numerical":
+                    dt_dr, dt_dz = self._num_dt(distance_km, event_initial[0], station[0], epsilon=epsilon)
+                elif method == "analytical":
+                    dt_dr, dt_dz = self._analyt_dt(arrival)
+                else:
+                    raise ValueError("Invalid method")
 
                 self.theoretical_arrivals[event_idx, station_idx] = arrival.time
                 self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 2] = dt_dz
@@ -112,7 +164,7 @@ class EventLocator:
         dx = lsqr(self.derivative_matrix, (self.theoretical_arrivals - arrivals_times).flatten())[0]
         return dx.reshape((len(event_initials), self.dim))
     
-    def _iterate_locate_3d(self, event_initials, arrivals_times, epsilon=0.01):
+    def _iterate_locate_3d(self, event_initials, arrivals_times, method="analytical", epsilon=0.01):
         for event_idx, event_initial in enumerate(event_initials):
             for station_idx, station in enumerate(self.stations):
                 distance_m, az, _ = gps2dist_azimuth(event_initial[0], event_initial[1], station[0], station[1])
@@ -124,19 +176,23 @@ class EventLocator:
                     phase_list=["P", "p"]
                 )
                 arrival = arrivals[0]
-
-                path = arrival.path
-                depth = path[np.argmax([p[-1] for p in path])][-1]
-                vel_p = self.model.model.s_mod.v_mod.evaluate_below(depth , "p")[0]
-                dt_dr = np.sin(np.deg2rad(arrival.takeoff_angle)) / vel_p
-                dt_dz = -np.cos(np.deg2rad(arrival.takeoff_angle)) / vel_p
-
-                # azimuth is measured from the north
+                if method == "numerical":
+                    dt_dr, dt_dz = self._num_dt(distance_km, event_initial[2], station[2], epsilon=epsilon)
+                elif method == "analytical":
+                    dt_dr, dt_dz = self._analyt_dt(arrival)
+                else:
+                    raise ValueError("Invalid method")
+                
+                # Azimuth is measured from the north
                 # dx is latitude, dy is longitude
                 dt_dx = -dt_dr * np.cos(np.deg2rad(az))
                 dt_dy = -dt_dr * np.sin(np.deg2rad(az))
 
                 self.theoretical_arrivals[event_idx, station_idx] = arrival.time
+                # The derivative matrix is a sparse matrix
+                # The row index is the event index times the number of stations plus the station index
+                # The column index is the event index times 3 (for 3D) plus the coordinate index:
+                # 0 for latitude, 1 for longitude, 2 for depth
                 self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 3] = dt_dx
                 self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 3 + 1] = dt_dy
                 self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 3 + 2] = dt_dz
