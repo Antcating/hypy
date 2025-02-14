@@ -1,3 +1,5 @@
+from typing import List, Tuple
+
 import numpy as np
 from obspy.taup import TauPyModel
 from obspy.geodetics import kilometer2degrees, gps2dist_azimuth
@@ -5,13 +7,17 @@ from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import lsqr
 
 class EventLocator:
-    def __init__(self, events: list, stations: list, model: TauPyModel, dim: int=2):
+    def __init__(self, events: List[Tuple], stations: List[Tuple], model: TauPyModel, dim: int=2):
         self.events = events
         self.stations = stations
         self.model = model
+        # Dimension of the problem (2 or 3) for 2D or 3D location
         self.dim = dim
+        # Theoretical arrivals for all events per station
         self.theoretical_arrivals = np.zeros((len(events), len(stations)))
+        # Derivative matrix for all events per station and per coordinate
         self.derivative_matrix = lil_matrix((len(events) * len(stations), len(events) * self.dim))
+        # Locations of the events (solution)
         self.locations = np.zeros((len(events), self.dim))
     
     def _dt_dr_num(self, distance_km, source_depth, receiver_depth, epsilon=0.01):
@@ -140,7 +146,7 @@ class EventLocator:
         dt_dz = -np.cos(np.deg2rad(arrival.takeoff_angle)) / vel_p
         return dt_dr, dt_dz
 
-    def _iterate_locate_2d(self, event_initials, arrivals_times, method="analytical", epsilon=0.01):
+    def _iterate_locate_2d(self, event_initials, arrivals_times, method: str = "analytical", epsilon: float = 0.01, clip_range: float = 2):
         for event_idx, event_initial in enumerate(event_initials):
             for station_idx, station in enumerate(self.stations):
                 distance_km = np.sqrt((event_initial[1] - station[1]) ** 2)
@@ -156,20 +162,29 @@ class EventLocator:
                     dt_dr, dt_dz = self._analyt_dt(arrival)
                 else:
                     raise ValueError("Invalid method")
-
+                
+                # The derivative matrix is a sparse matrix
+                # The row index is the event index times the number of stations plus the station index
+                # The column index is the event index times 2 (for 2D) plus the coordinate index:
+                # 0 for depth, 1 for radial distance
                 self.theoretical_arrivals[event_idx, station_idx] = arrival.time
                 self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 2] = dt_dz
                 self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 2 + 1] = dt_dr
         
         dx = lsqr(self.derivative_matrix, (self.theoretical_arrivals - arrivals_times).flatten())[0]
-        return dx.reshape((len(event_initials), self.dim))
+        dx = dx.reshape((len(event_initials), self.dim))
+        if np.any(dx[:, 0] > clip_range):
+            print("Warning: large depth update")
+            print("Clipping depth update")
+            dx[:, 0] = np.clip(dx[:, 0], -clip_range, clip_range)
+        return dx
     
-    def _iterate_locate_3d(self, event_initials, arrivals_times, method="analytical", epsilon=0.01):
+    def _iterate_locate_3d(self, event_initials, arrivals_times, method: str ="analytical", epsilon: float = 0.01, clip_range: float = 2):
         for event_idx, event_initial in enumerate(event_initials):
             for station_idx, station in enumerate(self.stations):
                 distance_m, az, _ = gps2dist_azimuth(event_initial[0], event_initial[1], station[0], station[1])
-                
                 distance_km = distance_m / 1000
+                
                 arrivals = self.model.get_ray_paths_geo(
                     source_latitude_in_deg=event_initial[0], source_longitude_in_deg=event_initial[1], source_depth_in_km=event_initial[2],
                     receiver_latitude_in_deg=station[0], receiver_longitude_in_deg=station[1],
@@ -199,21 +214,31 @@ class EventLocator:
 
         dx = lsqr(self.derivative_matrix, (self.theoretical_arrivals - arrivals_times).flatten())[0]
         dx = dx.reshape((len(event_initials), self.dim))
-        if np.any(dx[:, 2] > 2):
+        if np.any(dx[:, 2] > clip_range):
             print("Warning: large depth update")
-            print("Clamping depth update")
-            dx[:, 2] = np.clip(dx[:, 2], -2, 2)
+            print("Clipping depth update")
+            dx[:, 2] = np.clip(dx[:, 2], -clip_range, clip_range)
         return dx
-    def locate(self, initial_locations, arrivals_times, epsilon: float = 0.01, max_iterations: int = 10):
+    
+    def locate(self, initial_locations, arrivals_times, epsilon: float = 0.01, max_iterations: int = 10, conv: float = 1e-5):
         locations = initial_locations.copy()
         max_dx = np.inf
         for i in range(max_iterations):
             if self.dim == 2:
                 dx = self._iterate_locate_2d(locations, arrivals_times, epsilon=epsilon)
+                max_dx = np.max(np.abs(dx))
             elif self.dim == 3:
                 dx = self._iterate_locate_3d(locations, arrivals_times, epsilon=epsilon)
+                max_dx = np.max(np.abs(dx))
                 dx[:, 0:2] = kilometer2degrees(dx[:, 0:2])
-            max_dx = np.max(np.abs(dx))
+            else:
+                raise ValueError("Invalid dimension")
+            
+            # Track the maximum update for convergence criteria
             print(f"iteration {i}: max_dx = {max_dx}")
+            if max_dx < conv:
+                print("Solution converged before max iterations")
+                break
+            # Update the locations for the next iteration
             locations -= dx
         return locations
