@@ -15,6 +15,24 @@ class EventLocator:
         self.locations = np.zeros((len(events), self.dim))
     
     def _dt_dr_num(self, distance_km, source_depth, receiver_depth, epsilon=0.01):
+        """
+        Calculate the numerical derivative of travel time with respect to distance.
+
+        This method computes the numerical derivative of the travel time with respect to 
+        the distance between the source and receiver using a central difference method.
+
+        WARNING: This method is not efficient (because it computes the travel times twice) and should be used for testing purposes only.
+
+        Parameters:
+        distance_km (float): The distance between the source and receiver in kilometers.
+        source_depth (float): The depth of the source in kilometers.
+        receiver_depth (float): The depth of the receiver in kilometers.
+        epsilon (float, optional): A small value to perturb the distance for numerical 
+                                   differentiation. Default is 0.01 km.
+
+        Returns:
+        float: The numerical derivative of the travel time with respect to distance.
+        """
         left_distance_km = distance_km - epsilon
         right_distance_km = distance_km + epsilon
         left_distance_deg = kilometer2degrees(left_distance_km)
@@ -31,6 +49,31 @@ class EventLocator:
         return dt_dr
     
     def _dt_dz_num(self, distance_km, source_depth, receiver_depth, epsilon=0.01):
+        """
+        Calculate the numerical derivative of travel time with respect to source depth.
+
+        This function computes the numerical derivative of the travel time with respect to the source depth
+        using a central difference method. It perturbs the source depth by a small value epsilon and calculates
+        the travel times for the perturbed depths to estimate the derivative.
+
+        WARNING: This method is not efficient (because it computes the travel times twice) and should be used for testing purposes only.
+
+        Parameters:
+        -----------
+        distance_km : float
+            The distance between the source and receiver in kilometers.
+        source_depth : float
+            The depth of the source in kilometers.
+        receiver_depth : float
+            The depth of the receiver in kilometers.
+        epsilon : float, optional
+            The small perturbation value for the source depth (default is 0.01 km).
+
+        Returns:
+        --------
+        float
+            The numerical derivative of the travel time with respect to the source depth.
+        """
         distance_deg = kilometer2degrees(distance_km)
         left_depth = source_depth - epsilon
         right_depth = source_depth + epsilon
@@ -55,7 +98,6 @@ class EventLocator:
                                                     distance_in_degree=distance_deg, 
                                                     phase_list=["P", "p"])
                 arrival = arrivals[0]
-                # dt_dr = self._dt_dr(distance_km, event_initial[0], station[0], epsilon)
 
                 path = arrival.path
                 depth = path[np.argmax([p[-1] for p in path])][-1]
@@ -82,14 +124,11 @@ class EventLocator:
                     phase_list=["P", "p"]
                 )
                 arrival = arrivals[0]
-                # dt_dr = self._dt_dr(distance_km, event_initial[2], station[2], epsilon)
-                # dt_dr = arrival.ray_param / 6371.0
 
                 path = arrival.path
                 depth = path[np.argmax([p[-1] for p in path])][-1]
                 vel_p = self.model.model.s_mod.v_mod.evaluate_below(depth , "p")[0]
                 dt_dr = np.sin(np.deg2rad(arrival.takeoff_angle)) / vel_p
-                # dt_dz = self._dt_dz(distance_km, event_initial[2], station[2], epsilon)
                 dt_dz = -np.cos(np.deg2rad(arrival.takeoff_angle)) / vel_p
 
                 # azimuth is measured from the north
