@@ -1,6 +1,6 @@
 import numpy as np
 from obspy.taup import TauPyModel
-from obspy.geodetics import kilometer2degrees
+from obspy.geodetics import kilometer2degrees, gps2dist_azimuth
 from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import lsqr
 
@@ -9,11 +9,12 @@ class EventLocator:
         self.events = events
         self.stations = stations
         self.model = model
+        self.dim = dim
         self.theoretical_arrivals = np.zeros((len(events), len(stations)))
-        self.derivative_matrix = lil_matrix((len(events) * len(stations), len(events) * dim))
-        self.locations = np.zeros((len(events), dim))
+        self.derivative_matrix = lil_matrix((len(events) * len(stations), len(events) * self.dim))
+        self.locations = np.zeros((len(events), self.dim))
     
-    def _dt_dr(self, distance_km, source_depth, receiver_depth, epsilon=0.01):
+    def _dt_dr_num(self, distance_km, source_depth, receiver_depth, epsilon=0.01):
         left_distance_km = distance_km - epsilon
         right_distance_km = distance_km + epsilon
         left_distance_deg = kilometer2degrees(left_distance_km)
@@ -29,7 +30,7 @@ class EventLocator:
         dt_dr = (tt_right - tt_left) / (2 * epsilon)
         return dt_dr
     
-    def _dt_dz(self, distance_km, source_depth, receiver_depth, epsilon=0.01):
+    def _dt_dz_num(self, distance_km, source_depth, receiver_depth, epsilon=0.01):
         distance_deg = kilometer2degrees(distance_km)
         left_depth = source_depth - epsilon
         right_depth = source_depth + epsilon
@@ -44,7 +45,7 @@ class EventLocator:
         dt_dz = (tt_right - tt_left) / (2 * epsilon)
         return dt_dz
     
-    def _iterate_locate(self, event_initials, arrivals_times, epsilon=0.01):
+    def _iterate_locate_2d(self, event_initials, arrivals_times, epsilon=0.01):
         for event_idx, event_initial in enumerate(event_initials):
             for station_idx, station in enumerate(self.stations):
                 distance_km = np.sqrt((event_initial[1] - station[1]) ** 2)
@@ -54,20 +55,69 @@ class EventLocator:
                                                     distance_in_degree=distance_deg, 
                                                     phase_list=["P", "p"])
                 arrival = arrivals[0]
-                dt_dx = self._dt_dr(distance_km, event_initial[0], station[0], epsilon)
-                dt_dz = self._dt_dz(distance_km, event_initial[0], station[0], epsilon)
+                # dt_dr = self._dt_dr(distance_km, event_initial[0], station[0], epsilon)
+
+                path = arrival.path
+                depth = path[np.argmax([p[-1] for p in path])][-1]
+                vel_p = self.model.model.s_mod.v_mod.evaluate_below(depth , "p")[0]
+                dt_dr = np.sin(np.deg2rad(arrival.takeoff_angle)) / vel_p
+                dt_dz = -np.cos(np.deg2rad(arrival.takeoff_angle)) / vel_p
+
                 self.theoretical_arrivals[event_idx, station_idx] = arrival.time
                 self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 2] = dt_dz
-                self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 2 + 1] = dt_dx
+                self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 2 + 1] = dt_dr
         
         dx = lsqr(self.derivative_matrix, (self.theoretical_arrivals - arrivals_times).flatten())[0]
-        return dx.reshape((len(event_initials), 2))
+        return dx.reshape((len(event_initials), self.dim))
     
-    def locate(self, initial_locations, arrivals_times, epsilon=0.01, max_iterations=10):
+    def _iterate_locate_3d(self, event_initials, arrivals_times, epsilon=0.01):
+        for event_idx, event_initial in enumerate(event_initials):
+            for station_idx, station in enumerate(self.stations):
+                distance_m, az, _ = gps2dist_azimuth(event_initial[0], event_initial[1], station[0], station[1])
+                
+                distance_km = distance_m / 1000
+                arrivals = self.model.get_ray_paths_geo(
+                    source_latitude_in_deg=event_initial[0], source_longitude_in_deg=event_initial[1], source_depth_in_km=event_initial[2],
+                    receiver_latitude_in_deg=station[0], receiver_longitude_in_deg=station[1],
+                    phase_list=["P", "p"]
+                )
+                arrival = arrivals[0]
+                # dt_dr = self._dt_dr(distance_km, event_initial[2], station[2], epsilon)
+                # dt_dr = arrival.ray_param / 6371.0
+
+                path = arrival.path
+                depth = path[np.argmax([p[-1] for p in path])][-1]
+                vel_p = self.model.model.s_mod.v_mod.evaluate_below(depth , "p")[0]
+                dt_dr = np.sin(np.deg2rad(arrival.takeoff_angle)) / vel_p
+                # dt_dz = self._dt_dz(distance_km, event_initial[2], station[2], epsilon)
+                dt_dz = -np.cos(np.deg2rad(arrival.takeoff_angle)) / vel_p
+
+                # azimuth is measured from the north
+                # dx is latitude, dy is longitude
+                dt_dx = -dt_dr * np.cos(np.deg2rad(az))
+                dt_dy = -dt_dr * np.sin(np.deg2rad(az))
+
+                self.theoretical_arrivals[event_idx, station_idx] = arrival.time
+                self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 3] = dt_dx
+                self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 3 + 1] = dt_dy
+                self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 3 + 2] = dt_dz
+
+        dx = lsqr(self.derivative_matrix, (self.theoretical_arrivals - arrivals_times).flatten())[0]
+        dx = dx.reshape((len(event_initials), self.dim))
+        if np.any(dx[:, 2] > 2):
+            print("Warning: large depth update")
+            print("Clamping depth update")
+            dx[:, 2] = np.clip(dx[:, 2], -2, 2)
+        return dx
+    def locate(self, initial_locations, arrivals_times, epsilon: float = 0.01, max_iterations: int = 10):
         locations = initial_locations.copy()
         max_dx = np.inf
         for i in range(max_iterations):
-            dx = self._iterate_locate(locations, arrivals_times, epsilon=min(epsilon, 0.01*max_dx))
+            if self.dim == 2:
+                dx = self._iterate_locate_2d(locations, arrivals_times, epsilon=epsilon)
+            elif self.dim == 3:
+                dx = self._iterate_locate_3d(locations, arrivals_times, epsilon=epsilon)
+                dx[:, 0:2] = kilometer2degrees(dx[:, 0:2])
             max_dx = np.max(np.abs(dx))
             print(f"iteration {i}: max_dx = {max_dx}")
             locations -= dx
