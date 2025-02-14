@@ -60,7 +60,7 @@ class EventLocator:
                 self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 2] = dt_dz
                 self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 2 + 1] = dt_dx
         
-        dx = np.linalg.lstsq(self.derivative_matrix.toarray(), (self.theoretical_arrivals - arrivals_times).flatten(), rcond=None)[0]
+        dx = lsqr(self.derivative_matrix, (self.theoretical_arrivals - arrivals_times).flatten())[0]
         return dx.reshape((len(event_initials), 2))
     
     def locate(self, initial_locations, arrivals_times, epsilon=0.01, max_iterations=10):
