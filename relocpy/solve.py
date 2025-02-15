@@ -149,38 +149,38 @@ class EventLocator:
         dt_dz = -np.cos(np.deg2rad(arrival.takeoff_angle)) / vel_p
         return dt_dr, dt_dz
 
-    def _iterate_locate_2d(self, event_initials, arrivals_times, method: str = "analytical", epsilon: float = 0.01, clip_range: float = 2):
-        for event_idx, event_initial in enumerate(event_initials):
-            for station_idx, station in enumerate(self.stations):
-                distance_km = np.sqrt((event_initial[1] - station[1]) ** 2)
-                distance_deg = kilometer2degrees(distance_km)
-                arrivals = self.model.get_ray_paths(source_depth_in_km=event_initial[0], 
-                                                    receiver_depth_in_km=station[0],
-                                                    distance_in_degree=distance_deg, 
-                                                    phase_list=["P", "p"])
-                arrival = arrivals[0]
-                if method == "numerical":
-                    dt_dr, dt_dz = self._num_dt(distance_km, event_initial[0], station[0], epsilon=epsilon)
-                elif method == "analytical":
-                    dt_dr, dt_dz = self._analyt_dt(arrival)
-                else:
-                    raise ValueError("Invalid method")
+    # def _iterate_locate_2d(self, event_initials, arrivals_times, method: str = "analytical", epsilon: float = 0.01, clip_range: float = 2):
+    #     for event_idx, event_initial in enumerate(event_initials):
+    #         for station_idx, station in enumerate(self.stations):
+    #             distance_km = np.sqrt((event_initial[1] - station[1]) ** 2)
+    #             distance_deg = kilometer2degrees(distance_km)
+    #             arrivals = self.model.get_ray_paths(source_depth_in_km=event_initial[0], 
+    #                                                 receiver_depth_in_km=station[0],
+    #                                                 distance_in_degree=distance_deg, 
+    #                                                 phase_list=["P", "p"])
+    #             arrival = arrivals[0]
+    #             if method == "numerical":
+    #                 dt_dr, dt_dz = self._num_dt(distance_km, event_initial[0], station[0], epsilon=epsilon)
+    #             elif method == "analytical":
+    #                 dt_dr, dt_dz = self._analyt_dt(arrival)
+    #             else:
+    #                 raise ValueError("Invalid method")
                 
-                # The derivative matrix is a sparse matrix
-                # The row index is the event index times the number of stations plus the station index
-                # The column index is the event index times 2 (for 2D) plus the coordinate index:
-                # 0 for depth, 1 for radial distance
-                self.theoretical_arrivals[event_idx, station_idx] = arrival.time
-                self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 2] = dt_dz
-                self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 2 + 1] = dt_dr
+    #             # The derivative matrix is a sparse matrix
+    #             # The row index is the event index times the number of stations plus the station index
+    #             # The column index is the event index times 2 (for 2D) plus the coordinate index:
+    #             # 0 for depth, 1 for radial distance
+    #             self.theoretical_arrivals[event_idx, station_idx] = arrival.time
+    #             self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 2] = dt_dz
+    #             self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 2 + 1] = dt_dr
         
-        dx = lsqr(self.derivative_matrix, (self.theoretical_arrivals - arrivals_times).flatten())[0]
-        dx = dx.reshape((len(event_initials), self.dim))
-        if np.any(dx[:, 0] > clip_range):
-            print("Warning: large depth update")
-            print("Clipping depth update")
-            dx[:, 0] = np.clip(dx[:, 0], -clip_range, clip_range)
-        return dx
+    #     dx = lsqr(self.derivative_matrix, (self.theoretical_arrivals - arrivals_times).flatten())[0]
+    #     dx = dx.reshape((len(event_initials), self.dim))
+    #     if np.any(dx[:, 0] > clip_range):
+    #         print("Warning: large depth update")
+    #         print("Clipping depth update")
+    #         dx[:, 0] = np.clip(dx[:, 0], -clip_range, clip_range)
+    #     return dx
     
     def _iterate_locate_3d(self, event_initials, arrival_times, method: str ="analytical", epsilon: float = 0.01, clip_range: float = 2):
         for event_idx, event_initial in enumerate(event_initials):
@@ -265,3 +265,5 @@ class EventLocator:
                 self.locations[event] = (init_location[0], init_location[1], trial_depth)
 
             self.origin_times[event] = arrival_times[event, np.argmin(arrival_times[event])] - trial_time
+
+        return self.locations
