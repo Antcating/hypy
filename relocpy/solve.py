@@ -212,7 +212,8 @@ class EventLocator:
                 self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 3 + 1] = dt_dy
                 self.derivative_matrix[event_idx * len(self.stations) + station_idx, event_idx * 3 + 2] = dt_dz
 
-        dx = lsqr(self.derivative_matrix, (self.theoretical_arrivals - arrivals_times).flatten())[0]
+        dt = self.theoretical_arrivals - arrivals_times
+        dx = lsqr(self.derivative_matrix, dt.flatten())[0]
         dx = dx.reshape((len(event_initials), self.dim))
         if np.any(dx[:, 2] > clip_range):
             print("Warning: large depth update")
@@ -220,8 +221,8 @@ class EventLocator:
             dx[:, 2] = np.clip(dx[:, 2], -clip_range, clip_range)
         return dx
     
-    def locate(self, initial_locations, arrivals_times, epsilon: float = 0.01, max_iterations: int = 10, conv: float = 1e-5):
-        locations = initial_locations.copy()
+    def locate(self, arrivals_times, epsilon: float = 0.01, max_iterations: int = 10, conv: float = 1e-5):
+        locations = self.init_locations(arrivals_times)
         max_dx = np.inf
         for i in range(max_iterations):
             if self.dim == 2:
@@ -242,3 +243,16 @@ class EventLocator:
             # Update the locations for the next iteration
             locations -= dx
         return locations
+    
+    def init_locations(self, arrival_times, trial_depth: float = 8.0):
+        n_events = arrival_times.shape[0]
+
+        for event in range(n_events):
+            init_location = self.stations[np.argmin(arrival_times[event])]
+            if self.dim == 2:
+                self.locations[event] = (trial_depth, init_location[1])
+            elif self.dim == 3:
+                self.locations[event] = (init_location[0], init_location[1], trial_depth)
+        print(self.locations)
+
+        return self.locations
