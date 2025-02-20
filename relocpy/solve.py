@@ -68,6 +68,7 @@ class EventLocator:
                     )
                     if arrival is None:
                         arrival_time = np.nan
+                        raise ValueError(f"Arrival not found for event {event_idx}, station {station_idx}, phase {phase}")
                     else:
                         arrival_time = arrival.time
 
@@ -195,50 +196,47 @@ class EventLocator:
         
         path = arrival.path
         depth = path[np.argmax([p[-1] for p in path])][-1]
-        vel_p = self.model.model.s_mod.v_mod.evaluate_below(depth , phase.lower())[0]
-        dt_dr = np.sin(np.deg2rad(arrival.takeoff_angle)) / vel_p
-        dt_dz = -np.cos(np.deg2rad(arrival.takeoff_angle)) / vel_p
+        vel = self.model.model.s_mod.v_mod.evaluate_below(depth , phase.lower())[0]
+        dt_dr = np.sin(np.deg2rad(arrival.takeoff_angle)) / vel
+        dt_dz = -np.cos(np.deg2rad(arrival.takeoff_angle)) / vel
         return dt_dr, dt_dz
     
     def _iterate_locate_3d(self, method: str ="analytical", epsilon: float = 0.01, clip_range: float = 5):
         for event_idx in range(self.n_events):
-            for station_idx, (network, station) in enumerate(self.stations):
-                event_location = self.locations[event_idx]
-                station_location = self.stations_locations[station_idx]
-                distance_m, az, _ = gps2dist_azimuth(event_location[0], event_location[1], station_location[0], station_location[1])
-                distance_km = distance_m / 1000
-                for phase_idx, phase in enumerate(self.phases):
-                    if phase == "P":
-                        phase_list = ["P", "p"]
-                    elif phase == "S":
-                        phase_list = ["S", "s"]
-                    else:
-                        raise ValueError("Invalid phase")
-                    arrivals = self.model.get_ray_paths_geo(
-                        source_latitude_in_deg=event_location[0], source_longitude_in_deg=event_location[1], source_depth_in_km=event_location[2],
-                        receiver_latitude_in_deg=station_location[0], receiver_longitude_in_deg=station_location[1],
-                        phase_list=phase_list)
-                    arrival = arrivals[0]
-                    if method == "numerical":
-                        dt_dr, dt_dz = self._num_dt(distance_km, event_location[2], station_location[2], epsilon=epsilon)
-                    elif method == "analytical":
-                        dt_dr, dt_dz = self._analyt_dt(arrival, phase)
-                    else:
-                        raise ValueError("Invalid method")
-                    
-                    # Azimuth is measured from the north
-                    # dx is latitude, dy is longitude
-                    dt_dx = -dt_dr * np.cos(np.deg2rad(az))
-                    dt_dy = -dt_dr * np.sin(np.deg2rad(az))
-
-                    self.theoretical_arrivals[event_idx, self.n_phases * station_idx + phase_idx] = arrival.time
-                    # The derivative matrix is a sparse matrix
-                    # The row index is the event index times the number of stations plus the station index
-                    # The column index is the event index times 3 (for 3D) plus the coordinate index:
-                    # 0 for latitude, 1 for longitude, 2 for depth
-                    self.derivative_matrix[event_idx * len(self.stations) + (self.n_phases * station_idx + phase_idx), event_idx * 3] = dt_dx
-                    self.derivative_matrix[event_idx * len(self.stations) + (self.n_phases * station_idx + phase_idx), event_idx * 3 + 1] = dt_dy
-                    self.derivative_matrix[event_idx * len(self.stations) + (self.n_phases * station_idx + phase_idx), event_idx * 3 + 2] = dt_dz
+            for station_idx in range(self.n_stations):
+                    event_location = self.locations[event_idx]
+                    station_location = self.stations_locations[station_idx]
+                    distance_m, az, _ = gps2dist_azimuth(event_location[0], event_location[1], station_location[0], station_location[1])
+                    distance_km = distance_m / 1000
+                    for phase_idx, phase in enumerate(self.phases):
+                        if phase == "P":
+                            phase_list = ["P", "p"]
+                        elif phase == "S":
+                            phase_list = ["S", "s"]
+                        else:
+                            raise ValueError("Invalid phase")
+                        arrivals = self.model.get_ray_paths_geo(
+                            source_latitude_in_deg=event_location[0], source_longitude_in_deg=event_location[1], source_depth_in_km=event_location[2],
+                            receiver_latitude_in_deg=station_location[0], receiver_longitude_in_deg=station_location[1],
+                            phase_list=phase_list)
+                        arrival = arrivals[0]
+                        if method == "numerical":
+                            dt_dr, dt_dz = self._num_dt(distance_km, event_location[2], station_location[2], epsilon=epsilon)
+                        elif method == "analytical":
+                            dt_dr, dt_dz = self._analyt_dt(arrival, phase)
+                        else:
+                            raise ValueError("Invalid method")
+                        
+                        # Azimuth is measured from the north
+                        # dx is latitude, dy is longitude
+                        dt_dx = -dt_dr * np.cos(np.deg2rad(az))
+                        dt_dy = -dt_dr * np.sin(np.deg2rad(az))
+    
+                        self.theoretical_arrivals[event_idx, self.n_phases * station_idx + phase_idx] = arrival.time
+                        row_idx = event_idx * (self.n_stations * self.n_phases) + station_idx * self.n_phases + phase_idx
+                        self.derivative_matrix[row_idx, event_idx * 3] = dt_dx
+                        self.derivative_matrix[row_idx, event_idx * 3 + 1] = dt_dy
+                        self.derivative_matrix[row_idx, event_idx * 3 + 2] = dt_dz
 
         travel_times = self.arrivals - self.origin_times[:, np.newaxis]
 
@@ -293,4 +291,5 @@ class EventLocator:
                 break
             # Update the locations for the next iteration
             self.locations -= dx
+            print(self.locations)
         return self.locations, self.origin_times
