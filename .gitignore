@@ -1,0 +1,10 @@
+# Byte-compiled / optimized / DLL files
+*.cpython*
+# VS Code
+settings.json
+launch.json
+# Test data
+**.xml
+**.tvel
+# MACOS
+.DS_Store
