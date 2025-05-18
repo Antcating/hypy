@@ -41,10 +41,10 @@ class EventLocator:
         self.n_stations = len(self.stations)
         self.events = events
         self.n_events = len(self.events)
-        self.allocate_arrays(self.n_events, self.n_stations, self.n_phases)
-        self.fill_data()
+        self._allocate_arrays(self.n_events, self.n_stations, self.n_phases)
+        self._fill_data()
 
-    def allocate_arrays(self, n_events: int, n_stations: int, n_phases: int):
+    def _allocate_arrays(self, n_events: int, n_stations: int, n_phases: int):
         # Origin times for all events
         self.origin_times = np.zeros(n_events)
 
@@ -57,7 +57,7 @@ class EventLocator:
         # Locations of the events (solution)
         self.locations = np.zeros((n_events, self.dim))
 
-    def fill_data(self):
+    def _fill_data(self):
         for event_idx, event in enumerate(self.events):
             for station_idx, (network, station) in enumerate(self.stations):
                 for phase_idx, phase in enumerate(self.phases):
@@ -68,118 +68,11 @@ class EventLocator:
                     )
                     if arrival is None:
                         arrival_time = np.nan
-                        raise ValueError(f"Arrival not found for event {event_idx}, station {station_idx}, phase {phase}")
                     else:
                         arrival_time = arrival.time
-
                     self.arrivals[event_idx, self.n_phases * station_idx + phase_idx] = arrival_time
 
-        
-    def _dt_dr_num(self, distance_km, source_depth, receiver_depth, epsilon=0.01):
-        """
-        Calculate the numerical derivative of travel time with respect to distance.
-
-        This method computes the numerical derivative of the travel time with respect to 
-        the distance between the source and receiver using a central difference method.
-
-        WARNING: This method is not efficient (because it computes the travel times twice) and should be used for testing purposes only.
-
-        Parameters:
-        distance_km (float): The distance between the source and receiver in kilometers.
-        source_depth (float): The depth of the source in kilometers.
-        receiver_depth (float): The depth of the receiver in kilometers.
-        epsilon (float, optional): A small value to perturb the distance for numerical 
-                                   differentiation. Default is 0.01 km.
-
-        Returns:
-        float: The numerical derivative of the travel time with respect to distance.
-        """
-        left_distance_km = distance_km - epsilon
-        right_distance_km = distance_km + epsilon
-        left_distance_deg = kilometer2degrees(left_distance_km)
-        right_distance_deg = kilometer2degrees(right_distance_km)
-        tt_left = self.model.get_travel_times(source_depth_in_km=source_depth, 
-                                              receiver_depth_in_km=receiver_depth,
-                                              distance_in_degree=left_distance_deg, 
-                                              phase_list=["P", "p"])[0].time
-        tt_right = self.model.get_travel_times(source_depth_in_km=source_depth, 
-                                               receiver_depth_in_km=receiver_depth,
-                                               distance_in_degree=right_distance_deg, 
-                                               phase_list=["P", "p"])[0].time
-        dt_dr = (tt_right - tt_left) / (2 * epsilon)
-        return dt_dr
-    
-    def _dt_dz_num(self, distance_km, source_depth, receiver_depth, epsilon=0.01):
-        """
-        Calculate the numerical derivative of travel time with respect to source depth.
-
-        This function computes the numerical derivative of the travel time with respect to the source depth
-        using a central difference method. It perturbs the source depth by a small value epsilon and calculates
-        the travel times for the perturbed depths to estimate the derivative.
-
-        WARNING: This method is not efficient (because it computes the travel times twice) and should be used for testing purposes only.
-
-        Parameters:
-        -----------
-        distance_km : float
-            The distance between the source and receiver in kilometers.
-        source_depth : float
-            The depth of the source in kilometers.
-        receiver_depth : float
-            The depth of the receiver in kilometers.
-        epsilon : float, optional
-            The small perturbation value for the source depth (default is 0.01 km).
-
-        Returns:
-        --------
-        float
-            The numerical derivative of the travel time with respect to the source depth.
-        """
-        distance_deg = kilometer2degrees(distance_km)
-        left_depth = source_depth - epsilon
-        right_depth = source_depth + epsilon
-        tt_left = self.model.get_travel_times(source_depth_in_km=left_depth, 
-                                              receiver_depth_in_km=receiver_depth,
-                                              distance_in_degree=distance_deg, 
-                                              phase_list=["P", "p"])[0].time
-        tt_right = self.model.get_travel_times(source_depth_in_km=right_depth, 
-                                               receiver_depth_in_km=receiver_depth,
-                                               distance_in_degree=distance_deg, 
-                                               phase_list=["P", "p"])[0].time
-        dt_dz = (tt_right - tt_left) / (2 * epsilon)
-        return dt_dz
-    
-    def _num_dt(self, distance_km, source_depth, receiver_depth, epsilon=0.01):
-        """
-        Calculate the numerical derivative of travel time with respect to distance and source depth.
-
-        This function computes the numerical derivative of the travel time with respect to the distance between the source and receiver
-        and the source depth using a central difference method. It perturbs the distance and source depth by a small value epsilon
-        and calculates the travel times for the perturbed distances and depths to estimate the derivatives.
-
-        WARNING: This method is not efficient (because it computes the travel times twice) and should be used for testing purposes only.
-
-        Parameters:
-        -----------
-        distance_km : float
-            The distance between the source and receiver in kilometers.
-        source_depth : float
-            The depth of the source in kilometers.
-        receiver_depth : float
-            The depth of the receiver in kilometers.
-        epsilon : float, optional
-            The small perturbation value for the distance and source depth (default is 0.01 km).
-
-        Returns:
-        --------
-        tuple
-            A tuple containing the numerical derivatives of the travel time with respect to distance and source depth.
-        """
-        dt_dr = self._dt_dr_num(distance_km, source_depth, receiver_depth, epsilon=epsilon)
-        dt_dz = self._dt_dz_num(distance_km, source_depth, receiver_depth, epsilon=epsilon)
-        return dt_dr, dt_dz
-
-    def _analyt_dt(self, arrival, phase: str):
+    def analyt_dt(self, arrival, phase: str):
         """
         Calculate the derivatives of travel time with respect to radial distance and depth.
 
@@ -201,58 +94,85 @@ class EventLocator:
         dt_dz = -np.cos(np.deg2rad(arrival.takeoff_angle)) / vel
         return dt_dr, dt_dz
     
-    def _iterate_locate_3d(self, method: str ="analytical", epsilon: float = 0.01, clip_range: float = 5):
-        for event_idx in range(self.n_events):
-            for station_idx in range(self.n_stations):
-                    event_location = self.locations[event_idx]
-                    station_location = self.stations_locations[station_idx]
-                    distance_m, az, _ = gps2dist_azimuth(event_location[0], event_location[1], station_location[0], station_location[1])
-                    distance_km = distance_m / 1000
-                    for phase_idx, phase in enumerate(self.phases):
-                        if phase == "P":
-                            phase_list = ["P", "p"]
-                        elif phase == "S":
-                            phase_list = ["S", "s"]
-                        else:
-                            raise ValueError("Invalid phase")
-                        arrivals = self.model.get_ray_paths_geo(
-                            source_latitude_in_deg=event_location[0], source_longitude_in_deg=event_location[1], source_depth_in_km=event_location[2],
-                            receiver_latitude_in_deg=station_location[0], receiver_longitude_in_deg=station_location[1],
-                            phase_list=phase_list)
-                        arrival = arrivals[0]
-                        if method == "numerical":
-                            dt_dr, dt_dz = self._num_dt(distance_km, event_location[2], station_location[2], epsilon=epsilon)
-                        elif method == "analytical":
-                            dt_dr, dt_dz = self._analyt_dt(arrival, phase)
-                        else:
-                            raise ValueError("Invalid method")
-                        
-                        # Azimuth is measured from the north
-                        # dx is latitude, dy is longitude
-                        dt_dx = -dt_dr * np.cos(np.deg2rad(az))
-                        dt_dy = -dt_dr * np.sin(np.deg2rad(az))
+    def get_arrival(self, event_location, station_location, phases: List[str]):
+        arrivals = self.model.get_ray_paths_geo(
+            source_latitude_in_deg=event_location[0], source_longitude_in_deg=event_location[1], source_depth_in_km=event_location[2],
+            receiver_latitude_in_deg=station_location[0], receiver_longitude_in_deg=station_location[1],
+            phase_list=phases)
+        arrival = arrivals[0]
+        return arrival
     
-                        self.theoretical_arrivals[event_idx, self.n_phases * station_idx + phase_idx] = arrival.time
-                        row_idx = event_idx * (self.n_stations * self.n_phases) + station_idx * self.n_phases + phase_idx
-                        self.derivative_matrix[row_idx, event_idx * 3] = dt_dx
-                        self.derivative_matrix[row_idx, event_idx * 3 + 1] = dt_dy
-                        self.derivative_matrix[row_idx, event_idx * 3 + 2] = dt_dz
-
+    def _derive_travel_time_param(self, event_location, station_location, phase: str):
+        if phase == "P":
+            phase_list = ["P", "p"]
+        elif phase == "S":
+            phase_list = ["S", "s"]
+        else:
+            raise ValueError("Invalid phase")
+        
+        arrival = self.get_arrival(event_location, station_location, phase_list)
+        time = arrival.time
+        dt_dr, dt_dz = self.analyt_dt(arrival, phase)
+        # Azimuth is measured from the north
+        # dx is latitude, dy is longitude
+        _, az, _ = gps2dist_azimuth(event_location[0], event_location[1], station_location[0], station_location[1])
+        dt_dx = -dt_dr * np.cos(np.deg2rad(az))
+        dt_dy = -dt_dr * np.sin(np.deg2rad(az))
+        return time, dt_dx, dt_dy, dt_dz
+                        
+    
+    def _iterate_locate_3d(self, clip_range: float = 5, solve_airquakes: bool = False, max_depth: float = 0, iteration: int = 0, max_depth_iterations: int = 0):
+        if not hasattr(self, 'invalid_events'):
+            self.invalid_events = np.zeros(self.n_events, dtype=bool)
+        valid_rows = []
+        for event_idx in range(self.n_events):
+            if getattr(self, 'invalid_events', np.zeros(self.n_events, dtype=bool))[event_idx]:
+                continue  # skip invalid events
+            for station_idx in range(self.n_stations):
+                event_location = self.locations[event_idx]
+                station_location = self.stations_locations[station_idx]
+                for phase_idx, phase in enumerate(self.phases):
+                    arr_idx = self.n_phases * station_idx + phase_idx
+                    if np.isnan(self.arrivals[event_idx, arr_idx]):
+                        continue  # skip if no arrival for this event/station/phase
+                    arrival_time, dt_dx, dt_dy, dt_dz = self._derive_travel_time_param(event_location, station_location, phase)
+                    self.theoretical_arrivals[event_idx, arr_idx] = arrival_time
+                    row_idx = event_idx * (self.n_stations * self.n_phases) + station_idx * self.n_phases + phase_idx
+                    self.derivative_matrix[row_idx, event_idx * 3] = dt_dx
+                    self.derivative_matrix[row_idx, event_idx * 3 + 1] = dt_dy
+                    self.derivative_matrix[row_idx, event_idx * 3 + 2] = dt_dz
+                    valid_rows.append(row_idx)
+        # Only use valid rows (where arrivals are not NaN), per event
         travel_times = self.arrivals - self.origin_times[:, np.newaxis]
-
         dt = self.theoretical_arrivals - travel_times
-
-        dt_m = np.mean(dt, axis=1)
-        dt = dt - dt_m[:, np.newaxis]
+        dt_flat = dt.flatten()
+        valid_rows = np.array(valid_rows)
+        valid_dt = dt_flat[valid_rows]
+        valid_deriv = self.derivative_matrix[valid_rows, :]
+        # Remove mean for each event (only for valid arrivals)
+        dt_m = np.zeros(self.n_events)
+        for event_idx in range(self.n_events):
+            event_rows = [i for i, row in enumerate(valid_rows) if row // (self.n_stations * self.n_phases) == event_idx]
+            if event_rows:
+                dt_m[event_idx] = np.mean(valid_dt[event_rows])
+                valid_dt[event_rows] -= dt_m[event_idx]
         self.origin_times -= dt_m
-
-        dx = lsqr(self.derivative_matrix, dt.flatten())[0]
+        dx = lsqr(valid_deriv, valid_dt)[0]
         dx = dx.reshape((self.n_events, self.dim))
-
-        if np.any(dx[:, 2] > clip_range):
-            print("Warning: large depth update")
-            print("Clipping depth update")
-            dx[:, 2] = np.clip(dx[:, 2], -clip_range, clip_range)
+        # Constrain all location changes (lat, lon, depth) to clip_range
+        for i in range(min(3, self.dim)):
+            if np.any(np.abs(dx[:, i]) > clip_range):
+                print(f"Warning: large update in dimension {i}, clipping")
+                dx[:, i] = np.clip(dx[:, i], -clip_range, clip_range)
+        # Check for negative depth and mark events as invalid
+        for event_idx in range(self.n_events):
+            if self.invalid_events[event_idx]:
+                continue
+            new_depth = self.locations[event_idx, 2] - dx[event_idx, 2]
+            if (not solve_airquakes and new_depth < 0) or (iteration > max_depth_iterations and new_depth > max_depth):
+                    print(f"Event {event_idx} would have depth {new_depth} outside [0, {max_depth}]. Marking as invalid.")
+                    self.invalid_events[event_idx] = True
+                    dx[event_idx, :] = 0  # No update for this event
         return dx
     
     def init_locations(self, trial_depth: float = 10.0, trial_time: float = 2.0):
@@ -270,26 +190,33 @@ class EventLocator:
 
         return self.locations
 
-    def locate(self, epsilon: float = 0.01, max_iterations: int = 10, conv: float = 1e-2):
+    def locate(self, max_iterations: int = 10, conv: float = 1e-2, solve_airquakes: bool = False, max_depth: float = 20.0, max_depth_iterations: int = 5):
         self.init_locations()
         max_dx = np.inf
+        prev_max_dx = np.inf
         for i in range(max_iterations):
-            if self.dim == 2:
-                dx = self._iterate_locate_2d(epsilon=epsilon)
-                max_dx = np.max(np.abs(dx))
-            elif self.dim == 3:
-                dx = self._iterate_locate_3d(epsilon=epsilon)
-                max_dx = np.max(np.abs(dx))
-                dx[:, 0:2] = kilometer2degrees(dx[:, 0:2])
-            else:
-                raise ValueError("Invalid dimension")
+            dx = self._iterate_locate_3d(solve_airquakes=solve_airquakes, max_depth=max_depth, max_depth_iterations=max_depth_iterations, iteration=i)
+            max_dx = np.max(np.abs(dx))
+            # Location of maximum update
+            max_dx_idx = np.unravel_index(np.argmax(np.abs(dx)), dx.shape)
+            print(f"Event {max_dx_idx[0]}, Station {max_dx_idx[1]}, max_dx = {max_dx}")
+            dx[:, 0:2] = kilometer2degrees(dx[:, 0:2])
             
             # Track the maximum update for convergence criteria
             print(f"iteration {i}: max_dx = {max_dx}")
             if max_dx < conv:
                 print("Solution converged before max iterations")
                 break
+            elif np.abs(prev_max_dx - max_dx) / prev_max_dx < 0.05 and max_dx < 0.5:
+                print("Solution is converged to unstable point")
+                break
+            prev_max_dx = max_dx
             # Update the locations for the next iteration
             self.locations -= dx
-            print(self.locations)
-        return self.locations, self.origin_times
+        return self.locations, self.origin_times, max_dx
+
+    def report_invalid_events(self):
+        """Return indices of events marked as invalid (negative depth)."""
+        if hasattr(self, 'invalid_events'):
+            return np.where(self.invalid_events)[0]
+        return np.array([])
