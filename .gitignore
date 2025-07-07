@@ -8,3 +8,7 @@ launch.json
 **.tvel
 # MACOS
 .DS_Store
+
+# Build directories
+build/
+dist/
