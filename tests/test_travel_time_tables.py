@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import tempfile, os
-from relocpy.travel_time_tables import TravelTimeTables
+from hypy.travel_time_tables import TravelTimeTables
 
 
 class TestTravelTimeTables(unittest.TestCase):
@@ -12,9 +12,9 @@ class TestTravelTimeTables(unittest.TestCase):
 
     def test_table_filename_contains_expected(self):
         # Patch __file__ to simulate location
-        import relocpy.travel_time_tables
+        import hypy.travel_time_tables
         import pathlib
-        relocpy.travel_time_tables.__file__ = str(pathlib.Path.cwd() / "travel_time_tables.py")
+        hypy.travel_time_tables.__file__ = str(pathlib.Path.cwd() / "travel_time_tables.py")
         fname = self.ttt._table_filename()
         self.assertIn("travel_time_tables_iasp91_P_S_d2.0_r4.0_dz1.0_dr2.0.npz", fname)
         self.assertIn("data", fname)

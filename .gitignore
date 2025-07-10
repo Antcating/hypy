@@ -1,6 +1,6 @@
 # --- Travel Time Tables Data ---
 # Ignore automatically generated cache files
-relocpy/data/*.npz
+hypy/data/*.npz
 
 
 # --- Build and Distribution ---

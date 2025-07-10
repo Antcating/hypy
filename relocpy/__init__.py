@@ -1,1 +1,0 @@
-from relocpy.event_locator import EventLocator

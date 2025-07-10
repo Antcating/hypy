@@ -11,7 +11,7 @@ license = { text = "MIT" }
 readme = "README.md"
 requires-python = ">=3.7"
 dependencies = [
-    "numpy>=1.21",
+    "numpy==1.26.4",
     "obspy>=1.2",
     "scipy>=1.7"
 ]

@@ -7,7 +7,7 @@ from obspy.taup import TauPyModel
 from obspy.core import UTCDateTime
 from obspy.core.event import Event, Pick, WaveformStreamID
 from obspy.core.inventory import Inventory, Network, Station, Site
-from relocpy.event_locator import EventLocator
+from hypy.event_locator import EventLocator
 
 if __name__ == "__main__":
     # Load a TauPy model (e.g., IASP91)
