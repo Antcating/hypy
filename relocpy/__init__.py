@@ -1,1 +1,1 @@
-from relocpy.solve import EventLocator
+from relocpy.event_locator import EventLocator
