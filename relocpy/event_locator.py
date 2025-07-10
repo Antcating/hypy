@@ -23,8 +23,8 @@ class EventLocator:
         phases: List[str] = ["P"],
         max_depth: float = 20.0,
         max_distance: float = 100.0,
-        depth_step: float = 0.2,
-        distance_step: float = 0.5,
+        depth_step: float = 1.0,
+        distance_step: float = 2.0,
     ):
         """
         Initialize the EventLocator with a velocity model and configure travel-time tables.
@@ -235,9 +235,11 @@ class EventLocator:
             if max_update < conv_threshold:
                 print(f"Converged after {it + 1} iterations (max update {max_update:.3f} km < {conv_threshold} km).")
                 break
+            if prev_max_update == 0 or prev_max_update is np.inf:
+                prev_max_update = max_update
+                continue
             if (
-                prev_max_update != 0
-                and abs(prev_max_update - max_update) / prev_max_update < 1e-5
+                abs(prev_max_update - max_update) / prev_max_update < 1e-5
                 and max_update < 0.5
             ):
                 print(f"Converged (minor change) after {it + 1} iterations (max update {max_update:.3f} km).")
