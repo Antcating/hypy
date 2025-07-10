@@ -3,16 +3,20 @@ travel_time_tables.py
 --------------------
 Handles travel-time, ray-parameter, and takeoff angle table creation, saving, loading, and interpolation.
 """
+
 from typing import Dict, List, Optional
 import numpy as np
 from obspy.taup import TauPyModel
 from obspy.geodetics import kilometer2degrees
 import os
+from pathlib import Path
+
 
 class TravelTimeTables:
     """
     Manages travel-time, ray-parameter, and takeoff angle tables for seismic phases.
     """
+
     def __init__(
         self,
         model: TauPyModel,
@@ -38,7 +42,9 @@ class TravelTimeTables:
 
     def _table_filename(self) -> str:
         phase_str = "_".join(sorted(self.phases))
-        return f"travel_time_tables_{phase_str}_d{self.max_depth}_r{self.max_distance}_dz{self.depth_step}_dr{self.distance_step}.npz"
+        table_root_dir = Path(__file__).parent
+        table_name = f"travel_time_tables_{phase_str}_d{self.max_depth}_r{self.max_distance}_dz{self.depth_step}_dr{self.distance_step}.npz"
+        return os.path.join(table_root_dir, "data", table_name)
 
     def save(self, filename: Optional[str] = None) -> None:
         """
@@ -87,9 +93,15 @@ class TravelTimeTables:
         self.depth_grid = depth_values
         self.distance_grid = distance_values
         for phase in self.phases:
-            self.travel_time_tables[phase] = np.full((len(depth_values), len(distance_values)), np.nan)
-            self.ray_param_tables[phase] = np.full((len(depth_values), len(distance_values)), np.nan)
-            self.takeoff_angle_tables[phase] = np.full((len(depth_values), len(distance_values)), np.nan)
+            self.travel_time_tables[phase] = np.full(
+                (len(depth_values), len(distance_values)), np.nan
+            )
+            self.ray_param_tables[phase] = np.full(
+                (len(depth_values), len(distance_values)), np.nan
+            )
+            self.takeoff_angle_tables[phase] = np.full(
+                (len(depth_values), len(distance_values)), np.nan
+            )
         for i, depth in enumerate(depth_values):
             for j, dist in enumerate(distance_values):
                 dist_deg = kilometer2degrees(dist)
@@ -106,11 +118,17 @@ class TravelTimeTables:
                     if arrivals:
                         arr = arrivals[0]
                         if hasattr(arr, "time"):
-                            self.travel_time_tables["P"][i, j] = getattr(arr, "time", np.nan)
+                            self.travel_time_tables["P"][i, j] = getattr(
+                                arr, "time", np.nan
+                            )
                         if hasattr(arr, "ray_param"):
-                            self.ray_param_tables["P"][i, j] = getattr(arr, "ray_param", np.nan)
+                            self.ray_param_tables["P"][i, j] = getattr(
+                                arr, "ray_param", np.nan
+                            )
                         if hasattr(arr, "takeoff_angle"):
-                            self.takeoff_angle_tables["P"][i, j] = getattr(arr, "takeoff_angle", np.nan)
+                            self.takeoff_angle_tables["P"][i, j] = getattr(
+                                arr, "takeoff_angle", np.nan
+                            )
                 # Handle S phase
                 if "S" in self.phases and "S" in self.travel_time_tables:
                     try:
@@ -124,15 +142,23 @@ class TravelTimeTables:
                     if arrivals:
                         arr = arrivals[0]
                         if hasattr(arr, "time"):
-                            self.travel_time_tables["S"][i, j] = getattr(arr, "time", np.nan)
+                            self.travel_time_tables["S"][i, j] = getattr(
+                                arr, "time", np.nan
+                            )
                         if hasattr(arr, "ray_param"):
-                            self.ray_param_tables["S"][i, j] = getattr(arr, "ray_param", np.nan)
+                            self.ray_param_tables["S"][i, j] = getattr(
+                                arr, "ray_param", np.nan
+                            )
                         if hasattr(arr, "takeoff_angle"):
-                            self.takeoff_angle_tables["S"][i, j] = getattr(arr, "takeoff_angle", np.nan)
+                            self.takeoff_angle_tables["S"][i, j] = getattr(
+                                arr, "takeoff_angle", np.nan
+                            )
         print(f"Saving travel-time tables to {fname}")
         self.save(fname)
 
-    def interpolate_travel_time(self, phase: str, depth: float, distance: float) -> float:
+    def interpolate_travel_time(
+        self, phase: str, depth: float, distance: float
+    ) -> float:
         """
         Interpolate the travel time (seconds) for a given phase, source depth (km), and distance (km) from the precomputed table.
         """
@@ -156,7 +182,9 @@ class TravelTimeTables:
         frac = (depth - depth0) / (depth1 - depth0)
         return t0 + frac * (t1 - t0)
 
-    def interpolate_takeoff_angle(self, phase: str, depth: float, distance: float) -> float:
+    def interpolate_takeoff_angle(
+        self, phase: str, depth: float, distance: float
+    ) -> float:
         """
         Interpolate the takeoff angle (degrees) from the precomputed table.
         """
@@ -203,7 +231,9 @@ class TravelTimeTables:
         frac = (depth - depth0) / (depth1 - depth0)
         return p0 + frac * (p1 - p0)
 
-    def _interp_time_one_depth(self, phase: str, depth_index: int, distance: float) -> float:
+    def _interp_time_one_depth(
+        self, phase: str, depth_index: int, distance: float
+    ) -> float:
         times_row = self.travel_time_tables[phase][depth_index]
         dist_grid = self.distance_grid
         if distance <= dist_grid[0]:
@@ -250,7 +280,9 @@ class TravelTimeTables:
         termC = yC * (distance - xA) * (distance - xB) / denomC
         return termA + termB + termC
 
-    def _interp_takeoff_angle_one_depth(self, phase: str, depth_index: int, distance: float) -> float:
+    def _interp_takeoff_angle_one_depth(
+        self, phase: str, depth_index: int, distance: float
+    ) -> float:
         angle_row = self.takeoff_angle_tables[phase][depth_index]
         dist_grid = self.distance_grid
         if distance <= dist_grid[0]:
@@ -292,7 +324,9 @@ class TravelTimeTables:
             + yC * (distance - xA) * (distance - xB) / denomC
         )
 
-    def _interp_ray_param_one_depth(self, phase: str, depth_index: int, distance: float) -> float:
+    def _interp_ray_param_one_depth(
+        self, phase: str, depth_index: int, distance: float
+    ) -> float:
         params_row = self.ray_param_tables[phase][depth_index]
         dist_grid = self.distance_grid
         if distance <= dist_grid[0]:
@@ -339,6 +373,3 @@ class TravelTimeTables:
         termC = yC * (distance - xA) * (distance - xB) / denomC
         return termA + termB + termC
 
-# --- End of TravelTimeTables class ---
-
-# If you want to add utility functions for velocity model access or other helpers, add them here.
