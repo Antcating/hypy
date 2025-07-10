@@ -18,18 +18,20 @@ class EventLocator:
     """
     def __init__(
         self,
-        model: TauPyModel,
+        # model: TauPyModel,
+        model: str,
         dim: int = 3,
         phases: List[str] = ["P"],
         max_depth: float = 20.0,
         max_distance: float = 100.0,
         depth_step: float = 1.0,
-        distance_step: float = 2.0,
+        distance_step: float = 1.0,
     ):
         """
         Initialize the EventLocator with a velocity model and configure travel-time tables.
         """
-        self.model = model
+        self.model = TauPyModel(model)
+        self.model_name = model
         self.dim = dim
         self.phases = phases
         self.n_phases = len(phases)

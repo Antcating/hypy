@@ -19,7 +19,7 @@ class TravelTimeTables:
 
     def __init__(
         self,
-        model: TauPyModel,
+        model: str,
         phases: List[str],
         max_depth: float,
         max_distance: float,
@@ -27,7 +27,8 @@ class TravelTimeTables:
         distance_step: float,
         overwrite: bool = False,
     ):
-        self.model = model
+        self.model = TauPyModel(model)
+        self.model_name = model
         self.phases = phases
         self.max_depth = max_depth
         self.max_distance = max_distance
@@ -43,7 +44,7 @@ class TravelTimeTables:
     def _table_filename(self) -> str:
         phase_str = "_".join(sorted(self.phases))
         table_root_dir = Path(__file__).parent
-        table_name = f"travel_time_tables_{phase_str}_d{self.max_depth}_r{self.max_distance}_dz{self.depth_step}_dr{self.distance_step}.npz"
+        table_name = f"travel_time_tables_{self.model_name}_{phase_str}_d{self.max_depth}_r{self.max_distance}_dz{self.depth_step}_dr{self.distance_step}.npz"
         return os.path.join(table_root_dir, "data", table_name)
 
     def save(self, filename: Optional[str] = None) -> None:
