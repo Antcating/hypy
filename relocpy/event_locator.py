@@ -36,18 +36,18 @@ class EventLocator:
         self.tables = TravelTimeTables(
             model, phases, max_depth, max_distance, depth_step, distance_step
         )
-        self.inv: Optional[Inventory] = None
+        self.inv: Inventory
         self.networks: List[str] = []
         self.stations: List[Tuple[str, str]] = []
         self.stations_locations: List[Tuple[float, float, float]] = []
         self.n_stations: int = 0
         self.events: List[Event] = []
         self.n_events: int = 0
-        self.origin_times: Optional[np.ndarray] = None
-        self.arrivals: Optional[np.ndarray] = None
-        self.theoretical_arrivals: Optional[np.ndarray] = None
-        self.derivative_matrix: Optional[lil_matrix] = None
-        self.locations: Optional[np.ndarray] = None
+        self.origin_times: np.ndarray
+        self.arrivals: np.ndarray
+        self.theoretical_arrivals: np.ndarray
+        self.derivative_matrix: lil_matrix
+        self.locations: np.ndarray
 
     def load_data(self, inv: Inventory, events: List[Event]) -> None:
         """
@@ -154,6 +154,7 @@ class EventLocator:
         from obspy.geodetics import kilometer2degrees
         self.init_locations()
         prev_max_update = np.inf
+        max_update = 0.0
         if damping_list is None:
             damping_list = [0.0] * max_iterations
         self.invalid_events = np.zeros(self.n_events, dtype=bool)
@@ -201,7 +202,6 @@ class EventLocator:
                         residual_mean[event_idx] = mean_res
                         b[event_rows] -= mean_res
                 self.origin_times -= residual_mean
-            from scipy.sparse.linalg import lsqr
             damping = damping_list[it] if it < len(damping_list) else damping_list[-1]
             dx_solution = lsqr(A, b, damp=damping, atol=1e-6, btol=1e-6, iter_lim=1000)[0]
             dx = dx_solution.reshape((self.n_events, self.dim))

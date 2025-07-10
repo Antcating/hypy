@@ -33,8 +33,8 @@ class TravelTimeTables:
         self.max_distance = max_distance
         self.depth_step = depth_step
         self.distance_step = distance_step
-        self.depth_grid: Optional[np.ndarray] = None
-        self.distance_grid: Optional[np.ndarray] = None
+        self.depth_grid: np.ndarray
+        self.distance_grid: np.ndarray
         self.travel_time_tables: Dict[str, np.ndarray] = {}
         self.ray_param_tables: Dict[str, np.ndarray] = {}
         self.takeoff_angle_tables: Dict[str, np.ndarray] = {}
