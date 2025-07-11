@@ -4,7 +4,7 @@ travel_time_tables.py
 Handles travel-time, ray-parameter, and takeoff angle table creation, saving, loading, and interpolation.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable
 import numpy as np
 from obspy.taup import TauPyModel
 from obspy.geodetics import kilometer2degrees
@@ -159,31 +159,63 @@ class TravelTimeTables:
         print(f"Saving travel-time tables to {fname}")
         self.save(fname)
 
+    def interpolate_2d_slice(
+        self,
+        phase: str,
+        depth: float,
+        distance: float,
+        interp_1d_func: Callable,
+    ) -> float:
+        """
+        Interpolate in (depth, distance) space using adaptive 1D interpolation along distance and linear in depth.
+
+        Parameters:
+        - depth, distance: Coordinates to interpolate at
+        - depth_grid, distance_grid: Grid axes
+        - data_table: dict of phase → 2D array [depth, distance]
+        - interp_1d_func: function(phase, depth_index, distance) → float
+
+        Returns:
+        - interpolated value
+        """
+        if self.depth_grid is None or self.distance_grid is None:
+            raise ValueError("Interpolation grid not initialized.")
+
+        # Clamp values
+        depth = max(min(depth, self.depth_grid[-1]), self.depth_grid[0])
+        distance = max(min(distance, self.distance_grid[-1]), self.distance_grid[0])
+
+        # Locate depth interval
+        i1 = int(np.searchsorted(self.depth_grid, depth))
+        i0 = i1 - 1
+        if i0 < 0:
+            i0 = 0
+        if i1 >= len(self.depth_grid):
+            i1 = len(self.depth_grid) - 1
+        if i0 == i1:
+            return interp_1d_func(phase, i0, distance)
+
+        # Interpolate at both depths
+        val0 = interp_1d_func(phase, i0, distance)
+        val1 = interp_1d_func(phase, i1, distance)
+        d0, d1 = self.depth_grid[i0], self.depth_grid[i1]
+        if d1 == d0:
+            return val0
+        frac = (depth - d0) / (d1 - d0)
+        return val0 + frac * (val1 - val0)
+
     def interpolate_travel_time(
         self, phase: str, depth: float, distance: float
     ) -> float:
         """
         Interpolate the travel time (seconds) for a given phase, source depth (km), and distance (km) from the precomputed table.
         """
-        if self.depth_grid is None or self.distance_grid is None:
-            raise ValueError("Travel-time tables not initialized.")
-        depth = max(min(depth, self.depth_grid[-1]), self.depth_grid[0])
-        distance = max(min(distance, self.distance_grid[-1]), self.distance_grid[0])
-        i1 = int(np.searchsorted(self.depth_grid, depth))
-        i0 = int(i1 - 1)
-        if i0 < 0:
-            i0 = 0
-        if i1 >= len(self.depth_grid):
-            i1 = len(self.depth_grid) - 1
-        if i0 == i1:
-            return self._interp_time_one_depth(phase, int(i0), distance)
-        t0 = self._interp_time_one_depth(phase, int(i0), distance)
-        t1 = self._interp_time_one_depth(phase, int(i1), distance)
-        depth0, depth1 = self.depth_grid[i0], self.depth_grid[i1]
-        if depth1 == depth0:
-            return t0
-        frac = (depth - depth0) / (depth1 - depth0)
-        return t0 + frac * (t1 - t0)
+        return self.interpolate_2d_slice(
+            phase,
+            depth,
+            distance,
+            self._interp_time_one_depth,
+        )
 
     def interpolate_takeoff_angle(
         self, phase: str, depth: float, distance: float
@@ -191,54 +223,41 @@ class TravelTimeTables:
         """
         Interpolate the takeoff angle (degrees) from the precomputed table.
         """
-        if self.depth_grid is None or self.distance_grid is None:
-            raise ValueError("Takeoff angle table is not initialized.")
-        depth = max(min(depth, self.depth_grid[-1]), self.depth_grid[0])
-        distance = max(min(distance, self.distance_grid[-1]), self.distance_grid[0])
-        i1 = int(np.searchsorted(self.depth_grid, depth))
-        i0 = int(i1 - 1)
-        if i0 < 0:
-            i0 = 0
-        if i1 >= len(self.depth_grid):
-            i1 = len(self.depth_grid) - 1
-        if i0 == i1:
-            return self._interp_takeoff_angle_one_depth(phase, int(i0), distance)
-        t0 = self._interp_takeoff_angle_one_depth(phase, int(i0), distance)
-        t1 = self._interp_takeoff_angle_one_depth(phase, int(i1), distance)
-        d0, d1 = self.depth_grid[i0], self.depth_grid[i1]
-        if d1 == d0:
-            return t0
-        return t0 + (depth - d0) / (d1 - d0) * (t1 - t0)
+        return self.interpolate_2d_slice(
+            phase,
+            depth,
+            distance,
+            self._interp_takeoff_angle_one_depth,
+        )
 
     def interpolate_ray_param(self, phase: str, depth: float, distance: float) -> float:
         """
         Interpolate the ray parameter (s/radian) for a given phase, source depth, and distance from the precomputed table.
         """
-        if self.depth_grid is None or self.distance_grid is None:
-            raise ValueError("Travel-time tables not initialized.")
-        depth = max(min(depth, self.depth_grid[-1]), self.depth_grid[0])
-        distance = max(min(distance, self.distance_grid[-1]), self.distance_grid[0])
-        i1 = int(np.searchsorted(self.depth_grid, depth))
-        i0 = int(i1 - 1)
-        if i0 < 0:
-            i0 = 0
-        if i1 >= len(self.depth_grid):
-            i1 = len(self.depth_grid) - 1
-        if i0 == i1:
-            return self._interp_ray_param_one_depth(phase, int(i0), distance)
-        p0 = self._interp_ray_param_one_depth(phase, int(i0), distance)
-        p1 = self._interp_ray_param_one_depth(phase, int(i1), distance)
-        depth0, depth1 = self.depth_grid[i0], self.depth_grid[i1]
-        if depth1 == depth0:
-            return p0
-        frac = (depth - depth0) / (depth1 - depth0)
-        return p0 + frac * (p1 - p0)
+        return self.interpolate_2d_slice(
+            phase,
+            depth,
+            distance,
+            self._interp_ray_param_one_depth,
+        )
 
-    def _interp_time_one_depth(self, phase: str, depth_index: int, distance: float) -> float:
-        return adaptive_interp_1d(distance, self.distance_grid, self.travel_time_tables[phase][depth_index])
+    def _interp_time_one_depth(
+        self, phase: str, depth_index: int, distance: float
+    ) -> float:
+        return adaptive_interp_1d(
+            distance, self.distance_grid, self.travel_time_tables[phase][depth_index]
+        )
 
-    def _interp_takeoff_angle_one_depth(self, phase: str, depth_index: int, distance: float) -> float:
-        return adaptive_interp_1d(distance, self.distance_grid, self.takeoff_angle_tables[phase][depth_index])
+    def _interp_takeoff_angle_one_depth(
+        self, phase: str, depth_index: int, distance: float
+    ) -> float:
+        return adaptive_interp_1d(
+            distance, self.distance_grid, self.takeoff_angle_tables[phase][depth_index]
+        )
 
-    def _interp_ray_param_one_depth(self, phase: str, depth_index: int, distance: float) -> float:
-        return adaptive_interp_1d(distance, self.distance_grid, self.ray_param_tables[phase][depth_index])
+    def _interp_ray_param_one_depth(
+        self, phase: str, depth_index: int, distance: float
+    ) -> float:
+        return adaptive_interp_1d(
+            distance, self.distance_grid, self.ray_param_tables[phase][depth_index]
+        )
