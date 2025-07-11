@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "relocpy"
+name = "hypy"
 version = "1.1.0"
 description = "A Python package for locating seismic events based on seismic arrivals."
 authors = [{ name = "Yevhenii Antcating"}]
