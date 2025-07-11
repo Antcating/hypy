@@ -11,6 +11,8 @@ from obspy.geodetics import kilometer2degrees
 import os
 from pathlib import Path
 
+from hypy.utils.interp import adaptive_interp_1d
+
 
 class TravelTimeTables:
     """
@@ -232,145 +234,11 @@ class TravelTimeTables:
         frac = (depth - depth0) / (depth1 - depth0)
         return p0 + frac * (p1 - p0)
 
-    def _interp_time_one_depth(
-        self, phase: str, depth_index: int, distance: float
-    ) -> float:
-        times_row = self.travel_time_tables[phase][depth_index]
-        dist_grid = self.distance_grid
-        if distance <= dist_grid[0]:
-            return times_row[0]
-        if distance >= dist_grid[-1]:
-            j0 = len(dist_grid) - 2
-            j1 = len(dist_grid) - 1
-            x0, x1 = dist_grid[j0], dist_grid[j1]
-            y0, y1 = times_row[j0], times_row[j1]
-            if x1 == x0:
-                return y1
-            return y1 + (distance - x1) * (y1 - y0) / (x1 - x0)
-        j1 = np.searchsorted(dist_grid, distance)
-        j0 = j1 - 1
-        if j0 < 0:
-            j0 = 0
-            j1 = 0
-        if j1 >= len(dist_grid):
-            j1 = len(dist_grid) - 1
-            j0 = j1
-        if dist_grid[j0] == distance or j0 == j1:
-            return times_row[j0]
-        if j0 >= 1 and j1 < len(dist_grid) - 1:
-            if (distance - dist_grid[j0]) < (dist_grid[j1] - distance):
-                idxs = [j0 - 1, j0, j1]
-            else:
-                idxs = [j0, j1, j1 + 1]
-        else:
-            idxs = [j0, j1]
-        if len(idxs) == 2:
-            x0, x1 = dist_grid[idxs[0]], dist_grid[idxs[1]]
-            y0, y1 = times_row[idxs[0]], times_row[idxs[1]]
-            if x1 == x0:
-                return y0
-            return y0 + (distance - x0) / (x1 - x0) * (y1 - y0)
-        jA, jB, jC = idxs
-        xA, xB, xC = dist_grid[jA], dist_grid[jB], dist_grid[jC]
-        yA, yB, yC = times_row[jA], times_row[jB], times_row[jC]
-        denomA = (xA - xB) * (xA - xC)
-        denomB = (xB - xA) * (xB - xC)
-        denomC = (xC - xA) * (xC - xB)
-        termA = yA * (distance - xB) * (distance - xC) / denomA
-        termB = yB * (distance - xA) * (distance - xC) / denomB
-        termC = yC * (distance - xA) * (distance - xB) / denomC
-        return termA + termB + termC
+    def _interp_time_one_depth(self, phase: str, depth_index: int, distance: float) -> float:
+        return adaptive_interp_1d(distance, self.distance_grid, self.travel_time_tables[phase][depth_index])
 
-    def _interp_takeoff_angle_one_depth(
-        self, phase: str, depth_index: int, distance: float
-    ) -> float:
-        angle_row = self.takeoff_angle_tables[phase][depth_index]
-        dist_grid = self.distance_grid
-        if distance <= dist_grid[0]:
-            return angle_row[0]
-        if distance >= dist_grid[-1]:
-            j0 = len(dist_grid) - 2
-            j1 = len(dist_grid) - 1
-            x0, x1 = dist_grid[j0], dist_grid[j1]
-            y0, y1 = angle_row[j0], angle_row[j1]
-            return y1 + (distance - x1) * (y1 - y0) / (x1 - x0)
-        j1 = np.searchsorted(dist_grid, distance)
-        j0 = j1 - 1
-        if j0 < 0:
-            j0 = 0
-        if j1 >= len(dist_grid):
-            j1 = len(dist_grid) - 1
-        if dist_grid[j0] == distance or j0 == j1:
-            return angle_row[j0]
-        if j0 >= 1 and j1 < len(dist_grid) - 1:
-            if (distance - dist_grid[j0]) < (dist_grid[j1] - distance):
-                idxs = [j0 - 1, j0, j1]
-            else:
-                idxs = [j0, j1, j1 + 1]
-        else:
-            idxs = [j0, j1]
-        if len(idxs) == 2:
-            x0, x1 = dist_grid[idxs[0]], dist_grid[idxs[1]]
-            y0, y1 = angle_row[idxs[0]], angle_row[idxs[1]]
-            return y0 + (distance - x0) / (x1 - x0) * (y1 - y0)
-        jA, jB, jC = idxs
-        xA, xB, xC = dist_grid[jA], dist_grid[jB], dist_grid[jC]
-        yA, yB, yC = angle_row[jA], angle_row[jB], angle_row[jC]
-        denomA = (xA - xB) * (xA - xC)
-        denomB = (xB - xA) * (xB - xC)
-        denomC = (xC - xA) * (xC - xB)
-        return (
-            yA * (distance - xB) * (distance - xC) / denomA
-            + yB * (distance - xA) * (distance - xC) / denomB
-            + yC * (distance - xA) * (distance - xB) / denomC
-        )
+    def _interp_takeoff_angle_one_depth(self, phase: str, depth_index: int, distance: float) -> float:
+        return adaptive_interp_1d(distance, self.distance_grid, self.takeoff_angle_tables[phase][depth_index])
 
-    def _interp_ray_param_one_depth(
-        self, phase: str, depth_index: int, distance: float
-    ) -> float:
-        params_row = self.ray_param_tables[phase][depth_index]
-        dist_grid = self.distance_grid
-        if distance <= dist_grid[0]:
-            return params_row[0]
-        if distance >= dist_grid[-1]:
-            j0 = len(dist_grid) - 2
-            j1 = len(dist_grid) - 1
-            x0, x1 = dist_grid[j0], dist_grid[j1]
-            y0, y1 = params_row[j0], params_row[j1]
-            if x1 == x0:
-                return y1
-            return y1 + (distance - x1) * (y1 - y0) / (x1 - x0)
-        j1 = np.searchsorted(dist_grid, distance)
-        j0 = j1 - 1
-        if j0 < 0:
-            j0 = 0
-            j1 = 0
-        if j1 >= len(dist_grid):
-            j1 = len(dist_grid) - 1
-            j0 = j1
-        if dist_grid[j0] == distance or j0 == j1:
-            return params_row[j0]
-        if j0 >= 1 and j1 < len(dist_grid) - 1:
-            if (distance - dist_grid[j0]) < (dist_grid[j1] - distance):
-                idxs = [j0 - 1, j0, j1]
-            else:
-                idxs = [j0, j1, j1 + 1]
-        else:
-            idxs = [j0, j1]
-        if len(idxs) == 2:
-            x0, x1 = dist_grid[idxs[0]], dist_grid[idxs[1]]
-            y0, y1 = params_row[idxs[0]], params_row[idxs[1]]
-            if x1 == x0:
-                return y0
-            return y0 + (distance - x0) / (x1 - x0) * (y1 - y0)
-        jA, jB, jC = idxs
-        xA, xB, xC = dist_grid[jA], dist_grid[jB], dist_grid[jC]
-        yA, yB, yC = params_row[jA], params_row[jB], params_row[jC]
-        denomA = (xA - xB) * (xA - xC)
-        denomB = (xB - xA) * (xB - xC)
-        denomC = (xC - xA) * (xC - xB)
-        termA = yA * (distance - xB) * (distance - xC) / denomA
-        termB = yB * (distance - xA) * (distance - xC) / denomB
-        termC = yC * (distance - xA) * (distance - xB) / denomC
-        return termA + termB + termC
-
+    def _interp_ray_param_one_depth(self, phase: str, depth_index: int, distance: float) -> float:
+        return adaptive_interp_1d(distance, self.distance_grid, self.ray_param_tables[phase][depth_index])
