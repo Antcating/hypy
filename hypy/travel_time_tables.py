@@ -95,6 +95,7 @@ class TravelTimeTables:
         distance_values = np.arange(0.0, self.max_distance + 1e-6, self.distance_step)
         self.depth_grid = depth_values
         self.distance_grid = distance_values
+        
         for phase in self.phases:
             self.travel_time_tables[phase] = np.full(
                 (len(depth_values), len(distance_values)), np.nan
@@ -162,27 +163,30 @@ class TravelTimeTables:
     def interpolate_travel_time(
         self, phase: str, depth: float, distance: float
     ) -> float:
-        return self._interpolate_quantity(
-            phase, depth, distance, self.travel_time_tables
+        return interp_quant(
+            depth,
+            distance,
+            self.depth_grid,
+            self.distance_grid,
+            self.travel_time_tables[phase],
         )
 
     def interpolate_takeoff_angle(
         self, phase: str, depth: float, distance: float
-    ) -> float:
-        return self._interpolate_quantity(
-            phase, depth, distance, self.takeoff_angle_tables
-        )
-
-    def interpolate_ray_param(self, phase: str, depth: float, distance: float) -> float:
-        return self._interpolate_quantity(phase, depth, distance, self.ray_param_tables)
-
-    def _interpolate_quantity(
-        self, phase: str, depth: float, distance: float, table: Dict[str, np.ndarray]
     ) -> float:
         return interp_quant(
             depth,
             distance,
             self.depth_grid,
             self.distance_grid,
-            table[phase],
+            self.takeoff_angle_tables[phase],
+        )
+
+    def interpolate_ray_param(self, phase: str, depth: float, distance: float) -> float:
+        return interp_quant(
+            depth,
+            distance,
+            self.depth_grid,
+            self.distance_grid,
+            self.ray_param_tables[phase],
         )
