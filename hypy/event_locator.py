@@ -12,7 +12,7 @@ from obspy.core.event import Event
 from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import lsqr
 from .travel_time_tables import TravelTimeTables
-from .utils.geo import gps2dist_azimuth_numba
+from .utils.geo import gps2dist_azimuth_numba, compute_spatial_derivatives
 
 
 class EventLocator:
@@ -164,11 +164,9 @@ class EventLocator:
         )
         vel = self._get_velocity(ev_depth, phase)
         takeoff_rad = np.deg2rad(takeoff_angle)
-        dt_dr = np.sin(takeoff_rad) / vel
-        dt_dz = -np.cos(takeoff_rad) / vel
-        az_rad = np.deg2rad(az_deg)
-        dt_dx = -dt_dr * np.cos(az_rad)
-        dt_dy = -dt_dr * np.sin(az_rad)
+        dt_dr, dt_dz, dt_dx, dt_dy = compute_spatial_derivatives(
+            takeoff_rad, az_deg, vel
+        )
         return travel_time, dt_dx, dt_dy, dt_dz
 
     def init_locations(

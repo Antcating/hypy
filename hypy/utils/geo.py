@@ -1,7 +1,7 @@
 from numba import njit
 import numpy as np
 
-@njit
+@njit(cache=True)
 def gps2dist_azimuth_numba(lat1, lon1, lat2, lon2, R=6371.0e3):
     """
     Compute distance (meters), azimuth (degrees), and back azimuth (degrees)
@@ -36,3 +36,18 @@ def gps2dist_azimuth_numba(lat1, lon1, lat2, lon2, R=6371.0e3):
     back_azimuth = np.degrees(np.arctan2(y_back, x_back)) % 360
 
     return distance, azimuth, back_azimuth
+
+@njit(cache=True)
+def compute_spatial_derivatives(
+    takeoff_rad: float, az_deg: float, vel: float
+) -> tuple:
+    """
+    Calculate spatial derivatives for travel-time, ray-parameter, and takeoff angle.
+    """
+    dt_dr = np.sin(takeoff_rad) / vel
+    dt_dz = -np.cos(takeoff_rad) / vel
+    az_rad = np.deg2rad(az_deg)
+    dt_dx = -dt_dr * np.cos(az_rad)
+    dt_dy = -dt_dr * np.sin(az_rad)
+
+    return dt_dr, dt_dz, dt_dx, dt_dy
