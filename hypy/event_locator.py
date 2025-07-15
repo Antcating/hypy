@@ -9,7 +9,6 @@ import numpy as np
 from obspy.taup import TauPyModel
 from obspy.core.inventory import Inventory
 from obspy.core.event import Event
-from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import lsqr
 from .travel_time_tables import TravelTimeTables
 from .utils.geo import gps2dist_azimuth_numba, compute_spatial_derivatives
@@ -51,7 +50,7 @@ class EventLocator:
         self.origin_times: np.ndarray
         self.arrivals: np.ndarray
         self.theoretical_arrivals: np.ndarray
-        self.derivative_matrix: lil_matrix
+        self.derivative_matrix: np.ndarray
         self.locations: np.ndarray
         # Precompute velocity profiles for each phase
         self._precompute_velocity_profiles(max_depth, depth_step)
@@ -107,7 +106,7 @@ class EventLocator:
         self.origin_times = np.zeros(n_events)
         self.arrivals = np.full((n_events, n_phases * n_stations), np.nan)
         self.theoretical_arrivals = np.zeros((n_events, n_phases * n_stations))
-        self.derivative_matrix = lil_matrix(
+        self.derivative_matrix = np.zeros(
             (n_events * n_phases * n_stations, n_events * self.dim)
         )
         self.locations = np.zeros((n_events, self.dim))
@@ -246,7 +245,7 @@ class EventLocator:
             residuals_flat = residuals.flatten()
             valid_rows = np.array(valid_rows, dtype=int)
             b = residuals_flat[valid_rows]
-            A = self.derivative_matrix.tocsr()[valid_rows, :]
+            A = self.derivative_matrix[valid_rows, :]
             if self.n_events > 0:
                 factor = self.n_stations * self.n_phases
                 event_indices = valid_rows // factor
