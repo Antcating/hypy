@@ -1,11 +1,13 @@
 import numpy as np
 from numba import njit
 
+
 @njit
 def linear_interp(x, x0, x1, y0, y1):
     if x1 == x0:
         return y0
     return y0 + (x - x0) / (x1 - x0) * (y1 - y0)
+
 
 @njit
 def lagrange_interp(x, x_vals, y_vals):
@@ -19,6 +21,7 @@ def lagrange_interp(x, x_vals, y_vals):
     termB = yB * (x - xA) * (x - xC) / denomB
     termC = yC * (x - xA) * (x - xB) / denomC
     return termA + termB + termC
+
 
 @njit
 def adaptive_interp_1d(x, x_grid, y_row):
@@ -53,3 +56,44 @@ def adaptive_interp_1d(x, x_grid, y_row):
 
     # Fallback to linear interpolation
     return linear_interp(x, x_grid[j0], x_grid[j1], y_row[j0], y_row[j1])
+
+
+@njit
+def interp_one_depth(
+    distance: float, distance_grid: np.ndarray, depth_slice: np.ndarray
+) -> float:
+    return adaptive_interp_1d(distance, distance_grid, depth_slice)
+
+
+@njit
+def interp_quant(
+    depth: float,
+    distance: float,
+    depth_grid: np.ndarray,
+    distance_grid: np.ndarray,
+    table: np.ndarray,  # shape: (n_depths, n_distances)
+) -> float:
+    """
+    Numba-compatible generic interpolation over depth and distance.
+    """
+    # Clamp
+    depth = max(min(depth, depth_grid[-1]), depth_grid[0])
+    distance = max(min(distance, distance_grid[-1]), distance_grid[0])
+
+    # Locate depth bounds
+    i1 = np.searchsorted(depth_grid, depth)
+    i0 = max(i1 - 1, 0)
+    i1 = min(i1, len(depth_grid) - 1)
+
+    if i0 == i1:
+        return interp_one_depth(distance, distance_grid, table[i0])
+
+    val0 = interp_one_depth(distance, distance_grid, table[i0])
+    val1 = interp_one_depth(distance, distance_grid, table[i1])
+    d0 = depth_grid[i0]
+    d1 = depth_grid[i1]
+
+    if d1 == d0:
+        return val0
+    frac = (depth - d0) / (d1 - d0)
+    return val0 + frac * (val1 - val0)

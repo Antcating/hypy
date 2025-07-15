@@ -4,14 +4,14 @@ travel_time_tables.py
 Handles travel-time, ray-parameter, and takeoff angle table creation, saving, loading, and interpolation.
 """
 
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional
 import numpy as np
 from obspy.taup import TauPyModel
 from obspy.geodetics import kilometer2degrees
 import os
 from pathlib import Path
 
-from hypy.utils.interp import adaptive_interp_1d
+from hypy.utils.interp import interp_quant
 
 
 class TravelTimeTables:
@@ -176,41 +176,13 @@ class TravelTimeTables:
     def interpolate_ray_param(self, phase: str, depth: float, distance: float) -> float:
         return self._interpolate_quantity(phase, depth, distance, self.ray_param_tables)
 
-    def _interp_one_depth(
-        self,
-        phase: str,
-        depth_index: int,
-        distance: float,
-        table: Dict[str, np.ndarray],
-    ) -> float:
-        return adaptive_interp_1d(
-            distance, self.distance_grid, table[phase][depth_index]
-        )
-
     def _interpolate_quantity(
         self, phase: str, depth: float, distance: float, table: Dict[str, np.ndarray]
     ) -> float:
-        """
-        Generic interpolation for travel-time-related quantities.
-        """
-        if self.depth_grid is None or self.distance_grid is None:
-            raise ValueError("Interpolation grid not initialized.")
-
-        # Clamp input values
-        depth = np.clip(depth, self.depth_grid[0], self.depth_grid[-1])
-        distance = np.clip(distance, self.distance_grid[0], self.distance_grid[-1])
-
-        # Locate depth interval
-        i1 = int(np.searchsorted(self.depth_grid, depth))
-        i0 = max(i1 - 1, 0)
-        i1 = min(i1, len(self.depth_grid) - 1)
-
-        if i0 == i1:
-            return self._interp_one_depth(phase, i0, distance, table)
-
-        val0 = self._interp_one_depth(phase, i0, distance, table)
-        val1 = self._interp_one_depth(phase, i1, distance, table)
-        d0, d1 = self.depth_grid[i0], self.depth_grid[i1]
-
-        frac = (depth - d0) / (d1 - d0) if d1 != d0 else 0.0
-        return val0 + frac * (val1 - val0)
+        return interp_quant(
+            depth,
+            distance,
+            self.depth_grid,
+            self.distance_grid,
+            table[phase],
+        )
