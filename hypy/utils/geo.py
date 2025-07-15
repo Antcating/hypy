@@ -15,24 +15,24 @@ def gps2dist_azimuth_numba(lat1, lon1, lat2, lon2, R=6371.0e3):
     - distance (meters), azimuth (deg), back_azimuth (deg)
     """
     # Convert to radians
-    φ1 = np.radians(lat1)
-    φ2 = np.radians(lat2)
-    Δφ = φ2 - φ1
-    Δλ = np.radians(lon2 - lon1)
+    lan1_rad = np.radians(lat1)
+    lat2_rad = np.radians(lat2)
+    d_lat_rad = lat2_rad - lan1_rad
+    d_lon_rad = np.radians(lon2 - lon1)
 
     # Haversine distance
-    a = np.sin(Δφ / 2) ** 2 + np.cos(φ1) * np.cos(φ2) * np.sin(Δλ / 2) ** 2
+    a = np.sin(d_lat_rad / 2) ** 2 + np.cos(lan1_rad) * np.cos(lat2_rad) * np.sin(d_lon_rad / 2) ** 2
     c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
     distance = R * c
 
     # Azimuth
-    y = np.sin(Δλ) * np.cos(φ2)
-    x = np.cos(φ1) * np.sin(φ2) - np.sin(φ1) * np.cos(φ2) * np.cos(Δλ)
+    y = np.sin(d_lon_rad) * np.cos(lat2_rad)
+    x = np.cos(lan1_rad) * np.sin(lat2_rad) - np.sin(lan1_rad) * np.cos(lat2_rad) * np.cos(d_lon_rad)
     azimuth = np.degrees(np.arctan2(y, x)) % 360
 
     # Back azimuth
-    y_back = -np.sin(Δλ) * np.cos(φ1)
-    x_back = np.cos(φ2) * np.sin(φ1) - np.sin(φ2) * np.cos(φ1) * np.cos(-Δλ)
+    y_back = -np.sin(d_lon_rad) * np.cos(lan1_rad)
+    x_back = np.cos(lat2_rad) * np.sin(lan1_rad) - np.sin(lat2_rad) * np.cos(lan1_rad) * np.cos(-d_lon_rad)
     back_azimuth = np.degrees(np.arctan2(y_back, x_back)) % 360
 
     return distance, azimuth, back_azimuth
