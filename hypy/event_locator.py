@@ -3,23 +3,25 @@ event_locator.py
 ----------------
 Contains the EventLocator class for earthquake location using travel-time tables.
 """
+
 from typing import List, Tuple, Optional
 import numpy as np
 from obspy.taup import TauPyModel
 from obspy.core.inventory import Inventory
-from obspy.geodetics import gps2dist_azimuth
 from obspy.core.event import Event
 from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import lsqr
 from .travel_time_tables import TravelTimeTables
+from .utils.geo import gps2dist_azimuth_numba
+
 
 class EventLocator:
     """
     Earthquake event locator using precomputed travel-time tables.
     """
+
     def __init__(
         self,
-        # model: TauPyModel,
         model: str,
         dim: int = 3,
         phases: List[str] = ["P"],
@@ -51,6 +53,33 @@ class EventLocator:
         self.theoretical_arrivals: np.ndarray
         self.derivative_matrix: lil_matrix
         self.locations: np.ndarray
+        # Precompute velocity profiles for each phase
+        self._precompute_velocity_profiles(max_depth, depth_step)
+
+    def _precompute_velocity_profiles(self, max_depth, depth_step):
+        """
+        Precompute and store velocity as a function of depth for each phase.
+        """
+        self.velocity_profiles = {}
+        depths = np.arange(0, max_depth + depth_step, depth_step)
+        for phase in self.phases:
+            phase_lower = phase.lower()
+            v_profile = []
+            for d in depths:
+                try:
+                    v = self.model.model.s_mod.v_mod.evaluate_below(d, phase_lower)[0]
+                except Exception:
+                    v = np.nan
+                v_profile.append(v)
+            self.velocity_profiles[phase_lower] = (depths, np.array(v_profile))
+
+    def _get_velocity(self, depth, phase):
+        """
+        Interpolate velocity for a given depth and phase from precomputed profile.
+        """
+        phase_lower = phase.lower()
+        depths, v_profile = self.velocity_profiles[phase_lower]
+        return np.interp(depth, depths, v_profile)
 
     def load_data(self, inv: Inventory, events: List[Event]) -> None:
         """
@@ -78,7 +107,9 @@ class EventLocator:
         self.origin_times = np.zeros(n_events)
         self.arrivals = np.full((n_events, n_phases * n_stations), np.nan)
         self.theoretical_arrivals = np.zeros((n_events, n_phases * n_stations))
-        self.derivative_matrix = lil_matrix((n_events * n_phases * n_stations, n_events * self.dim))
+        self.derivative_matrix = lil_matrix(
+            (n_events * n_phases * n_stations, n_events * self.dim)
+        )
         self.locations = np.zeros((n_events, self.dim))
 
     def _fill_data(self) -> None:
@@ -99,25 +130,39 @@ class EventLocator:
                         None,
                     )
                     arrival_time = np.nan if pick is None else pick.time
-                    self.arrivals[event_idx, self.n_phases * station_idx + phase_idx] = arrival_time
+                    self.arrivals[
+                        event_idx, self.n_phases * station_idx + phase_idx
+                    ] = arrival_time
 
-    def _interpolate_travel_time(self, phase: str, depth: float, distance: float) -> float:
+    def _interpolate_travel_time(
+        self, phase: str, depth: float, distance: float
+    ) -> float:
         return self.tables.interpolate_travel_time(phase, depth, distance)
 
-    def _interpolate_takeoff_angle(self, phase: str, depth: float, distance: float) -> float:
+    def _interpolate_takeoff_angle(
+        self, phase: str, depth: float, distance: float
+    ) -> float:
         return self.tables.interpolate_takeoff_angle(phase, depth, distance)
 
-    def _interpolate_ray_param(self, phase: str, depth: float, distance: float) -> float:
+    def _interpolate_ray_param(
+        self, phase: str, depth: float, distance: float
+    ) -> float:
         return self.tables.interpolate_ray_param(phase, depth, distance)
 
     def _derive_travel_time_param(self, event_location, station_location, phase):
         ev_lat, ev_lon, ev_depth = event_location
         st_lat, st_lon, st_elev = station_location
-        dist_m, az_deg, _ = gps2dist_azimuth(ev_lat, ev_lon, st_lat, st_lon)
+        dist_m, az_deg, _ = gps2dist_azimuth_numba(
+            ev_lat, ev_lon, st_lat, st_lon, R=self.model.model.radius_of_planet * 1000.0
+        )
         distance_km = dist_m / 1000.0
-        travel_time = self._interpolate_travel_time(phase, ev_depth + st_elev / 1000, distance_km)
-        takeoff_angle = self._interpolate_takeoff_angle(phase, ev_depth + st_elev / 1000, distance_km)
-        vel = self.model.model.s_mod.v_mod.evaluate_below(ev_depth, phase.lower())[0]
+        travel_time = self._interpolate_travel_time(
+            phase, ev_depth + st_elev / 1000, distance_km
+        )
+        takeoff_angle = self._interpolate_takeoff_angle(
+            phase, ev_depth + st_elev / 1000, distance_km
+        )
+        vel = self._get_velocity(ev_depth, phase)
         takeoff_rad = np.deg2rad(takeoff_angle)
         dt_dr = np.sin(takeoff_rad) / vel
         dt_dz = -np.cos(takeoff_rad) / vel
@@ -126,7 +171,9 @@ class EventLocator:
         dt_dy = -dt_dr * np.sin(az_rad)
         return travel_time, dt_dx, dt_dy, dt_dz
 
-    def init_locations(self, trial_depth: float = 10.0, trial_time: float = 2.0) -> np.ndarray:
+    def init_locations(
+        self, trial_depth: float = 10.0, trial_time: float = 2.0
+    ) -> np.ndarray:
         """
         Initialize the event locations and origin times for iterative location.
         """
@@ -137,7 +184,11 @@ class EventLocator:
             net_code = first_pick.waveform_id.network_code
             sta_code = first_pick.waveform_id.station_code
             station = self.inv.select(network=net_code, station=sta_code)[0][0]
-            self.locations[event_idx] = (station.latitude, station.longitude, trial_depth)
+            self.locations[event_idx] = (
+                station.latitude,
+                station.longitude,
+                trial_depth,
+            )
             self.origin_times[event_idx] = first_pick.time - trial_time
         return self.locations
 
@@ -154,6 +205,7 @@ class EventLocator:
         Perform iterative earthquake location for all loaded events using a linearized least-squares approach.
         """
         from obspy.geodetics import kilometer2degrees
+
         self.init_locations()
         prev_max_update = np.inf
         max_update = 0.0
@@ -174,11 +226,17 @@ class EventLocator:
                         observed_time = self.arrivals[event_idx, arr_index]
                         if np.isnan(observed_time):
                             continue
-                        travel_time, dt_dx, dt_dy, dt_dz = self._derive_travel_time_param(
-                            (ev_lat, ev_lon, ev_depth), (sta_lat, sta_lon, sta_elev), phase
+                        travel_time, dt_dx, dt_dy, dt_dz = (
+                            self._derive_travel_time_param(
+                                (ev_lat, ev_lon, ev_depth),
+                                (sta_lat, sta_lon, sta_elev),
+                                phase,
+                            )
                         )
                         self.theoretical_arrivals[event_idx, arr_index] = travel_time
-                        row_idx = event_idx * (self.n_stations * self.n_phases) + arr_index
+                        row_idx = (
+                            event_idx * (self.n_stations * self.n_phases) + arr_index
+                        )
                         if self.dim >= 2:
                             self.derivative_matrix[row_idx, col_idx + 0] = dt_dx
                             self.derivative_matrix[row_idx, col_idx + 1] = dt_dy
@@ -205,7 +263,9 @@ class EventLocator:
                         b[event_rows] -= mean_res
                 self.origin_times -= residual_mean
             damping = damping_list[it] if it < len(damping_list) else damping_list[-1]
-            dx_solution = lsqr(A, b, damp=damping, atol=1e-6, btol=1e-6, iter_lim=1000)[0]
+            dx_solution = lsqr(A, b, damp=damping, atol=1e-6, btol=1e-6, iter_lim=1000)[
+                0
+            ]
             dx = dx_solution.reshape((self.n_events, self.dim))
             max_step_xy = 3.0
             max_step_z = 2.0
@@ -217,11 +277,15 @@ class EventLocator:
             for event_idx in range(self.n_events):
                 if self.invalid_events[event_idx]:
                     continue
-                new_depth = self.locations[event_idx, 2] - (dx[event_idx, 2] if self.dim == 3 else 0.0)
+                new_depth = self.locations[event_idx, 2] - (
+                    dx[event_idx, 2] if self.dim == 3 else 0.0
+                )
                 if (not solve_airquakes and new_depth < 0.0) or (
                     it > max_depth_iterations and new_depth > max_depth
                 ):
-                    print(f"Event {event_idx} would have depth {new_depth:.2f} km out of bounds. Marking as invalid.")
+                    print(
+                        f"Event {event_idx} would have depth {new_depth:.2f} km out of bounds. Marking as invalid."
+                    )
                     self.invalid_events[event_idx] = True
                     if self.dim == 3:
                         dx[event_idx, 2] = 0.0
@@ -235,7 +299,9 @@ class EventLocator:
                     max_update = np.max(np.abs(dx[valid_mask]))
             self.locations -= dx
             if max_update < conv_threshold:
-                print(f"Converged after {it + 1} iterations (max update {max_update:.3f} km < {conv_threshold} km).")
+                print(
+                    f"Converged after {it + 1} iterations (max update {max_update:.3f} km < {conv_threshold} km)."
+                )
                 break
             if prev_max_update == 0 or prev_max_update is np.inf:
                 prev_max_update = max_update
@@ -244,7 +310,9 @@ class EventLocator:
                 abs(prev_max_update - max_update) / prev_max_update < 1e-5
                 and max_update < 0.5
             ):
-                print(f"Converged (minor change) after {it + 1} iterations (max update {max_update:.3f} km).")
+                print(
+                    f"Converged (minor change) after {it + 1} iterations (max update {max_update:.3f} km)."
+                )
                 break
             prev_max_update = max_update
         return self.locations, self.origin_times, max_update
