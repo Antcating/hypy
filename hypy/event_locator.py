@@ -7,6 +7,7 @@ from typing import List, Tuple, Optional
 import numpy as np
 from obspy.taup import TauPyModel
 from obspy.core.inventory import Inventory
+from obspy.geodetics import gps2dist_azimuth
 from obspy.core.event import Event
 from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import lsqr
@@ -110,7 +111,6 @@ class EventLocator:
         return self.tables.interpolate_ray_param(phase, depth, distance)
 
     def _derive_travel_time_param(self, event_location, station_location, phase):
-        from obspy.geodetics import gps2dist_azimuth
         ev_lat, ev_lon, ev_depth = event_location
         st_lat, st_lon, st_elev = station_location
         dist_m, az_deg, _ = gps2dist_azimuth(ev_lat, ev_lon, st_lat, st_lon)
