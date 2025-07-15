@@ -2,14 +2,14 @@ import numpy as np
 from numba import njit
 
 
-@njit
+@njit(cache=True)
 def linear_interp(x, x0, x1, y0, y1):
     if x1 == x0:
         return y0
     return y0 + (x - x0) / (x1 - x0) * (y1 - y0)
 
 
-@njit
+@njit(cache=True)
 def lagrange_interp(x, x_vals, y_vals):
     """Three-point Lagrange interpolation"""
     xA, xB, xC = x_vals[0], x_vals[1], x_vals[2]
@@ -23,7 +23,7 @@ def lagrange_interp(x, x_vals, y_vals):
     return termA + termB + termC
 
 
-@njit
+@njit(cache=True)
 def adaptive_interp_1d(x, x_grid, y_row):
     """
     Interpolate y(x) from grid data using 3-point Lagrange or linear fallback.
@@ -58,14 +58,14 @@ def adaptive_interp_1d(x, x_grid, y_row):
     return linear_interp(x, x_grid[j0], x_grid[j1], y_row[j0], y_row[j1])
 
 
-@njit
+@njit(cache=True)
 def interp_one_depth(
     distance: float, distance_grid: np.ndarray, depth_slice: np.ndarray
 ) -> float:
     return adaptive_interp_1d(distance, distance_grid, depth_slice)
 
 
-@njit
+@njit(cache=True)
 def interp_quant(
     depth: float,
     distance: float,
