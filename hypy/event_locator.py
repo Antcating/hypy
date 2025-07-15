@@ -4,12 +4,13 @@ event_locator.py
 Contains the EventLocator class for earthquake location using travel-time tables.
 """
 
-from typing import List, Tuple, Optional
 import numpy as np
 from obspy.taup import TauPyModel
-from obspy.core.inventory import Inventory
 from obspy.core.event import Event
 from scipy.sparse.linalg import lsqr
+from typing import List, Tuple, Optional
+from obspy.core.inventory import Inventory
+from obspy.geodetics import kilometer2degrees
 from .travel_time_tables import TravelTimeTables
 from .utils.geo import gps2dist_azimuth_numba, compute_spatial_derivatives
 
@@ -189,6 +190,54 @@ class EventLocator:
             self.origin_times[event_idx] = first_pick.time - trial_time
         return self.locations
 
+    def _initialize_solver_state(self, damping_list, max_iterations):
+        self.init_locations()
+        if damping_list is None:
+            damping_list = [0.0] * max_iterations
+        self.invalid_events = np.zeros(self.n_events, dtype=bool)
+        return damping_list
+
+    def _populate_derivative_matrix(self):
+        valid_rows = []
+        for event_idx in range(self.n_events):
+            if self.invalid_events[event_idx]:
+                continue
+            ev_lat, ev_lon, ev_depth = self.locations[event_idx]
+            for station_idx in range(self.n_stations):
+                sta_lat, sta_lon, sta_elev = self.stations_locations[station_idx]
+                for phase_idx, phase in enumerate(self.phases):
+                    col_idx = event_idx * self.dim
+                    arr_index = self.n_phases * station_idx + phase_idx
+                    observed_time = self.arrivals[event_idx, arr_index]
+                    if np.isnan(observed_time):
+                        continue
+                    travel_time, dt_dx, dt_dy, dt_dz = self._derive_travel_time_param(
+                        (ev_lat, ev_lon, ev_depth),
+                        (sta_lat, sta_lon, sta_elev),
+                        phase,
+                    )
+                    self.theoretical_arrivals[event_idx, arr_index] = travel_time
+                    row_idx = event_idx * (self.n_stations * self.n_phases) + arr_index
+                    if self.dim >= 2:
+                        self.derivative_matrix[row_idx, col_idx + 0] = dt_dx
+                        self.derivative_matrix[row_idx, col_idx + 1] = dt_dy
+                    if self.dim == 3:
+                        self.derivative_matrix[row_idx, col_idx + 2] = dt_dz
+                    valid_rows.append(row_idx)
+        return np.array(valid_rows, dtype=int)
+
+    def _demean_residuals_eventwise(self, residuals, valid_rows):
+        factor = self.n_stations * self.n_phases
+        event_indices = valid_rows // factor
+        residual_mean = np.zeros(self.n_events)
+        for event_idx in range(self.n_events):
+            mask = event_indices == event_idx
+            if np.any(mask):
+                mean_residual_event = np.mean(residuals[mask])
+                residual_mean[event_idx] = mean_residual_event
+                residuals[mask] -= mean_residual_event
+        self.origin_times -= residual_mean
+
     def locate(
         self,
         max_iterations: int = 10,
@@ -201,68 +250,28 @@ class EventLocator:
         """
         Perform iterative earthquake location for all loaded events using a linearized least-squares approach.
         """
-        from obspy.geodetics import kilometer2degrees
 
-        self.init_locations()
+        damping_list = self._initialize_solver_state(damping_list, max_iterations)
         prev_max_update = np.inf
         max_update = 0.0
-        if damping_list is None:
-            damping_list = [0.0] * max_iterations
-        self.invalid_events = np.zeros(self.n_events, dtype=bool)
+
         for it in range(max_iterations):
-            valid_rows = []
-            for event_idx in range(self.n_events):
-                if self.invalid_events[event_idx]:
-                    continue
-                ev_lat, ev_lon, ev_depth = self.locations[event_idx]
-                for station_idx in range(self.n_stations):
-                    sta_lat, sta_lon, sta_elev = self.stations_locations[station_idx]
-                    for phase_idx, phase in enumerate(self.phases):
-                        col_idx = event_idx * self.dim
-                        arr_index = self.n_phases * station_idx + phase_idx
-                        observed_time = self.arrivals[event_idx, arr_index]
-                        if np.isnan(observed_time):
-                            continue
-                        travel_time, dt_dx, dt_dy, dt_dz = (
-                            self._derive_travel_time_param(
-                                (ev_lat, ev_lon, ev_depth),
-                                (sta_lat, sta_lon, sta_elev),
-                                phase,
-                            )
-                        )
-                        self.theoretical_arrivals[event_idx, arr_index] = travel_time
-                        row_idx = (
-                            event_idx * (self.n_stations * self.n_phases) + arr_index
-                        )
-                        if self.dim >= 2:
-                            self.derivative_matrix[row_idx, col_idx + 0] = dt_dx
-                            self.derivative_matrix[row_idx, col_idx + 1] = dt_dy
-                        if self.dim == 3:
-                            self.derivative_matrix[row_idx, col_idx + 2] = dt_dz
-                        valid_rows.append(row_idx)
+            valid_rows = self._populate_derivative_matrix()
             travel_times_obs = self.arrivals - self.origin_times[:, np.newaxis]
             residuals = self.theoretical_arrivals - travel_times_obs
             residuals_flat = residuals.flatten()
-            valid_rows = np.array(valid_rows, dtype=int)
             b = residuals_flat[valid_rows]
             A = self.derivative_matrix[valid_rows, :]
             if self.n_events > 0:
-                factor = self.n_stations * self.n_phases
-                event_indices = valid_rows // factor
-                residual_mean = np.zeros(self.n_events)
-                for event_idx in range(self.n_events):
-                    mask = event_indices == event_idx
-                    if np.any(mask):
-                        mean_res = np.mean(b[mask])
-                        residual_mean[event_idx] = mean_res
-                        b[mask] -= mean_res
+                self._demean_residuals_eventwise(residuals_flat, valid_rows)
 
-                self.origin_times -= residual_mean
             damping = damping_list[it] if it < len(damping_list) else damping_list[-1]
             dx_solution = lsqr(A, b, damp=damping, atol=1e-6, btol=1e-6, iter_lim=1000)[
                 0
             ]
             dx = dx_solution.reshape((self.n_events, self.dim))
+
+            
             max_step_xy = 3.0
             max_step_z = 2.0
             for d in range(min(self.dim, 3)):
