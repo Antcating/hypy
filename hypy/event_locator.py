@@ -250,17 +250,16 @@ class EventLocator:
             b = residuals_flat[valid_rows]
             A = self.derivative_matrix.tocsr()[valid_rows, :]
             if self.n_events > 0:
+                factor = self.n_stations * self.n_phases
+                event_indices = valid_rows // factor
                 residual_mean = np.zeros(self.n_events)
                 for event_idx in range(self.n_events):
-                    event_rows = [
-                        idx
-                        for idx, row in enumerate(valid_rows)
-                        if (row // (self.n_stations * self.n_phases)) == event_idx
-                    ]
-                    if event_rows:
-                        mean_res = np.mean(b[event_rows])
+                    mask = event_indices == event_idx
+                    if np.any(mask):
+                        mean_res = np.mean(b[mask])
                         residual_mean[event_idx] = mean_res
-                        b[event_rows] -= mean_res
+                        b[mask] -= mean_res
+
                 self.origin_times -= residual_mean
             damping = damping_list[it] if it < len(damping_list) else damping_list[-1]
             dx_solution = lsqr(A, b, damp=damping, atol=1e-6, btol=1e-6, iter_lim=1000)[
