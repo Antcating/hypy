@@ -2,7 +2,7 @@ import numpy as np
 from numba import njit
 
 
-@njit(cache=True)
+@njit(cache=True, inline="always")
 def linear_interp(x, x0, x1, y0, y1):
     if x1 == x0:
         return y0
@@ -95,5 +95,4 @@ def interp_quant(
 
     if d1 == d0:
         return val0
-    frac = (depth - d0) / (d1 - d0)
-    return val0 + frac * (val1 - val0)
+    return linear_interp(depth, d0, d1, val0, val1)
