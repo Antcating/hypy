@@ -8,7 +8,9 @@ import numpy as np
 from obspy.taup import TauPyModel
 from obspy.core.event import Event
 from scipy.sparse.linalg import lsqr
-from typing import List, Tuple, Optional
+
+
+from typing import List, Tuple
 from obspy.core.inventory import Inventory
 from obspy.geodetics import kilometer2degrees
 from .travel_time_tables import TravelTimeTables
@@ -167,6 +169,7 @@ class EventLocator:
         dt_dr, dt_dz, dt_dx, dt_dy = compute_spatial_derivatives(
             takeoff_rad, az_deg, vel
         )
+
         return travel_time, dt_dx, dt_dy, dt_dz
 
     def init_locations(
@@ -189,13 +192,6 @@ class EventLocator:
             )
             self.origin_times[event_idx] = first_pick.time - trial_time
         return self.locations
-
-    def _initialize_solver_state(self, damping_list, max_iterations):
-        self.init_locations()
-        if damping_list is None:
-            damping_list = [0.0] * max_iterations
-        self.invalid_events = np.zeros(self.n_events, dtype=bool)
-        return damping_list
 
     def _populate_derivative_matrix(self):
         valid_rows = []
@@ -238,22 +234,26 @@ class EventLocator:
                 residuals[mask] -= mean_residual_event
         self.origin_times -= residual_mean
 
-    def locate(
-        self,
-        max_iterations: int = 10,
-        conv_threshold: float = 1e-4,
-        solve_airquakes: bool = False,
-        max_depth: float = 20.0,
-        max_depth_iterations: int = 5,
-        damping_list: Optional[List[float]] = None,
-    ):
-        """
-        Perform iterative earthquake location for all loaded events using a linearized least-squares approach.
-        """
 
-        damping_list = self._initialize_solver_state(damping_list, max_iterations)
-        prev_max_update = np.inf
+    def locate(
+            self, 
+            max_iterations=10, 
+            conv_threshold=1e-3,
+            solve_airquakes=False, 
+            max_depth=20.0, 
+            max_depth_iterations=5,
+            trial_depth=10.0
+            ):
+        
+        self.init_locations(trial_depth=trial_depth)
+        self.invalid_events = np.zeros(self.n_events, dtype=bool)
+        prev_residual_norm = np.inf
+
+        max_damping = 10
+        damping = 1.0
         max_update = 0.0
+
+        residual_norms = []
 
         for it in range(max_iterations):
             valid_rows = self._populate_derivative_matrix()
@@ -265,20 +265,13 @@ class EventLocator:
             if self.n_events > 0:
                 self._demean_residuals_eventwise(residuals_flat, valid_rows)
 
-            damping = damping_list[it] if it < len(damping_list) else damping_list[-1]
-            dx_solution = lsqr(A, b, damp=damping, atol=1e-6, btol=1e-6, iter_lim=1000)[
-                0
-            ]
+            dx_solution, istop = lsqr(A, b, damp=damping, atol=1e-6, btol=1e-6, iter_lim=300)[:2]
             dx = dx_solution.reshape((self.n_events, self.dim))
 
-            
-            max_step_xy = 3.0
-            max_step_z = 2.0
-            for d in range(min(self.dim, 3)):
-                if d < 2:
-                    dx[:, d] = np.clip(dx[:, d], -max_step_xy, max_step_xy)
-                else:
-                    dx[:, d] = np.clip(dx[:, d], -max_step_z, max_step_z)
+            residual_vector = A @ dx_solution - b
+            res_norm = np.linalg.norm(residual_vector)
+            residual_norms.append(res_norm)
+
             for event_idx in range(self.n_events):
                 if self.invalid_events[event_idx]:
                     continue
@@ -294,33 +287,41 @@ class EventLocator:
                     self.invalid_events[event_idx] = True
                     if self.dim == 3:
                         dx[event_idx, 2] = 0.0
+
             if self.dim >= 2:
                 dx[:, 0] = kilometer2degrees(dx[:, 0])
                 dx[:, 1] = kilometer2degrees(dx[:, 1])
-            max_update = 0.0
-            if dx.size > 0:
-                valid_mask = ~self.invalid_events
-                if np.any(valid_mask):
-                    max_update = np.max(np.abs(dx[valid_mask]))
+
+            # --- Update locations ---
             self.locations -= dx
-            if max_update < conv_threshold:
-                print(
-                    f"Converged after {it + 1} iterations (max update {max_update:.3f} km < {conv_threshold} km)."
-                )
-                break
-            if prev_max_update == 0 or prev_max_update is np.inf:
-                prev_max_update = max_update
+
+            if prev_residual_norm == 0 or prev_residual_norm is np.inf:
+                prev_residual_norm = res_norm
                 continue
-            if (
-                abs(prev_max_update - max_update) / prev_max_update < 1e-5
-                and max_update < 0.5
-            ):
-                print(
-                    f"Converged (minor change) after {it + 1} iterations (max update {max_update:.3f} km)."
-                )
+
+            if it % 10 == 0:
+                damping *= 0.9
+            damping = np.clip(damping, 0, max_damping)
+            prev_residual_norm = res_norm
+
+
+            # --- Early stop if gradient over last 10 residuals is positive ---
+            if len(residual_norms) >= 10:
+                y = np.array(residual_norms[-10:])
+                x = np.arange(it - 9, it + 1)
+                coeffs = np.polyfit(x, y, 1)
+                grad = coeffs[0]
+                if grad > 0:
+                    print(f"Stopping early at iteration {it + 1} due to positive residual gradient over last 10 iterations.")
+                    break
+
+            # --- Stop if residual norm is below threshold ---
+            if res_norm < conv_threshold:
+                print(f"Converged at iteration {it + 1} with residual norm {res_norm:.6f}.")
                 break
-            prev_max_update = max_update
+
         return self.locations, self.origin_times, max_update
+
 
     def report_invalid_events(self) -> np.ndarray:
         """
