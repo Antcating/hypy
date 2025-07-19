@@ -28,19 +28,23 @@ class EventLocator:
     def __init__(
         self,
         model: str,
-        dim: int = 4,
         phases: List[str] = ["P"],
         max_depth: float = 20.0,
         max_distance: float = 100.0,
         depth_step: float = 1.0,
         distance_step: float = 1.0,
+        time_error_floor: float = 0.1,
     ):
         """
         Initialize the EventLocator with a velocity model and configure travel-time tables.
         """
         self.model = TauPyModel(model)
         self.model_name = model
-        self.dim = dim
+
+        # The dimesion is 4 for (x, y, z, t) and is hardcoded to 4 for now.
+        # Any other dimension will require changes in the code and is not supported.
+        self.dim = 4
+
         self.phases = phases
         self.n_phases = len(phases)
         self.tables = TravelTimeTables(
@@ -51,6 +55,8 @@ class EventLocator:
         self.stations: List[Tuple[str, str]] = []
         self.stations_locations: List[Tuple[float, float, float]] = []
         self.n_stations: int = 0
+
+        # TODO: Replace the list of events with proper Catalog handling
         self.events: List[Event] = []
         self.n_events: int = 0
         self.origin_times: np.ndarray
@@ -58,6 +64,18 @@ class EventLocator:
         self.theoretical_arrivals: np.ndarray
         self.derivative_matrix: np.ndarray
         self.locations: np.ndarray
+
+        # --- Error handling ---
+        # If the time error is not provided or is zero, we use a default floor value.
+        # If testing with synthetic data with zero time-error, 
+        # you *must* explicitly set time_error_floor to 0, 
+        # otherwise pick errors will be overridden to be time_error_floor.
+        self.time_error_floor = time_error_floor
+        # Array to store arrival time errors for each pick
+        self.arrival_time_errors: np.ndarray
+        # Weighting matrix W for LSQR
+        self.W: np.ndarray
+
         # Precompute velocity profiles for each phase
         self._precompute_velocity_profiles(max_depth, depth_step)
 
@@ -117,7 +135,7 @@ class EventLocator:
             (n_events * n_phases * n_stations, n_events * self.dim)
         )
         self.W = np.ones(n_events * n_phases * n_stations)
-        self.locations = np.zeros((n_events, self.dim-1))
+        self.locations = np.zeros((n_events, self.dim - 1))
 
     def _fill_data(self) -> None:
         """
@@ -126,6 +144,7 @@ class EventLocator:
         for event_idx, event in enumerate(self.events):
             for station_idx, (network, station) in enumerate(self.stations):
                 for phase_idx, phase in enumerate(self.phases):
+                    # Find the pick for this station and phase
                     pick = next(
                         (
                             pk
@@ -136,10 +155,26 @@ class EventLocator:
                         ),
                         None,
                     )
-                    arrival_time = np.nan if pick is None else pick.time
+
+                    # If no pick is found, continue to the next phase
+                    if pick is None:
+                        continue
+                    
+                    # Store the arrival time and error
+                    arrival_time = pick.time
                     arrival_time_error = (
-                        np.nan if pick is None else pick.time_errors.uncertainty
+                        np.nan
+                        if pick.time_errors is None
+                        else pick.time_errors.uncertainty
                     )
+
+                    # Replace NaN or zero errors with the time error floor
+                    if np.isnan(arrival_time_error) or arrival_time_error <= 0.0:
+                        print(
+                            f"Pick for {network}.{station} phase {phase} has invalid time error. Using floor value: {self.time_error_floor} s."
+                        )
+                        arrival_time_error = self.time_error_floor
+
                     self.arrivals[
                         event_idx, self.n_phases * station_idx + phase_idx
                     ] = arrival_time
@@ -234,38 +269,25 @@ class EventLocator:
                     )
                     self.theoretical_arrivals[event_idx, arr_index] = travel_time
                     row_idx = event_idx * (self.n_stations * self.n_phases) + arr_index
-                    if self.dim >= 2:
-                        self.derivative_matrix[row_idx, col_idx + 0] = dt_dx
-                        self.derivative_matrix[row_idx, col_idx + 1] = dt_dy
-                    if self.dim >= 3:
-                        self.derivative_matrix[row_idx, col_idx + 2] = dt_dz
-                    if self.dim >= 4:
-                        self.derivative_matrix[row_idx, col_idx + 3] = 1.0
+
+                    # Populate the derivative matrix
+                    self.derivative_matrix[row_idx, col_idx + 0] = dt_dx
+                    self.derivative_matrix[row_idx, col_idx + 1] = dt_dy
+                    self.derivative_matrix[row_idx, col_idx + 2] = dt_dz
+                    self.derivative_matrix[row_idx, col_idx + 3] = 1.0
                     valid_rows.append(row_idx)
         return np.array(valid_rows, dtype=int)
 
-    def _demean_residuals_eventwise(self, residuals, valid_rows):
-        factor = self.n_stations * self.n_phases
-        event_indices = valid_rows // factor
-        residual_mean = np.zeros(self.n_events)
-        for event_idx in range(self.n_events):
-            mask = event_indices == event_idx
-            if np.any(mask):
-                mean_residual_event = np.mean(residuals[mask])
-                residual_mean[event_idx] = mean_residual_event
-        self.origin_times -= residual_mean
-
-        
     def compute_location_error(
         self,
         A_raw: np.ndarray,
         b_raw: np.ndarray,
         dx_solution: np.ndarray,
         n_events: int,
-        dim: int,
         valid_rows: np.ndarray,
         invalid_events: np.ndarray,
-        ERCOF: float = 1.0
+        error_coef_scaling: float = 1.0,
+        error_floor: float = 0.1,
     ):
         """
         Compute covariance and per-event errors using per-pick arrival_time_errors instead of fixed RDERR.
@@ -287,18 +309,19 @@ class EventLocator:
         pick_errors = flat_errors[valid_rows]
 
         # Replace missing or zero errors with a floor (e.g., 0.1 s)
-        pick_errors = np.where(np.isnan(pick_errors) | (pick_errors <= 0.0), 0.1, pick_errors)
+        pick_errors = np.where(
+            np.isnan(pick_errors) | (pick_errors <= 0.0), error_floor, pick_errors
+        )
 
         # Total pick variance: (reading error)^2 + (ERCOF × residual)^2
-        pick_var = pick_errors**2 + (ERCOF * residuals)**2
+        pick_var = pick_errors**2 + (error_coef_scaling * residuals) ** 2
         pick_std = np.sqrt(pick_var)
 
         # Weighted design matrix and residuals
         A_w = A / pick_std[:, np.newaxis]
-        b_w = b / pick_std
 
         # SVD decomposition
-        U, s, VT = np.linalg.svd(A_w, full_matrices=False)
+        _, s, VT = np.linalg.svd(A_w, full_matrices=False)
 
         mean_sigma2 = np.mean(pick_var)
         full_covariance_matrix = np.zeros((n_params, n_params))
@@ -306,9 +329,9 @@ class EventLocator:
 
         for i in range(n_events):
             if invalid_events[i]:
-                per_event_errors.append(None)
+                per_event_errors.append([np.nan] * self.dim)
                 continue
-            idx = slice(i * dim, (i + 1) * dim)
+            idx = slice(i * self.dim, (i + 1) * self.dim)
             V_event = VT.T[idx, :]
             S_inv_sq = np.diag(1.0 / s**2)
             cov_block = V_event @ S_inv_sq @ V_event.T * mean_sigma2
@@ -317,9 +340,7 @@ class EventLocator:
             per_event_errors.append(std_errors)
 
         return full_covariance_matrix, np.array(per_event_errors)
-
-
-
+    
     def locate(
         self,
         max_iterations=10,
@@ -345,7 +366,7 @@ class EventLocator:
             residuals = self.theoretical_arrivals - travel_times_obs
             residuals_flat = residuals.flatten()
             b = self.W[valid_rows] * residuals_flat[valid_rows]
-            A = self.derivative_matrix[valid_rows, :] * self.W[:, np.newaxis]
+            A = self.derivative_matrix[valid_rows, :] * self.W[valid_rows][:, np.newaxis]
 
             dx_solution, istop = lsqr(
                 A, b, damp=damping, atol=1e-6, btol=1e-6, iter_lim=300
@@ -359,9 +380,7 @@ class EventLocator:
             for event_idx in range(self.n_events):
                 if self.invalid_events[event_idx]:
                     continue
-                new_depth = self.locations[event_idx, 2] - (
-                    dx[event_idx, 2] if self.dim == 3 else 0.0
-                )
+                new_depth = self.locations[event_idx, 2] - dx[event_idx, 2]
                 if (not solve_airquakes and new_depth < 0.0) or (
                     it > max_depth_iterations and new_depth > max_depth
                 ):
@@ -369,20 +388,14 @@ class EventLocator:
                         f"Event {event_idx} would have depth {new_depth:.2f} km out of bounds. Marking as invalid."
                     )
                     self.invalid_events[event_idx] = True
-                    if self.dim == 3:
-                        dx[event_idx, 2] = 0.0
+                    dx[event_idx, 2] = 0.0
 
-            if self.dim >= 2:
-                dx[:, 0] = kilometer2degrees(dx[:, 0])
-                dx[:, 1] = kilometer2degrees(dx[:, 1])
+            dx[:, 0] = kilometer2degrees(dx[:, 0], self.model.model.radius_of_planet)
+            dx[:, 1] = kilometer2degrees(dx[:, 1], self.model.model.radius_of_planet)
 
             # --- Update locations ---
-            # self.locations -= dx
             self.locations[:, :3] -= dx[:, :3]
             self.origin_times -= dx[:, 3]
-            
-            # if self.n_events > 0:
-            #     self._demean_residuals_eventwise(residuals_flat, valid_rows)
 
             damping *= 0.9
             damping = np.clip(damping, 0, max_damping)
@@ -409,13 +422,10 @@ class EventLocator:
         cov, errors = self.compute_location_error(
             A_raw=self.derivative_matrix,
             b_raw=residuals_flat,
-            weights=self.W,
             dx_solution=dx_solution,
-            damping=damping,
             n_events=self.n_events,
-            dim=self.dim,
             valid_rows=valid_rows,
-            invalid_events=self.invalid_events
+            invalid_events=self.invalid_events,
         )
 
         print(errors)
@@ -431,7 +441,6 @@ class EventLocator:
             plt.yscale("log")
             plt.grid(True)
             plt.show()
-            plt.savefig("residual_norms_5.png")
 
         return self.locations, self.origin_times, max_update
 
