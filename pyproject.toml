@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "relocpy"
+name = "hypy"
 version = "1.1.0"
 description = "A Python package for locating seismic events based on seismic arrivals."
 authors = [{ name = "Yevhenii Antcating"}]
@@ -11,7 +11,11 @@ license = { text = "MIT" }
 readme = "README.md"
 requires-python = ">=3.7"
 dependencies = [
-    "numpy>=1.21",
+    "numpy==1.26.4",
     "obspy>=1.2",
     "scipy>=1.7"
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["hypy"]
+include = ["hypy/data/travel_time_tables_iasp91_P_S_d20.0_r100.0_dz1.0_dr1.0.npz"]

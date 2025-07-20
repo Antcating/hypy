@@ -1,10 +1,28 @@
-# Byte-compiled / optimized / DLL files
-*.cpython*
-# VS Code
-settings.json
-launch.json
-# Test data
-**.xml
-**.tvel
-# MACOS
+# --- Travel Time Tables Data ---
+# Ignore automatically generated cache files
+hypy/data/*.npz
+
+
+# --- Build and Distribution ---
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+*.whl
+
+# --- OS Generated Files ---
+# macOS
 .DS_Store
+
+# --- Code editor files ---
+# VS Code
+.vscode/
+
+# --- Python Cache ---
+# Python cache directories
+__pycache__/
+# Python bytecode files
+*.py[cod]
+# Cython compiled files
+*.cpython*
