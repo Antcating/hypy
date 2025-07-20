@@ -125,10 +125,6 @@ class TravelTimeTables:
                             self.travel_time_tables["P"][i, j] = getattr(
                                 arr, "time", np.nan
                             )
-                        if hasattr(arr, "ray_param"):
-                            self.ray_param_tables["P"][i, j] = getattr(
-                                arr, "ray_param", np.nan
-                            )
                         if hasattr(arr, "takeoff_angle"):
                             self.takeoff_angle_tables["P"][i, j] = getattr(
                                 arr, "takeoff_angle", np.nan
@@ -148,10 +144,6 @@ class TravelTimeTables:
                         if hasattr(arr, "time"):
                             self.travel_time_tables["S"][i, j] = getattr(
                                 arr, "time", np.nan
-                            )
-                        if hasattr(arr, "ray_param"):
-                            self.ray_param_tables["S"][i, j] = getattr(
-                                arr, "ray_param", np.nan
                             )
                         if hasattr(arr, "takeoff_angle"):
                             self.takeoff_angle_tables["S"][i, j] = getattr(
@@ -180,13 +172,4 @@ class TravelTimeTables:
             self.depth_grid,
             self.distance_grid,
             self.takeoff_angle_tables[phase],
-        )
-
-    def interpolate_ray_param(self, phase: str, depth: float, distance: float) -> float:
-        return interp_quant(
-            depth,
-            distance,
-            self.depth_grid,
-            self.distance_grid,
-            self.ray_param_tables[phase],
         )

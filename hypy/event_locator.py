@@ -9,7 +9,6 @@ from obspy.taup import TauPyModel
 from obspy.core.event import Event
 from scipy.sparse.linalg import lsqr
 from scipy.sparse.linalg import lsmr
-from sklearn import linear_model
 import matplotlib.pyplot as plt
 
 
@@ -67,8 +66,8 @@ class EventLocator:
 
         # --- Error handling ---
         # If the time error is not provided or is zero, we use a default floor value.
-        # If testing with synthetic data with zero time-error, 
-        # you *must* explicitly set time_error_floor to 0, 
+        # If testing with synthetic data with zero time-error,
+        # you *must* explicitly set time_error_floor to 0,
         # otherwise pick errors will be overridden to be time_error_floor.
         self.time_error_floor = time_error_floor
         # Array to store arrival time errors for each pick
@@ -159,7 +158,7 @@ class EventLocator:
                     # If no pick is found, continue to the next phase
                     if pick is None:
                         continue
-                    
+
                     # Store the arrival time and error
                     arrival_time = pick.time
                     arrival_time_error = (
@@ -200,11 +199,6 @@ class EventLocator:
         self, phase: str, depth: float, distance: float
     ) -> float:
         return self.tables.interpolate_takeoff_angle(phase, depth, distance)
-
-    def _interpolate_ray_param(
-        self, phase: str, depth: float, distance: float
-    ) -> float:
-        return self.tables.interpolate_ray_param(phase, depth, distance)
 
     def _derive_travel_time_param(self, event_location, station_location, phase):
         ev_lat, ev_lon, ev_depth = event_location
@@ -340,7 +334,7 @@ class EventLocator:
             per_event_errors.append(std_errors)
 
         return full_covariance_matrix, np.array(per_event_errors)
-    
+
     def locate(
         self,
         max_iterations=10,
@@ -366,7 +360,10 @@ class EventLocator:
             residuals = self.theoretical_arrivals - travel_times_obs
             residuals_flat = residuals.flatten()
             b = self.W[valid_rows] * residuals_flat[valid_rows]
-            A = self.derivative_matrix[valid_rows, :] * self.W[valid_rows][:, np.newaxis]
+            A = (
+                self.derivative_matrix[valid_rows, :]
+                * self.W[valid_rows][:, np.newaxis]
+            )
 
             dx_solution, istop = lsqr(
                 A, b, damp=damping, atol=1e-6, btol=1e-6, iter_lim=300
