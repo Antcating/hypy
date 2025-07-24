@@ -12,11 +12,12 @@ from scipy.sparse.linalg import lsmr
 import matplotlib.pyplot as plt
 
 
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 from obspy.core.inventory import Inventory
 from obspy.geodetics import kilometer2degrees
 from .travel_time_tables import TravelTimeTables
 from .utils.geo import gps2dist_azimuth_numba, compute_spatial_derivatives
+from .utils.damping import update_damping_factor
 from scipy.optimize import least_squares
 
 
@@ -36,6 +37,7 @@ class EventLocator:
         time_error_floor: float = 0.1,
         min_num_phases: int = 4,
         min_num_stations: int = 2,
+        damping_function: Callable = update_damping_factor,
     ):
         """
         Initialize the EventLocator with a velocity model and configure travel-time tables.
@@ -81,6 +83,12 @@ class EventLocator:
         self.arrival_time_errors: np.ndarray
         # Weighting matrix W for LSQR
         self.W: np.ndarray
+
+        # Can be replaced with a more sophisticated damping function
+        # Function gets called with current damping factor, 
+        # iteration number and current update in 
+        # (lat, lon, depth, time) [degree, degree, km, second] format
+        self.damping_function = damping_function
 
         # Precompute velocity profiles for each phase
         self._precompute_velocity_profiles(max_depth, depth_step)
@@ -423,7 +431,7 @@ class EventLocator:
             self.locations[:, :3] -= dx[:, :3]
             self.origin_times -= dx[:, 3]
 
-            damping *= 0.9
+            damping = self.damping_function(damping, it, dx)
             damping = np.clip(damping, 0, max_damping)
 
             # --- Early stop if gradient over last 10 residuals is positive ---
