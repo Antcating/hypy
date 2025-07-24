@@ -17,6 +17,7 @@ from obspy.core.inventory import Inventory
 from obspy.geodetics import kilometer2degrees
 from .travel_time_tables import TravelTimeTables
 from .utils.geo import gps2dist_azimuth_numba, compute_spatial_derivatives
+from scipy.optimize import least_squares
 
 
 class EventLocator:
@@ -33,6 +34,8 @@ class EventLocator:
         depth_step: float = 1.0,
         distance_step: float = 1.0,
         time_error_floor: float = 0.1,
+        min_num_phases: int = 4,
+        min_num_stations: int = 2,
     ):
         """
         Initialize the EventLocator with a velocity model and configure travel-time tables.
@@ -43,6 +46,10 @@ class EventLocator:
         # The dimesion is 4 for (x, y, z, t) and is hardcoded to 4 for now.
         # Any other dimension will require changes in the code and is not supported.
         self.dim = 4
+
+        # Minimum number of phases and stations required for a valid location
+        self.min_num_phases = min_num_phases
+        self.min_num_stations = min_num_stations
 
         self.phases = phases
         self.n_phases = len(phases)
@@ -135,12 +142,31 @@ class EventLocator:
         )
         self.W = np.ones(n_events * n_phases * n_stations)
         self.locations = np.zeros((n_events, self.dim - 1))
+        self.invalid_events = np.zeros(n_events, dtype=bool)
 
     def _fill_data(self) -> None:
         """
         Populate the arrivals matrix with observed pick times from each event.
         """
         for event_idx, event in enumerate(self.events):
+            if len(event.picks) < self.min_num_phases:
+                print(
+                    f"Event {event.resource_id} has only {len(event.picks)} picks, skipping."
+                )
+                self.invalid_events[event_idx] = True
+                continue
+            # Count unique stations with picks for this event
+            picked_stations = set(
+                (pk.waveform_id.network_code, pk.waveform_id.station_code)
+                for pk in event.picks
+            )
+            if len(picked_stations) < self.min_num_stations:
+                print(
+                    f"Event {event.resource_id} has picks at only {len(picked_stations)} unique stations, skipping."
+                )
+                self.invalid_events[event_idx] = True
+                continue
+
             for station_idx, (network, station) in enumerate(self.stations):
                 for phase_idx, phase in enumerate(self.phases):
                     # Find the pick for this station and phase
@@ -346,8 +372,7 @@ class EventLocator:
         plot_residuals=False,
     ):
         self.init_locations(trial_depth=trial_depth)
-        self.invalid_events = np.zeros(self.n_events, dtype=bool)
-
+        
         max_damping = 10
         damping = 1.0
         max_update = 0.0
@@ -365,9 +390,13 @@ class EventLocator:
                 * self.W[valid_rows][:, np.newaxis]
             )
 
-            dx_solution, istop = lsqr(
-                A, b, damp=damping, atol=1e-6, btol=1e-6, iter_lim=300
-            )[:2]
+            def residual_func(params):
+                # params is a flat array of shape (n_events * self.dim,)
+                return A @ params - b
+
+            x0 = np.zeros(self.n_events * self.dim)
+            result = least_squares(residual_func, x0, method='lm', xtol=1e-6, ftol=1e-6)
+            dx_solution = result.x
             dx = dx_solution.reshape((self.n_events, self.dim))
 
             residual_vector = A @ dx_solution - b
