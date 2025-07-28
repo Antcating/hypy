@@ -21,7 +21,7 @@ class TravelTimeTables:
 
     def __init__(
         self,
-        model: str,
+        model: TauPyModel,
         phases: List[str],
         max_depth: float,
         max_distance: float,
@@ -29,8 +29,8 @@ class TravelTimeTables:
         distance_step: float,
         overwrite: bool = False,
     ):
-        self.model = TauPyModel(model)
-        self.model_name = model
+        self.model = model
+        self.model_name = self.model.model.s_mod.v_mod.model_name
         self.phases = phases
         self.max_depth = max_depth
         self.max_distance = max_distance

@@ -28,7 +28,7 @@ class EventLocator:
 
     def __init__(
         self,
-        model: str,
+        model: TauPyModel,
         phases: List[str] = ["P"],
         max_depth: float = 20.0,
         max_distance: float = 100.0,
@@ -42,8 +42,8 @@ class EventLocator:
         """
         Initialize the EventLocator with a velocity model and configure travel-time tables.
         """
-        self.model = TauPyModel(model)
-        self.model_name = model
+        self.model = model
+        self.model_name = self.model.model.s_mod.v_mod.model_name
 
         # The dimesion is 4 for (x, y, z, t) and is hardcoded to 4 for now.
         # Any other dimension will require changes in the code and is not supported.
@@ -85,8 +85,8 @@ class EventLocator:
         self.W: np.ndarray
 
         # Can be replaced with a more sophisticated damping function
-        # Function gets called with current damping factor, 
-        # iteration number and current update in 
+        # Function gets called with current damping factor,
+        # iteration number and current update in
         # (lat, lon, depth, time) [degree, degree, km, second] format
         self.damping_function = damping_function
 
@@ -306,69 +306,6 @@ class EventLocator:
                     valid_rows.append(row_idx)
         return np.array(valid_rows, dtype=int)
 
-    def compute_location_error(
-        self,
-        A_raw: np.ndarray,
-        b_raw: np.ndarray,
-        dx_solution: np.ndarray,
-        n_events: int,
-        valid_rows: np.ndarray,
-        invalid_events: np.ndarray,
-        error_coef_scaling: float = 1.0,
-        error_floor: float = 0.1,
-    ):
-        """
-        Compute covariance and per-event errors using per-pick arrival_time_errors instead of fixed RDERR.
-
-        Returns:
-            full_covariance_matrix (n_params x n_params)
-            per_event_errors: [σ1, σ2, ..., σ_dim] per valid event, or None
-        """
-        A = A_raw[valid_rows, :]
-        b = b_raw[valid_rows]
-        residuals = A @ dx_solution - b
-
-        n_params = A.shape[1]
-
-        # -------------------------------
-        # Get per-pick RDERR from self.arrival_time_errors
-        # -------------------------------
-        flat_errors = self.arrival_time_errors.flatten()
-        pick_errors = flat_errors[valid_rows]
-
-        # Replace missing or zero errors with a floor (e.g., 0.1 s)
-        pick_errors = np.where(
-            np.isnan(pick_errors) | (pick_errors <= 0.0), error_floor, pick_errors
-        )
-
-        # Total pick variance: (reading error)^2 + (ERCOF × residual)^2
-        pick_var = pick_errors**2 + (error_coef_scaling * residuals) ** 2
-        pick_std = np.sqrt(pick_var)
-
-        # Weighted design matrix and residuals
-        A_w = A / pick_std[:, np.newaxis]
-
-        # SVD decomposition
-        _, s, VT = np.linalg.svd(A_w, full_matrices=False)
-
-        mean_sigma2 = np.mean(pick_var)
-        full_covariance_matrix = np.zeros((n_params, n_params))
-        per_event_errors = []
-
-        for i in range(n_events):
-            if invalid_events[i]:
-                per_event_errors.append([np.nan] * self.dim)
-                continue
-            idx = slice(i * self.dim, (i + 1) * self.dim)
-            V_event = VT.T[idx, :]
-            S_inv_sq = np.diag(1.0 / s**2)
-            cov_block = V_event @ S_inv_sq @ V_event.T * mean_sigma2
-            full_covariance_matrix[idx, idx] = cov_block
-            std_errors = np.sqrt(np.diag(cov_block)) * 2  # 95% CI
-            per_event_errors.append(std_errors)
-
-        return full_covariance_matrix, np.array(per_event_errors)
-
     def locate(
         self,
         max_iterations=10,
@@ -380,7 +317,7 @@ class EventLocator:
         plot_residuals=False,
     ):
         self.init_locations(trial_depth=trial_depth)
-        
+
         max_damping = 10
         damping = 1.0
         max_update = 0.0
@@ -403,7 +340,7 @@ class EventLocator:
                 return A @ params - b
 
             x0 = np.zeros(self.n_events * self.dim)
-            result = least_squares(residual_func, x0, method='lm', xtol=1e-6, ftol=1e-6)
+            result = least_squares(residual_func, x0, method="lm", xtol=1e-6, ftol=1e-6)
             dx_solution = result.x
             dx = dx_solution.reshape((self.n_events, self.dim))
 
@@ -453,17 +390,6 @@ class EventLocator:
                 )
                 break
 
-        cov, errors = self.compute_location_error(
-            A_raw=self.derivative_matrix,
-            b_raw=residuals_flat,
-            dx_solution=dx_solution,
-            n_events=self.n_events,
-            valid_rows=valid_rows,
-            invalid_events=self.invalid_events,
-        )
-
-        print(errors)
-
         if plot_residuals:
             plt.figure()
             plt.plot(
@@ -485,3 +411,179 @@ class EventLocator:
         if hasattr(self, "invalid_events"):
             return np.where(self.invalid_events)[0]
         return np.array([])
+
+    def _plot_locations(
+        self,
+        locations: np.ndarray,
+        lower_bounds: np.ndarray = None,
+        upper_bounds: np.ndarray = None,
+    ):
+        fig, ax = plt.subplots(figsize=(10, 6))
+        if lower_bounds is not None and upper_bounds is not None:
+            ax.errorbar(
+                locations[:, 0],
+                locations[:, 1],
+                xerr=[
+                    locations[:, 0] - lower_bounds[:, 0],
+                    upper_bounds[:, 0] - locations[:, 0],
+                ],
+                yerr=[
+                    locations[:, 1] - lower_bounds[:, 1],
+                    upper_bounds[:, 1] - locations[:, 1],
+                ],
+                fmt="o",
+                capsize=5,
+                label="Locations with Uncertainty",
+            )
+        else:
+            ax.scatter(
+                locations[:, 0], locations[:, 1], label="Locations", color="blue"
+            )
+
+        ax.set_xlabel("Longitude (degrees)")
+        ax.set_ylabel("Latitude (degrees)")
+        ax.set_title("Event Locations")
+        ax.grid(True)
+        ax.legend()
+        plt.show()
+
+    def compute_location_pdf(
+        self,
+        samples: Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+        n_events: int,
+        invalid_events: np.ndarray,
+        percentile_bounds: Tuple[float, float] = (2.5, 97.5),
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        """
+        Compute marginal posterior PDFs and confidence intervals for each event
+        using physical coordinate samples.
+
+        Args:
+            samples: tuple of (lat_samples, lon_samples, dep_samples, ot_samples), each of shape (n_samples, n_events)
+            n_events: number of events.
+            invalid_events: boolean array for invalid events.
+            percentile_bounds: confidence bounds, e.g., (2.5, 97.5) for 95% interval.
+
+        Returns:
+            pdf_marginals: list of PDFs (1D histograms per dimension per event).
+            conf_intervals: list of (lower, upper) per dimension per event in absolute coordinates.
+        """
+        lat_samples, lon_samples, dep_samples, ot_samples = samples
+        pdf_marginals = []
+        conf_intervals = []
+
+        for i in range(n_events):
+            if invalid_events[i]:
+                pdf_marginals.append([None] * self.dim)
+                conf_intervals.append([(np.nan, np.nan)] * self.dim)
+                continue
+
+            marginals = []
+            intervals = []
+            for d, coord_samples in enumerate(
+                [
+                    lat_samples[:, i],
+                    lon_samples[:, i],
+                    dep_samples[:, i],
+                ]
+            ):
+                hist, bin_edges = np.histogram(coord_samples, bins=100, density=True)
+                marginals.append((hist, bin_edges))
+
+                lower = np.percentile(coord_samples, percentile_bounds[0])
+                upper = np.percentile(coord_samples, percentile_bounds[1])
+                intervals.append((lower, upper))
+
+            pdf_marginals.append(marginals)
+            conf_intervals.append(intervals)
+
+        return pdf_marginals, conf_intervals
+
+    def monte_carlo_pdf_solver(
+        self,
+        max_iterations: int = 500,
+        error_coef_scaling: float = 1.0,
+        solve_airquakes: bool = False,
+        trial_depth: float = 5.0,
+        max_depth: float = 20.0,
+        max_depth_iterations: int = 5,
+    ):
+        """
+        Monte Carlo-based probabilistic earthquake location that produces posterior PDFs.
+
+        Returns:
+            locations_mean, origin_times_mean, pdf_marginals, conf_intervals, location_errors
+        """
+        self.init_locations(trial_depth=trial_depth)
+
+        dx_samples = []
+
+        for _ in range(max_iterations):
+            valid_rows = self._populate_derivative_matrix()
+            travel_times_obs = self.arrivals - self.origin_times[:, np.newaxis]
+            residuals = self.theoretical_arrivals - travel_times_obs
+            residuals_flat = residuals.flatten()
+
+            # Add Gaussian noise to observed arrivals using estimated pick stddev
+            pick_errors = self.arrival_time_errors.flatten()
+            pick_errors = np.where(
+                np.isnan(pick_errors) | (pick_errors <= 0.0),
+                self.time_error_floor,
+                pick_errors,
+            )
+            perturbed_residuals = residuals_flat.copy()
+            perturbed_residuals[valid_rows] += np.random.normal(
+                0, pick_errors[valid_rows]
+            )
+
+            A = self.derivative_matrix[valid_rows, :]
+            b = perturbed_residuals[valid_rows]
+
+            result = least_squares(
+                lambda x: A @ x - b, np.zeros(self.n_events * self.dim), method="lm"
+            )
+            dx_solution = result.x.reshape((self.n_events, self.dim))
+            dx_samples.append(dx_solution)
+
+        dx_samples = np.stack(
+            dx_samples, axis=0
+        )  # shape: (max_iterations, n_events, dim)
+
+        # Convert dx_samples to physical coordinates and apply to original locations
+        samples_lat = self.locations[:, 0][None, :] - kilometer2degrees(
+            dx_samples[:, :, 0], self.model.model.radius_of_planet
+        )
+        samples_lon = self.locations[:, 1][None, :] - kilometer2degrees(
+            dx_samples[:, :, 1], self.model.model.radius_of_planet
+        )
+        samples_dep = self.locations[:, 2][None, :] - dx_samples[:, :, 2]
+        samples_ot = self.origin_times[None, :] - dx_samples[:, :, 3]
+
+        locations_mean = np.stack(
+            [
+                np.nanmean(samples_lat, axis=0),
+                np.nanmean(samples_lon, axis=0),
+                np.nanmean(samples_dep, axis=0),
+            ],
+            axis=1,
+        )
+
+        origin_times_mean = np.nanmean(samples_ot, axis=0)
+
+        pdf_marginals, conf_intervals = self.compute_location_pdf(
+            (samples_lat, samples_lon, samples_dep, samples_ot),
+            self.n_events,
+            self.invalid_events,
+        )
+
+        self._plot_locations(
+            locations_mean,
+            lower_bounds=np.array(
+                [[bound[0] for bound in event] for event in conf_intervals]
+            ),
+            upper_bounds=np.array(
+                [[bound[1] for bound in event] for event in conf_intervals]
+            ),
+        )
+
+        return locations_mean, origin_times_mean, pdf_marginals, conf_intervals
