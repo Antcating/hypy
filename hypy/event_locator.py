@@ -340,8 +340,9 @@ class EventLocator:
                 return A @ params - b
 
             x0 = np.zeros(self.n_events * self.dim)
-            result = least_squares(residual_func, x0, method="lm", xtol=1e-6, ftol=1e-6)
-            dx_solution = result.x
+            # result = least_squares(residual_func, x0, method="lm", xtol=1e-6, ftol=1e-6)
+            result = lsmr(A, b, damp=damping, atol=1e-6, btol=1e-6)[0]
+            dx_solution = result
             dx = dx_solution.reshape((self.n_events, self.dim))
 
             residual_vector = A @ dx_solution - b
@@ -363,6 +364,9 @@ class EventLocator:
 
             dx[:, 0] = kilometer2degrees(dx[:, 0], self.model.model.radius_of_planet)
             dx[:, 1] = kilometer2degrees(dx[:, 1], self.model.model.radius_of_planet)
+
+            # Clip depth updates
+            dx[:, 2] = np.clip(dx[:, 2], -2, 2)
 
             # --- Update locations ---
             self.locations[:, :3] -= dx[:, :3]
