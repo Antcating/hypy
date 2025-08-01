@@ -7,13 +7,11 @@ Contains the EventLocator class for earthquake location using travel-time tables
 import numpy as np
 from obspy.taup import TauPyModel
 from obspy.taup.taup_create import build_taup_model
-from obspy.taup.taup_create import __DATA_DIR
-from obspy.core.event import Event
+from obspy.core.event import Event, Origin
 from scipy.sparse.linalg import lsqr
 from scipy.sparse.linalg import lsmr
 import matplotlib.pyplot as plt
 from pathlib import Path
-import os
 
 
 from typing import List, Tuple
@@ -33,19 +31,21 @@ class EventLocator:
         self,
         model_path: str,
         phases: List[str] = ["P"],
-        max_depth: float = 20.0,
+        max_depth: float = 30.0,
         max_distance: float = 100.0,
         depth_step: float = 1.0,
         distance_step: float = 1.0,
         time_error_floor: float = 0.1,
-        mode: str = "table"
+        mode: str = "table",
     ):
         """
         Initialize the EventLocator with a velocity model and configure travel-time tables.
         """
         self.model_path = Path(model_path)
-        if not self.model_path.suffix == ".tvel":
-            raise ValueError(f"Model path must point to a .tvel file, got {self.model_path}")
+        # if not self.model_path.suffix == ".tvel":
+        #     raise ValueError(
+        #         f"Model path must point to a .tvel file, got {self.model_path}"
+        #     )
         self.model_name = self.model_path.stem
         # if not os.path.exists(os.path.join(__DATA_DIR, f"{self.model_name}.npz")):
         #     print(f"Model {self.model_name} not found in data directory. Building model...")
@@ -63,12 +63,19 @@ class EventLocator:
         self.n_phases = len(phases)
 
         if mode not in ["table", "ray"]:
-            raise ValueError(f"Unsupported mode: {mode}. Supported modes are 'table' and 'ray'.")
+            raise ValueError(
+                f"Unsupported mode: {mode}. Supported modes are 'table' and 'ray'."
+            )
         self.mode = mode
 
         if mode == "table":
             self.tracer = TravelTimeTables(
-                self.model_name, phases, max_depth, max_distance, depth_step, distance_step
+                self.model_name,
+                phases,
+                max_depth,
+                max_distance,
+                depth_step,
+                distance_step,
             )
         elif mode == "ray":
             self.tracer = PyrockoRayTracer(model_name=self.model_path.as_posix())
@@ -220,22 +227,8 @@ class EventLocator:
             ev_lat, ev_lon, st_lat, st_lon, R=self.model.model.radius_of_planet * 1000.0
         )
         distance_km = dist_m / 1000.0
-        # travel_time = self.tables.compute_travel_time(
-        #     phase, ev_depth + st_elev / 1000, distance_km
-        # )
-        # travel_time = self.tracer.get_arrival(
-        #     source_depth=ev_depth + st_elev / 1000,
-        #     distance=distance_km,
-        #     phase=phase
-        # )
-
-        # takeoff_angle = self.tables.compute_takeoff_angle(
-        #     phase, ev_depth + st_elev / 1000, distance_km
-        # )
         travel_time, takeoff_angle = self.tracer.get_arrival(
-            source_depth=ev_depth + st_elev / 1000,
-            distance=distance_km,
-            phase=phase
+            source_depth=ev_depth + st_elev / 1000, distance=distance_km, phase=phase
         )
         vel = self._get_velocity(ev_depth, phase)
         takeoff_rad = np.deg2rad(takeoff_angle)
@@ -296,69 +289,6 @@ class EventLocator:
                     valid_rows.append(row_idx)
         return np.array(valid_rows, dtype=int)
 
-    def compute_location_error(
-        self,
-        A_raw: np.ndarray,
-        b_raw: np.ndarray,
-        dx_solution: np.ndarray,
-        n_events: int,
-        valid_rows: np.ndarray,
-        invalid_events: np.ndarray,
-        error_coef_scaling: float = 1.0,
-        error_floor: float = 0.1,
-    ):
-        """
-        Compute covariance and per-event errors using per-pick arrival_time_errors instead of fixed RDERR.
-
-        Returns:
-            full_covariance_matrix (n_params x n_params)
-            per_event_errors: [σ1, σ2, ..., σ_dim] per valid event, or None
-        """
-        A = A_raw[valid_rows, :]
-        b = b_raw[valid_rows]
-        residuals = A @ dx_solution - b
-
-        n_params = A.shape[1]
-
-        # -------------------------------
-        # Get per-pick RDERR from self.arrival_time_errors
-        # -------------------------------
-        flat_errors = self.arrival_time_errors.flatten()
-        pick_errors = flat_errors[valid_rows]
-
-        # Replace missing or zero errors with a floor (e.g., 0.1 s)
-        pick_errors = np.where(
-            np.isnan(pick_errors) | (pick_errors <= 0.0), error_floor, pick_errors
-        )
-
-        # Total pick variance: (reading error)^2 + (ERCOF × residual)^2
-        pick_var = pick_errors**2 + (error_coef_scaling * residuals) ** 2
-        pick_std = np.sqrt(pick_var)
-
-        # Weighted design matrix and residuals
-        A_w = A / pick_std[:, np.newaxis]
-
-        # SVD decomposition
-        _, s, VT = np.linalg.svd(A_w, full_matrices=False)
-
-        mean_sigma2 = np.mean(pick_var)
-        full_covariance_matrix = np.zeros((n_params, n_params))
-        per_event_errors = []
-
-        for i in range(n_events):
-            if invalid_events[i]:
-                per_event_errors.append([np.nan] * self.dim)
-                continue
-            idx = slice(i * self.dim, (i + 1) * self.dim)
-            V_event = VT.T[idx, :]
-            S_inv_sq = np.diag(1.0 / s**2)
-            cov_block = V_event @ S_inv_sq @ V_event.T * mean_sigma2
-            full_covariance_matrix[idx, idx] = cov_block
-            std_errors = np.sqrt(np.diag(cov_block)) * 2  # 95% CI
-            per_event_errors.append(std_errors)
-
-        return full_covariance_matrix, np.array(per_event_errors)
-
     def locate(
         self,
         max_iterations=10,
@@ -367,7 +297,6 @@ class EventLocator:
         max_depth=20.0,
         max_depth_iterations=5,
         trial_depth=10.0,
-        plot_residuals=False,
     ):
         self.init_locations(trial_depth=trial_depth)
         self.invalid_events = np.zeros(self.n_events, dtype=bool)
@@ -389,10 +318,10 @@ class EventLocator:
                 * self.W[valid_rows][:, np.newaxis]
             )
 
-            dx_solution, istop = lsqr(
-                A, b, damp=damping, atol=1e-6, btol=1e-6, iter_lim=300
-            )[:2]
+            dx_solution, istop = lsmr(A, b, damp=damping, atol=1e-6, btol=1e-6)[:2]
             dx = dx_solution.reshape((self.n_events, self.dim))
+
+            dx[:, 2] = np.clip(dx[:, 2], -2, 2)
 
             residual_vector = A @ dx_solution - b
             res_norm = np.linalg.norm(residual_vector)
@@ -402,21 +331,29 @@ class EventLocator:
                 if self.invalid_events[event_idx]:
                     continue
                 new_depth = self.locations[event_idx, 2] - dx[event_idx, 2]
-                if (not solve_airquakes and new_depth < 0.0) or (
+                if not solve_airquakes and new_depth < 0.0:
+                    print(
+                        f"Event {event_idx} will become airquake with depth {new_depth:.2f} km. Marking as invalid."
+                    )
+                    self.invalid_events[event_idx] = True
+                    dx[event_idx, :] = 0.0
+
+                if (max_depth != np.nan) and (
                     it > max_depth_iterations and new_depth > max_depth
                 ):
                     print(
-                        f"Event {event_idx} would have depth {new_depth:.2f} km out of bounds. Marking as invalid."
+                        f"Event {event_idx} exceeds max depth of {max_depth} km with depth {new_depth:.2f} km. Marking as invalid."
                     )
                     self.invalid_events[event_idx] = True
-                    dx[event_idx, 2] = 0.0
+                    dx[event_idx, :] = 0.0
 
             dx[:, 0] = kilometer2degrees(dx[:, 0], self.model.model.radius_of_planet)
             dx[:, 1] = kilometer2degrees(dx[:, 1], self.model.model.radius_of_planet)
 
             # --- Update locations ---
-            self.locations[:, :3] -= dx[:, :3]
-            self.origin_times -= dx[:, 3]
+            valid_mask = ~self.invalid_events
+            self.locations[valid_mask, :3] -= dx[valid_mask, :3]
+            self.origin_times[valid_mask] -= dx[valid_mask, 3]
 
             damping *= 0.9
             damping = np.clip(damping, 0, max_damping)
@@ -440,30 +377,20 @@ class EventLocator:
                 )
                 break
 
-        cov, errors = self.compute_location_error(
-            A_raw=self.derivative_matrix,
-            b_raw=residuals_flat,
-            dx_solution=dx_solution,
-            n_events=self.n_events,
-            valid_rows=valid_rows,
-            invalid_events=self.invalid_events,
-        )
+        # Write origin times and locations to events
+        for event_idx, event in enumerate(self.events):
+            if self.invalid_events[event_idx]:
+                print(f"Event {event_idx} is marked as invalid. Skipping update.")
+                continue
+            origin = Origin()
+            origin.latitude = self.locations[event_idx, 0]
+            origin.longitude = self.locations[event_idx, 1]
+            origin.depth = self.locations[event_idx, 2] * 1000.0  # Convert to meters
+            origin.time = self.origin_times[event_idx]
 
-        print(errors)
+            event.origins.append(origin)
 
-        if plot_residuals:
-            plt.figure()
-            plt.plot(
-                residual_norms, marker="o", markersize=4, linestyle="-", linewidth=1
-            )
-            plt.xlabel("Iteration")
-            plt.ylabel("Residual Norm")
-            plt.title("Residual Norm over Iterations")
-            plt.yscale("log")
-            plt.grid(True)
-            plt.show()
-
-        return self.locations, self.origin_times, max_update
+        return self.events
 
     def report_invalid_events(self) -> np.ndarray:
         """
