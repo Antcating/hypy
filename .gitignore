@@ -1,6 +1,6 @@
 # --- Travel Time Tables Data ---
 # Ignore automatically generated cache files
-hypy/data/*.npz
+hypy/propagation/tables/data/*.npz
 
 
 # --- Build and Distribution ---
