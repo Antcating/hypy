@@ -11,10 +11,12 @@ from obspy.geodetics import kilometer2degrees
 import os
 from pathlib import Path
 
+from hypy.propagation import PropagationModel
+
 from hypy.utils.interp import interp_quant
 
 
-class TravelTimeTables:
+class TravelTimeTables(PropagationModel):
     """
     Manages travel-time, ray-parameter, and takeoff angle tables for seismic phases.
     """
@@ -95,7 +97,7 @@ class TravelTimeTables:
         distance_values = np.arange(0.0, self.max_distance + 1e-6, self.distance_step)
         self.depth_grid = depth_values
         self.distance_grid = distance_values
-        
+
         for phase in self.phases:
             self.travel_time_tables[phase] = np.full(
                 (len(depth_values), len(distance_values)), np.nan
@@ -152,9 +154,7 @@ class TravelTimeTables:
         print(f"Saving travel-time tables to {fname}")
         self.save(fname)
 
-    def interpolate_travel_time(
-        self, phase: str, depth: float, distance: float
-    ) -> float:
+    def compute_travel_time(self, phase: str, depth: float, distance: float) -> float:
         return interp_quant(
             depth,
             distance,
@@ -163,9 +163,7 @@ class TravelTimeTables:
             self.travel_time_tables[phase],
         )
 
-    def interpolate_takeoff_angle(
-        self, phase: str, depth: float, distance: float
-    ) -> float:
+    def compute_takeoff_angle(self, phase: str, depth: float, distance: float) -> float:
         return interp_quant(
             depth,
             distance,
@@ -173,3 +171,12 @@ class TravelTimeTables:
             self.distance_grid,
             self.takeoff_angle_tables[phase],
         )
+
+    def get_arrival(self, source_depth, distance, phase):
+        time = self.compute_travel_time(phase, source_depth, distance)
+        takeoff_angle = self.compute_takeoff_angle(phase, source_depth, distance)
+        if np.isnan(time) or np.isnan(takeoff_angle):
+            raise ValueError(
+                f"No travel time or takeoff angle found for phase {phase} at depth {source_depth} and distance {distance}."
+            )
+        return time, takeoff_angle
