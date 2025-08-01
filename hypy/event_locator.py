@@ -6,16 +6,21 @@ Contains the EventLocator class for earthquake location using travel-time tables
 
 import numpy as np
 from obspy.taup import TauPyModel
+from obspy.taup.taup_create import build_taup_model
+from obspy.taup.taup_create import __DATA_DIR
 from obspy.core.event import Event
 from scipy.sparse.linalg import lsqr
 from scipy.sparse.linalg import lsmr
 import matplotlib.pyplot as plt
+from pathlib import Path
+import os
 
 
 from typing import List, Tuple
 from obspy.core.inventory import Inventory
 from obspy.geodetics import kilometer2degrees
-from .travel_time_tables import TravelTimeTables
+from .propagation.ray_tracers import PyrockoRayTracer
+from .propagation.tables import TravelTimeTables
 from .utils.geo import gps2dist_azimuth_numba, compute_spatial_derivatives
 
 
@@ -26,19 +31,29 @@ class EventLocator:
 
     def __init__(
         self,
-        model: str,
+        model_path: str,
         phases: List[str] = ["P"],
         max_depth: float = 20.0,
         max_distance: float = 100.0,
         depth_step: float = 1.0,
         distance_step: float = 1.0,
         time_error_floor: float = 0.1,
+        mode: str = "table"
     ):
         """
         Initialize the EventLocator with a velocity model and configure travel-time tables.
         """
-        self.model = TauPyModel(model)
-        self.model_name = model
+        self.model_path = Path(model_path)
+        if not self.model_path.suffix == ".tvel":
+            raise ValueError(f"Model path must point to a .tvel file, got {self.model_path}")
+        self.model_name = self.model_path.stem
+        # if not os.path.exists(os.path.join(__DATA_DIR, f"{self.model_name}.npz")):
+        #     print(f"Model {self.model_name} not found in data directory. Building model...")
+        #     build_taup_model(self.model_path)
+        # else:
+        #     print(f"Using existing model {self.model_name} from data directory.")
+
+        self.model = TauPyModel(self.model_name)
 
         # The dimesion is 4 for (x, y, z, t) and is hardcoded to 4 for now.
         # Any other dimension will require changes in the code and is not supported.
@@ -46,9 +61,17 @@ class EventLocator:
 
         self.phases = phases
         self.n_phases = len(phases)
-        self.tables = TravelTimeTables(
-            model, phases, max_depth, max_distance, depth_step, distance_step
-        )
+
+        if mode not in ["table", "ray"]:
+            raise ValueError(f"Unsupported mode: {mode}. Supported modes are 'table' and 'ray'.")
+        self.mode = mode
+
+        if mode == "table":
+            self.tracer = TravelTimeTables(
+                self.model_name, phases, max_depth, max_distance, depth_step, distance_step
+            )
+        elif mode == "ray":
+            self.tracer = PyrockoRayTracer(model_name=self.model_path.as_posix())
         self.inv: Inventory
         self.networks: List[str] = []
         self.stations: List[Tuple[str, str]] = []
@@ -190,16 +213,6 @@ class EventLocator:
                         (arrival_time_error + 1) ** 2 if arrival_time_error > 0 else 1.0
                     )
 
-    def _interpolate_travel_time(
-        self, phase: str, depth: float, distance: float
-    ) -> float:
-        return self.tables.interpolate_travel_time(phase, depth, distance)
-
-    def _interpolate_takeoff_angle(
-        self, phase: str, depth: float, distance: float
-    ) -> float:
-        return self.tables.interpolate_takeoff_angle(phase, depth, distance)
-
     def _derive_travel_time_param(self, event_location, station_location, phase):
         ev_lat, ev_lon, ev_depth = event_location
         st_lat, st_lon, st_elev = station_location
@@ -207,11 +220,22 @@ class EventLocator:
             ev_lat, ev_lon, st_lat, st_lon, R=self.model.model.radius_of_planet * 1000.0
         )
         distance_km = dist_m / 1000.0
-        travel_time = self._interpolate_travel_time(
-            phase, ev_depth + st_elev / 1000, distance_km
-        )
-        takeoff_angle = self._interpolate_takeoff_angle(
-            phase, ev_depth + st_elev / 1000, distance_km
+        # travel_time = self.tables.compute_travel_time(
+        #     phase, ev_depth + st_elev / 1000, distance_km
+        # )
+        # travel_time = self.tracer.get_arrival(
+        #     source_depth=ev_depth + st_elev / 1000,
+        #     distance=distance_km,
+        #     phase=phase
+        # )
+
+        # takeoff_angle = self.tables.compute_takeoff_angle(
+        #     phase, ev_depth + st_elev / 1000, distance_km
+        # )
+        travel_time, takeoff_angle = self.tracer.get_arrival(
+            source_depth=ev_depth + st_elev / 1000,
+            distance=distance_km,
+            phase=phase
         )
         vel = self._get_velocity(ev_depth, phase)
         takeoff_rad = np.deg2rad(takeoff_angle)
