@@ -1,1 +1,1 @@
-from .pyrocko import PyrockoRayTracer
+from .ray_tracer import RayTracer

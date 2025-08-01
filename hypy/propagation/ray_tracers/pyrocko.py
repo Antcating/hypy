@@ -10,9 +10,9 @@ class PyrockoRayTracer(PropagationModel):
     Ray tracer using Pyrocko's cake module for seismic ray tracing.
     """
 
-    def __init__(self, model_name: str):
-        super().__init__(model_name)
-        self.model = cake.load_model(model_name)
+    def __init__(self, model_path: str):
+        super().__init__(model_path)
+        self.model = cake.load_model(model_path)
 
     def get_arrival(self, source_depth: float, distance: float, phase: str):
         """

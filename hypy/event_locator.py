@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import List, Tuple
 from obspy.core.inventory import Inventory
 from obspy.geodetics import kilometer2degrees
-from .propagation.ray_tracers import PyrockoRayTracer
+from .propagation.ray_tracers import RayTracer
 from .propagation.tables import TravelTimeTables
 from .utils.geo import gps2dist_azimuth_numba, compute_spatial_derivatives
 
@@ -78,7 +78,7 @@ class EventLocator:
                 distance_step,
             )
         elif mode == "ray":
-            self.tracer = PyrockoRayTracer(model_name=self.model_path.as_posix())
+            self.tracer = RayTracer(model_path=self.model_path.as_posix(), backend='pyrocko')
         self.inv: Inventory
         self.networks: List[str] = []
         self.stations: List[Tuple[str, str]] = []
