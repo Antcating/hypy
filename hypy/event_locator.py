@@ -36,7 +36,8 @@ class EventLocator:
         depth_step: float = 1.0,
         distance_step: float = 1.0,
         time_error_floor: float = 0.1,
-        mode: str = "table",
+        mode: str = "ray",
+        engine: str = "taup"
     ):
         """
         Initialize the EventLocator with a velocity model and configure travel-time tables.
@@ -78,7 +79,7 @@ class EventLocator:
                 distance_step,
             )
         elif mode == "ray":
-            self.tracer = RayTracer(model_path=self.model_path.as_posix(), backend='pyrocko')
+            self.tracer = RayTracer(model_path=self.model_path.as_posix(), engine=engine)
         self.inv: Inventory
         self.networks: List[str] = []
         self.stations: List[Tuple[str, str]] = []
