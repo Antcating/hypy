@@ -1,6 +1,9 @@
 from typing import List
-from pyrocko import cake
-from pyrocko.cake import Ray
+try:
+    from pyrocko import cake
+    from pyrocko.cake import Ray
+except ImportError:
+    raise ImportError("Pyrocko is not installed or not available. Please install Pyrocko to use the PyrockoRayTracer.")
 from hypy.propagation import PropagationModel
 
 from obspy.geodetics import kilometer2degrees
