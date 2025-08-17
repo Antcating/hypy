@@ -65,11 +65,6 @@ class EventLocator:
         self.n_phases = len(phases)
         self.min_picks_per_event = min_picks_per_event
 
-        if mode not in ["table", "ray"]:
-            raise ValueError(
-                f"Unsupported mode: {mode}. Supported modes are 'table' and 'ray'."
-            )
-        self.mode = mode
 
         if mode == "table":
             self.tracer = TravelTimeTables(
@@ -81,7 +76,16 @@ class EventLocator:
                 distance_step,
             )
         elif mode == "ray":
+            if engine not in ["taup", "pyrocko"]:
+                raise ValueError(
+                    f"Unsupported engine: {engine}. Supported engines for ray mode are 'taup' and 'pyrocko'."
+                )
             self.tracer = RayTracer(model_path=self.model_path.as_posix(), engine=engine)
+
+        else:
+            raise ValueError(f"Unsupported mode: {mode}. Supported modes are 'table' and 'ray'.")
+        self.mode = mode
+        
         self.inv: Inventory
         self.networks: List[str] = []
         self.stations: List[Tuple[str, str]] = []
