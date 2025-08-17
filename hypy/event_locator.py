@@ -36,6 +36,7 @@ class EventLocator:
         depth_step: float = 1.0,
         distance_step: float = 1.0,
         time_error_floor: float = 0.1,
+        min_picks_per_event: int = 4,
         mode: str = "ray",
         engine: str = "taup"
     ):
@@ -62,6 +63,7 @@ class EventLocator:
 
         self.phases = phases
         self.n_phases = len(phases)
+        self.min_picks_per_event = min_picks_per_event
 
         if mode not in ["table", "ray"]:
             raise ValueError(
@@ -147,7 +149,13 @@ class EventLocator:
             for net in inv
             for sta in net.stations
         ]
+
         self.n_stations = len(self.stations)
+        if self.n_phases * self.n_stations < self.min_picks_per_event:
+            raise ValueError(
+                f"{self.n_stations} stations * {self.n_phases} phases < {self.min_picks_per_event} picks per event. "
+                f"Not enough stations and phases to satisfy minimum picks per event."
+            )
         self.events = events
         self.n_events = len(events)
         self._allocate_arrays(self.n_events, self.n_stations, self.n_phases)
