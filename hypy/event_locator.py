@@ -383,18 +383,6 @@ class EventLocator:
             damping *= 0.9
             damping = np.clip(damping, 0, max_damping)
 
-            # --- Early stop if gradient over last 10 residuals is positive ---
-            if len(residual_norms) >= 10:
-                y = np.array(residual_norms[-10:])
-                x = np.arange(it - 9, it + 1)
-                coeffs = np.polyfit(x, y, 1)
-                grad = coeffs[0]
-                if grad > 0:
-                    print(
-                        f"Stopping early at iteration {it + 1} due to positive residual gradient over last 10 iterations."
-                    )
-                    break
-
             # --- Stop if residual norm is below threshold ---
             if res_norm < conv_threshold:
                 print(
