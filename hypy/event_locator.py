@@ -45,17 +45,7 @@ class EventLocator:
         Initialize the EventLocator with a velocity model and configure travel-time tables.
         """
         self.model_path = Path(model_path)
-        # if not self.model_path.suffix == ".tvel":
-        #     raise ValueError(
-        #         f"Model path must point to a .tvel file, got {self.model_path}"
-        #     )
         self.model_name = self.model_path.stem
-        # if not os.path.exists(os.path.join(__DATA_DIR, f"{self.model_name}.npz")):
-        #     print(f"Model {self.model_name} not found in data directory. Building model...")
-        #     build_taup_model(self.model_path)
-        # else:
-        #     print(f"Using existing model {self.model_name} from data directory.")
-
         self.model = TauPyModel(self.model_name)
 
         # The dimesion is 4 for (x, y, z, t) and is hardcoded to 4 for now.
