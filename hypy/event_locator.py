@@ -179,12 +179,31 @@ class EventLocator:
         )
         self.W = np.ones(n_events * n_phases * n_stations)
         self.locations = np.zeros((n_events, self.dim - 1))
+        self.invalid_events = np.zeros(n_events, dtype=bool)
 
     def _fill_data(self) -> None:
         """
         Populate the arrivals matrix with observed pick times from each event.
         """
         for event_idx, event in enumerate(self.events):
+            if len(event.picks) < self.min_picks_per_event:
+                print(
+                    f"Event {event.resource_id} has only {len(event.picks)} picks, skipping."
+                )
+                self.invalid_events[event_idx] = True
+                continue
+            # Count unique stations with picks for this event
+            picked_stations = set(
+                (pk.waveform_id.network_code, pk.waveform_id.station_code)
+                for pk in event.picks
+            )
+            if len(picked_stations) < self.min_picks_per_event:
+                print(
+                    f"Event {event.resource_id} has picks at only {len(picked_stations)} unique stations, skipping."
+                )
+                self.invalid_events[event_idx] = True
+                continue
+
             for station_idx, (network, station) in enumerate(self.stations):
                 for phase_idx, phase in enumerate(self.phases):
                     # Find the pick for this station and phase
@@ -438,6 +457,9 @@ class EventLocator:
 
             dx[:, 0] = kilometer2degrees(dx[:, 0], self.model.model.radius_of_planet)
             dx[:, 1] = kilometer2degrees(dx[:, 1], self.model.model.radius_of_planet)
+
+            # Clip depth updates
+            dx[:, 2] = np.clip(dx[:, 2], -2, 2)
 
             # --- Update locations ---
             valid_mask = ~self.invalid_events
