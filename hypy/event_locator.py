@@ -38,7 +38,8 @@ class EventLocator:
         time_error_floor: float = 0.1,
         min_picks_per_event: int = 4,
         mode: str = "ray",
-        engine: str = "taup"
+        engine: str = "taup",
+        solver: str = "lsqr",
     ):
         """
         Initialize the EventLocator with a velocity model and configure travel-time tables.
@@ -85,6 +86,9 @@ class EventLocator:
         else:
             raise ValueError(f"Unsupported mode: {mode}. Supported modes are 'table' and 'ray'.")
         self.mode = mode
+        if solver not in ["lsqr", "svd"]:
+            raise ValueError(f"Unsupported solver: {solver}. Supported solvers are 'lsqr' and 'svd'.")
+        self.solver = solver
         
         self.inv: Inventory
         self.networks: List[str] = []
@@ -331,7 +335,15 @@ class EventLocator:
                 * self.W[valid_rows][:, np.newaxis]
             )
 
-            dx_solution, istop = lsmr(A, b, damp=damping, atol=1e-6, btol=1e-6)[:2]
+            dx_solution = np.zeros(A.shape[1])  # Default initialization
+            if self.solver == "lsqr":
+                dx_solution, istop = lsmr(A, b, damp=damping, atol=1e-6, btol=1e-6)[:2]
+            elif self.solver == "svd":
+                U, s, Vt = np.linalg.svd(A, full_matrices=False)
+                s_inv = np.zeros_like(s)
+                # Apply Tikhonov damping (ridge regularization)
+                s_inv[s > 1e-12] = s[s > 1e-12] / (s[s > 1e-12] ** 2 + damping ** 2)
+                dx_solution = Vt.T @ (s_inv * (U.T @ b))
             dx = dx_solution.reshape((self.n_events, self.dim))
 
             dx[:, 2] = np.clip(dx[:, 2], -2, 2)
