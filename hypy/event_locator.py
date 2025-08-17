@@ -116,6 +116,13 @@ class EventLocator:
         # Weighting matrix W for LSQR
         self.W: np.ndarray
 
+        # Storage for error products
+        self._covariances = None  # (n_events, 4, 4) full parameter covariance (x,y,z,t)
+        self._spatial_covariances = None  # (n_events, 3, 3)
+        self._principal_std = None  # (n_events, 3)
+        self._principal_axes = None  # (n_events, 3, 3) eigenvectors as rows (ex,ey,ez)
+        self._erz_erh = None  # (n_events, 2) [ERZ, ERH] @ 1σ
+
         # Precompute velocity profiles for each phase
         self._precompute_velocity_profiles(max_depth, depth_step)
 
@@ -306,6 +313,70 @@ class EventLocator:
                     valid_rows.append(row_idx)
         return np.array(valid_rows, dtype=int)
 
+    def _compute_event_errors(self, A_e: np.ndarray, r_e: np.ndarray, pick_errs_e: np.ndarray, damping: float):
+        """Compute covariance, principal ellipsoid, ERZ/ERH for a single event.
+
+        Parameters
+        ----------
+        A_e : (m, 4) array
+            Weighted design sub-matrix for this event (columns x,y,z,t in km/s & s).
+        r_e : (m,) array
+            Unweighted residuals in seconds for this event (theoretical - (obs - t0)).
+        pick_errs_e : (m,) array
+            Arrival-time uncertainties (seconds) for this event, mapped to the same rows.
+        damping : float
+            Current Tikhonov damping (λ). Applied as λ^2 I to normal matrix.
+        """
+        if A_e.size == 0:
+            return None
+
+        # Normal matrix with Tikhonov regularization consistent with the inversion above
+        N = A_e.T @ A_e
+        N_reg = N + (damping ** 2) * np.eye(4)
+
+        # Data variance estimate: include both RMS of residuals and robust pick error scale
+        # Hypoinverse scales with RMS and RDERR. Use sigma^2 ≈ RMS^2 + median(pick_err)^2
+        rms = float(np.sqrt(np.mean(r_e**2))) if r_e.size else 0.0
+        rderr = float(np.nanmedian(pick_errs_e)) if pick_errs_e.size else 0.0
+        sigma2 = rms**2 + rderr**2
+
+        # Parameter covariance (approx.)
+        try:
+            N_reg_inv = np.linalg.inv(N_reg)
+        except np.linalg.LinAlgError:
+            N_reg_inv = np.linalg.pinv(N_reg)
+        C = sigma2 * N_reg_inv  # (4x4)
+
+        # Spatial 3x3 block (x,y,z), rotate to principal axes via eigen-decomposition
+        Cxyz = C[:3, :3]
+        evals, evecs = np.linalg.eigh(Cxyz)  # evals ascending
+        order = np.argsort(evals)[::-1]  # descending: major, intermediate, minor
+        evals = evals[order]
+        evecs = evecs[:, order]
+
+        # Principal standard errors are sqrt of eigenvalues (km)
+        std_axes = np.sqrt(np.clip(evals, 0.0, None))  # (3,)
+
+        # ERZ (vertical) and ERH (horizontal) from projections of principal axes
+        # Convention: evec components correspond to (x=East, y=North, z=Down)
+        ex, ey, ez = evecs[0, :], evecs[1, :], evecs[2, :]
+        # For each principal axis i, projection lengths:
+        proj_vert = np.abs(ez) * std_axes
+        proj_horiz = np.sqrt(ex**2 + ey**2) * std_axes
+        ERZ = float(np.max(proj_vert))
+        ERH = float(np.max(proj_horiz))
+
+        return {
+            "C_full": C,
+            "C_xyz": Cxyz,
+            "principal_std_km_1sigma": std_axes,
+            "principal_axes_unit_vectors": evecs,  # columns correspond to axes 1..3
+            "ERZ_km_1sigma": ERZ,
+            "ERH_km_1sigma": ERH,
+            "RMS_s": rms,
+            "RDERR_s": rderr,
+        }
+
     def locate(
         self,
         max_iterations=10,
@@ -323,6 +394,9 @@ class EventLocator:
         max_update = 0.0
 
         residual_norms = []
+        A = None  # Initialize A to ensure it is always defined
+        valid_rows = np.array([])  # Initialize valid_rows to ensure it is always defined
+        residuals_flat = np.array([])  # Initialize residuals_flat to ensure it is always defined
 
         for it in range(max_iterations):
             valid_rows = self._populate_derivative_matrix()
@@ -390,7 +464,65 @@ class EventLocator:
                 )
                 break
 
-        # Write origin times and locations to events
+        self._A_final = A
+        self._valid_rows_final = valid_rows
+        self._residuals_flat_final = residuals_flat
+        self._lambda_final = damping
+
+        # ============================
+        # Error ellipsoid computation
+        # ============================
+        self._covariances = np.zeros((self.n_events, 4, 4))
+        self._spatial_covariances = np.zeros((self.n_events, 3, 3))
+        self._principal_std = np.zeros((self.n_events, 3))
+        self._principal_axes = np.zeros((self.n_events, 3, 3))
+        self._erz_erh = np.zeros((self.n_events, 2))
+
+        # Reuse final weighted A and residuals from the last iteration
+        A_all = self._A_final
+        valid_rows_all = np.asarray(self._valid_rows_final, dtype=int)
+        residuals_flat = self._residuals_flat_final
+
+        # Map from global rows to per-event rows
+        rows_per_event = [[] for _ in range(self.n_events)]
+        errs_per_event = [[] for _ in range(self.n_events)]
+        for row in valid_rows_all:
+            ev_idx = row // (self.n_stations * self.n_phases)
+            rows_per_event[ev_idx].append(row)
+            local_row = row - ev_idx * (self.n_stations * self.n_phases)
+            errs_per_event[ev_idx].append(self.arrival_time_errors[ev_idx, local_row])
+
+        # Compute per-event covariances and error summaries using the final A/r/λ
+        for ev in range(self.n_events):
+            if self.invalid_events[ev]:
+                continue
+            rows = np.array(rows_per_event[ev], dtype=int)
+            if rows.size == 0:
+                continue
+            # Extract this event's 4 columns from the final weighted A
+            A_e = A_all[:, ev * self.dim : (ev + 1) * self.dim][rows]
+            r_e = residuals_flat[rows]
+            pick_errs_e = np.array(errs_per_event[ev], dtype=float)
+
+            errinfo = self._compute_event_errors(A_e, r_e, pick_errs_e, damping=0.1)
+            if errinfo is None:
+                continue
+
+            C_full = errinfo["C_full"]
+            C_xyz = errinfo["C_xyz"]
+            std_axes = errinfo["principal_std_km_1sigma"]
+            evecs = errinfo["principal_axes_unit_vectors"]
+            ERZ = errinfo["ERZ_km_1sigma"]
+            ERH = errinfo["ERH_km_1sigma"]
+
+            self._covariances[ev] = C_full
+            self._spatial_covariances[ev] = C_xyz
+            self._principal_std[ev] = std_axes
+            self._principal_axes[ev] = evecs.T  # store as rows
+            self._erz_erh[ev] = [ERZ, ERH]
+
+
+        # Write origin times, locations, and attach error products
         for event_idx, event in enumerate(self.events):
             if self.invalid_events[event_idx]:
                 print(f"Event {event_idx} is marked as invalid. Skipping update.")
@@ -400,6 +532,25 @@ class EventLocator:
             origin.longitude = self.locations[event_idx, 1]
             origin.depth = self.locations[event_idx, 2] * 1000.0  # Convert to meters
             origin.time = self.origin_times[event_idx]
+
+            # Package errors for consumers; include 95% (≈2.4×) scaling
+            s1, s2, s3 = self._principal_std[event_idx]
+            evecs = self._principal_axes[event_idx]  # rows
+            ERZ_1s, ERH_1s = self._erz_erh[event_idx]
+            scale95 = 2.4
+
+            origin.extra = getattr(origin, "extra", {})
+            origin.extra["errors"] = {
+                "covariance_full_4x4": self._covariances[event_idx].tolist(),
+                "covariance_xyz_3x3": self._spatial_covariances[event_idx].tolist(),
+                "principal_std_km_1sigma": [float(s1), float(s2), float(s3)],
+                "principal_std_km_95pct": [float(scale95*s1), float(scale95*s2), float(scale95*s3)],
+                "principal_axes_unit_vectors_rows_ex_ey_ez": evecs.tolist(),
+                "ERZ_km_1sigma": float(ERZ_1s),
+                "ERZ_km_95pct": float(scale95 * ERZ_1s),
+                "ERH_km_1sigma": float(ERH_1s),
+                "ERH_km_95pct": float(scale95 * ERH_1s),
+            }
 
             event.origins.append(origin)
 
