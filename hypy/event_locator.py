@@ -4,22 +4,21 @@ event_locator.py
 Contains the EventLocator class for earthquake location using travel-time tables.
 """
 
-import numpy as np
-from obspy.taup import TauPyModel
-from obspy.taup.taup_create import build_taup_model
-from obspy.core.event import Event, Origin
-from scipy.sparse.linalg import lsqr
-from scipy.sparse.linalg import lsmr
-import matplotlib.pyplot as plt
 from pathlib import Path
+from typing import List, Tuple, Union
 
-
-from typing import List, Tuple
+import matplotlib.pyplot as plt
+import numpy as np
+from obspy.core.event import Catalog, Event, Origin
 from obspy.core.inventory import Inventory
 from obspy.geodetics import kilometer2degrees
+from obspy.taup import TauPyModel
+from obspy.taup.taup_create import build_taup_model
+from scipy.sparse.linalg import lsmr, lsqr
+
 from .propagation.ray_tracers import RayTracer
 from .propagation.tables import TravelTimeTables
-from .utils.geo import gps2dist_azimuth_numba, compute_spatial_derivatives
+from .utils.geo import compute_spatial_derivatives, gps2dist_azimuth_numba
 
 
 class EventLocator:
@@ -87,7 +86,7 @@ class EventLocator:
         self.n_stations: int = 0
 
         # TODO: Replace the list of events with proper Catalog handling
-        self.events: List[Event] = []
+        self.events: Union[List[Event], Catalog] = []
         self.n_events: int = 0
         self.origin_times: np.ndarray
         self.arrivals: np.ndarray
@@ -141,7 +140,7 @@ class EventLocator:
         depths, v_profile = self.velocity_profiles[phase_lower]
         return np.interp(depth, depths, v_profile)
 
-    def load_data(self, inv: Inventory, events: List[Event]) -> None:
+    def load_data(self, inv: Inventory, events: Union[List[Event], Catalog]) -> None:
         """
         Load station inventory (station metadata) and events (with picks) into the locator.
         This must be called before running locate().
