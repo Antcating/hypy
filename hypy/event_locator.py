@@ -10,6 +10,8 @@ from typing import List, Tuple, Union
 import matplotlib.pyplot as plt
 import numpy as np
 from obspy.core.event import Catalog, Event, Origin
+from obspy.core.event.base import QuantityError
+from obspy.core.event.origin import ConfidenceEllipsoid, OriginUncertainty
 from obspy.core.inventory import Inventory
 from obspy.geodetics import kilometer2degrees
 from obspy.taup import TauPyModel
@@ -55,7 +57,6 @@ class EventLocator:
         self.n_phases = len(phases)
         self.min_picks_per_event = min_picks_per_event
 
-
         if mode == "table":
             self.tracer = TravelTimeTables(
                 self.model_name,
@@ -70,15 +71,21 @@ class EventLocator:
                 raise ValueError(
                     f"Unsupported engine: {engine}. Supported engines for ray mode are 'taup' and 'pyrocko'."
                 )
-            self.tracer = RayTracer(model_path=self.model_path.as_posix(), engine=engine)
+            self.tracer = RayTracer(
+                model_path=self.model_path.as_posix(), engine=engine
+            )
 
         else:
-            raise ValueError(f"Unsupported mode: {mode}. Supported modes are 'table' and 'ray'.")
+            raise ValueError(
+                f"Unsupported mode: {mode}. Supported modes are 'table' and 'ray'."
+            )
         self.mode = mode
         if solver not in ["lsqr", "svd"]:
-            raise ValueError(f"Unsupported solver: {solver}. Supported solvers are 'lsqr' and 'svd'.")
+            raise ValueError(
+                f"Unsupported solver: {solver}. Supported solvers are 'lsqr' and 'svd'."
+            )
         self.solver = solver
-        
+
         self.inv: Inventory
         self.networks: List[str] = []
         self.stations: List[Tuple[str, str]] = []
@@ -321,7 +328,9 @@ class EventLocator:
                     valid_rows.append(row_idx)
         return np.array(valid_rows, dtype=int)
 
-    def _compute_event_errors(self, A_e: np.ndarray, r_e: np.ndarray, pick_errs_e: np.ndarray, damping: float):
+    def _compute_event_errors(
+        self, A_e: np.ndarray, r_e: np.ndarray, pick_errs_e: np.ndarray, damping: float
+    ):
         """Compute covariance, principal ellipsoid, ERZ/ERH for a single event.
 
         Parameters
@@ -340,7 +349,7 @@ class EventLocator:
 
         # Normal matrix with Tikhonov regularization consistent with the inversion above
         N = A_e.T @ A_e
-        N_reg = N + (damping ** 2) * np.eye(4)
+        N_reg = N + (damping**2) * np.eye(4)
 
         # Data variance estimate: include both RMS of residuals and robust pick error scale
         # Hypoinverse scales with RMS and RDERR. Use sigma^2 ≈ RMS^2 + median(pick_err)^2
@@ -403,8 +412,12 @@ class EventLocator:
 
         residual_norms = []
         A = None  # Initialize A to ensure it is always defined
-        valid_rows = np.array([])  # Initialize valid_rows to ensure it is always defined
-        residuals_flat = np.array([])  # Initialize residuals_flat to ensure it is always defined
+        valid_rows = np.array(
+            []
+        )  # Initialize valid_rows to ensure it is always defined
+        residuals_flat = np.array(
+            []
+        )  # Initialize residuals_flat to ensure it is always defined
 
         for it in range(max_iterations):
             valid_rows = self._populate_derivative_matrix()
@@ -424,7 +437,7 @@ class EventLocator:
                 U, s, Vt = np.linalg.svd(A, full_matrices=False)
                 s_inv = np.zeros_like(s)
                 # Apply Tikhonov damping (ridge regularization)
-                s_inv[s > 1e-12] = s[s > 1e-12] / (s[s > 1e-12] ** 2 + damping ** 2)
+                s_inv[s > 1e-12] = s[s > 1e-12] / (s[s > 1e-12] ** 2 + damping**2)
                 dx_solution = Vt.T @ (s_inv * (U.T @ b))
             dx = dx_solution.reshape((self.n_events, self.dim))
 
@@ -532,7 +545,6 @@ class EventLocator:
             self._principal_axes[ev] = evecs.T  # store as rows
             self._erz_erh[ev] = [ERZ, ERH]
 
-
         # Write origin times, locations, and attach error products
         for event_idx, event in enumerate(self.events):
             if self.invalid_events[event_idx]:
@@ -550,19 +562,40 @@ class EventLocator:
             ERZ_1s, ERH_1s = self._erz_erh[event_idx]
             scale95 = 2.4
 
-            origin.extra = getattr(origin, "extra", {})
-            origin.extra["errors"] = {
-                "covariance_full_4x4": self._covariances[event_idx].tolist(),
-                "covariance_xyz_3x3": self._spatial_covariances[event_idx].tolist(),
-                "principal_std_km_1sigma": [float(s1), float(s2), float(s3)],
-                "principal_std_km_95pct": [float(scale95*s1), float(scale95*s2), float(scale95*s3)],
-                "principal_axes_unit_vectors_rows_ex_ey_ez": evecs.tolist(),
-                "ERZ_km_1sigma": float(ERZ_1s),
-                "ERZ_km_95pct": float(scale95 * ERZ_1s),
-                "ERH_km_1sigma": float(ERH_1s),
-                "ERH_km_95pct": float(scale95 * ERH_1s),
-            }
+            # Extract major axis vector (assumed to be column 0 of `evecs`)
+            v = evecs[:, 0]  # shape (3,)
 
+            # Ensure unit vector
+            v = v / np.linalg.norm(v)
+
+            plunge = np.rad2deg(np.arcsin(np.clip(v[2], -1.0, 1.0)))  # z component
+            plunge = float(plunge)
+
+            azimuth = np.rad2deg(np.arctan2(v[0], v[1]))  # arctan2(East, North)
+            azimuth = float((azimuth + 360) % 360)  # Wrap to [0, 360)
+
+            # Create the ellipsoid with 95% confidence scaling
+            confidence_ellipsoid = ConfidenceEllipsoid(
+                semi_major_axis_length=s1 * 1000.0,
+                semi_minor_axis_length=s3 * 1000.0,
+                semi_intermediate_axis_length=s2 * 1000.0,
+                major_axis_plunge=plunge,
+                major_axis_azimuth=azimuth,
+            )
+            origin.confidence_ellipsoid = confidence_ellipsoid
+
+            origin_uncertainty = OriginUncertainty(
+                horizontal_uncertainty=ERH_1s * scale95 * 1000.0,
+                preferred_description="confidence ellipsoid",
+                confidence_level=95.0,
+            )
+            origin.origin_uncertainty = origin_uncertainty
+
+            depth_errors = QuantityError(
+                uncertainty=ERZ_1s * scale95 * 1000.0,
+                confidence_level=95.0,
+            )
+            origin.depth_errors = depth_errors
             event.origins.append(origin)
 
         return self.events
