@@ -9,14 +9,14 @@ from typing import List, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-from obspy.core.event import Catalog, Event, Origin
+from obspy.core.event import Catalog, Event, Origin, Arrival
 from obspy.core.event.base import QuantityError
 from obspy.core.event.origin import ConfidenceEllipsoid, OriginUncertainty
 from obspy.core.inventory import Inventory
 from obspy.geodetics import kilometer2degrees
 from obspy.taup import TauPyModel
 from obspy.taup.taup_create import build_taup_model
-from scipy.sparse.linalg import lsmr, lsqr
+from scipy.sparse.linalg import lsmr
 
 from .propagation.ray_tracers import RayTracer
 from .propagation.tables import TravelTimeTables
@@ -408,7 +408,6 @@ class EventLocator:
 
         max_damping = 10
         damping = 1.0
-        max_update = 0.0
 
         residual_norms = []
         A = None  # Initialize A to ensure it is always defined
@@ -596,6 +595,34 @@ class EventLocator:
                 confidence_level=95.0,
             )
             origin.depth_errors = depth_errors
+
+            for station_idx, (network, station) in enumerate(self.stations):
+                for phase_idx, phase in enumerate(self.phases):
+                    arr_index = self.n_phases * station_idx + phase_idx
+                    observed_time = self.arrivals[event_idx, arr_index]
+                    if np.isnan(observed_time):
+                        continue
+
+                    pick = next(
+                        (
+                            pk
+                            for pk in event.picks
+                            if pk.waveform_id.station_code == station
+                            and pk.waveform_id.network_code == network
+                            and pk.phase_hint.lower() == phase.lower()
+                        ),
+                        None,
+                    )
+
+                    travel_time = self.theoretical_arrivals[event_idx, arr_index]
+                    residual = travel_time - (observed_time - self.origin_times[event_idx])
+                    arrival = Arrival(
+                        pick_id=pick.resource_id,
+                        phase=phase,
+                        time_residual=residual
+                    )
+                    origin.arrivals.append(arrival)
+
             event.origins.append(origin)
 
         return self.events
