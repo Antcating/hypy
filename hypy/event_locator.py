@@ -119,10 +119,13 @@ class EventLocator:
         self._principal_axes = None  # (n_events, 3, 3) eigenvectors as rows (ex,ey,ez)
         self._erz_erh = None  # (n_events, 2) [ERZ, ERH] @ 1σ
 
-        # Precompute velocity profiles for each phase
-        self._precompute_velocity_profiles(max_depth, depth_step)
+        # Currently only 1D velocity models are supported
+        self.velocity_profile_dimensionality = 1
+        if self.velocity_profile_dimensionality == 1:
+            # Precompute velocity profiles for each phase
+            self._precompute_velocity_profiles_1d(max_depth, depth_step)
 
-    def _precompute_velocity_profiles(self, max_depth, depth_step):
+    def _precompute_velocity_profiles_1d(self, max_depth, depth_step):
         """
         Precompute and store velocity as a function of depth for each phase.
         """
@@ -139,7 +142,7 @@ class EventLocator:
                 v_profile.append(v)
             self.velocity_profiles[phase_lower] = (depths, np.array(v_profile))
 
-    def _get_velocity(self, depth, phase):
+    def _get_velocity_1d(self, depth, phase):
         """
         Interpolate velocity for a given depth and phase from precomputed profile.
         """
@@ -269,7 +272,7 @@ class EventLocator:
         travel_time, takeoff_angle = self.tracer.get_arrival(
             source_depth=ev_depth + st_elev / 1000, distance=distance_km, phase=phase
         )
-        vel = self._get_velocity(ev_depth, phase)
+        vel = self._get_velocity_1d(ev_depth, phase)
         takeoff_rad = np.deg2rad(takeoff_angle)
         dt_dr, dt_dz, dt_dx, dt_dy = compute_spatial_derivatives_1d(
             takeoff_rad, az_deg, vel
