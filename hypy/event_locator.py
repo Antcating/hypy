@@ -9,14 +9,14 @@ from typing import List, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-from obspy.core.event import Catalog, Event, Origin
+from obspy.core.event import Catalog, Event, Origin, Arrival
 from obspy.core.event.base import QuantityError
 from obspy.core.event.origin import ConfidenceEllipsoid, OriginUncertainty
 from obspy.core.inventory import Inventory
 from obspy.geodetics import kilometer2degrees
 from obspy.taup import TauPyModel
 from obspy.taup.taup_create import build_taup_model
-from scipy.sparse.linalg import lsmr, lsqr
+from scipy.sparse.linalg import lsmr
 
 from .propagation.ray_tracers import RayTracer
 from .propagation.tables import TravelTimeTables
@@ -394,55 +394,40 @@ class EventLocator:
             "RDERR_s": rderr,
         }
 
-    def locate(
-        self,
-        max_iterations=10,
-        conv_threshold=1e-3,
-        solve_airquakes=False,
-        max_depth=20.0,
-        max_depth_iterations=5,
-        trial_depth=10.0,
-    ):
+    def locate(self, max_iterations=10, conv_threshold=1e-3, solve_airquakes=False, max_depth=20.0, max_depth_iterations=5, trial_depth=10.0):
         self.init_locations(trial_depth=trial_depth)
         self.invalid_events = np.zeros(self.n_events, dtype=bool)
+        self._run_location_iterations(max_iterations, conv_threshold, solve_airquakes, max_depth, max_depth_iterations)
+        self._compute_error_ellipsoids()
+        return self._finalize_origins()
 
-        max_damping = 10
+
+    def _run_location_iterations(self, max_iterations, conv_threshold, solve_airquakes, max_depth, max_depth_iterations):
         damping = 1.0
-        max_update = 0.0
-
+        max_damping = 10
+        A = None
         residual_norms = []
-        A = None  # Initialize A to ensure it is always defined
-        valid_rows = np.array(
-            []
-        )  # Initialize valid_rows to ensure it is always defined
-        residuals_flat = np.array(
-            []
-        )  # Initialize residuals_flat to ensure it is always defined
-
+        residuals_flat = np.array([])
+        valid_rows = np.array([], dtype=int)
         for it in range(max_iterations):
             valid_rows = self._populate_derivative_matrix()
             travel_times_obs = self.arrivals - self.origin_times[:, np.newaxis]
             residuals = self.theoretical_arrivals - travel_times_obs
             residuals_flat = residuals.flatten()
             b = self.W[valid_rows] * residuals_flat[valid_rows]
-            A = (
-                self.derivative_matrix[valid_rows, :]
-                * self.W[valid_rows][:, np.newaxis]
-            )
+            A = self.derivative_matrix[valid_rows, :] * self.W[valid_rows][:, np.newaxis]
 
-            dx_solution = np.zeros(A.shape[1])  # Default initialization
+            dx_solution = np.zeros(A.shape[1])
             if self.solver == "lsqr":
                 dx_solution, istop = lsmr(A, b, damp=damping, atol=1e-6, btol=1e-6)[:2]
             elif self.solver == "svd":
                 U, s, Vt = np.linalg.svd(A, full_matrices=False)
                 s_inv = np.zeros_like(s)
-                # Apply Tikhonov damping (ridge regularization)
-                s_inv[s > 1e-12] = s[s > 1e-12] / (s[s > 1e-12] ** 2 + damping**2)
+                s_inv[s > 1e-12] = s[s > 1e-12] / (s[s > 1e-12] ** 2 + damping ** 2)
                 dx_solution = Vt.T @ (s_inv * (U.T @ b))
+
             dx = dx_solution.reshape((self.n_events, self.dim))
-
             dx[:, 2] = np.clip(dx[:, 2], -2, 2)
-
             residual_vector = A @ dx_solution - b
             res_norm = np.linalg.norm(residual_vector)
             residual_norms.append(res_norm)
@@ -452,40 +437,20 @@ class EventLocator:
                     continue
                 new_depth = self.locations[event_idx, 2] - dx[event_idx, 2]
                 if not solve_airquakes and new_depth < 0.0:
-                    print(
-                        f"Event {event_idx} will become airquake with depth {new_depth:.2f} km. Marking as invalid."
-                    )
                     self.invalid_events[event_idx] = True
                     dx[event_idx, :] = 0.0
-
-                if (max_depth != np.nan) and (
-                    it > max_depth_iterations and new_depth > max_depth
-                ):
-                    print(
-                        f"Event {event_idx} exceeds max depth of {max_depth} km with depth {new_depth:.2f} km. Marking as invalid."
-                    )
+                elif it > max_depth_iterations and new_depth > max_depth:
                     self.invalid_events[event_idx] = True
                     dx[event_idx, :] = 0.0
 
             dx[:, 0] = kilometer2degrees(dx[:, 0], self.model.model.radius_of_planet)
             dx[:, 1] = kilometer2degrees(dx[:, 1], self.model.model.radius_of_planet)
-
-            # Clip depth updates
             dx[:, 2] = np.clip(dx[:, 2], -2, 2)
-
-            # --- Update locations ---
             valid_mask = ~self.invalid_events
             self.locations[valid_mask, :3] -= dx[valid_mask, :3]
             self.origin_times[valid_mask] -= dx[valid_mask, 3]
-
-            damping *= 0.9
-            damping = np.clip(damping, 0, max_damping)
-
-            # --- Stop if residual norm is below threshold ---
+            damping = np.clip(damping * 0.9, 0, max_damping)
             if res_norm < conv_threshold:
-                print(
-                    f"Converged at iteration {it + 1} with residual norm {res_norm:.6f}."
-                )
                 break
 
         self._A_final = A
@@ -493,88 +458,64 @@ class EventLocator:
         self._residuals_flat_final = residuals_flat
         self._lambda_final = damping
 
-        # ============================
-        # Error ellipsoid computation
-        # ============================
+
+    def _compute_error_ellipsoids(self):
         self._covariances = np.zeros((self.n_events, 4, 4))
         self._spatial_covariances = np.zeros((self.n_events, 3, 3))
         self._principal_std = np.zeros((self.n_events, 3))
         self._principal_axes = np.zeros((self.n_events, 3, 3))
         self._erz_erh = np.zeros((self.n_events, 2))
 
-        # Reuse final weighted A and residuals from the last iteration
         A_all = self._A_final
         valid_rows_all = np.asarray(self._valid_rows_final, dtype=int)
         residuals_flat = self._residuals_flat_final
-
-        # Map from global rows to per-event rows
         rows_per_event = [[] for _ in range(self.n_events)]
         errs_per_event = [[] for _ in range(self.n_events)]
+
         for row in valid_rows_all:
             ev_idx = row // (self.n_stations * self.n_phases)
             rows_per_event[ev_idx].append(row)
             local_row = row - ev_idx * (self.n_stations * self.n_phases)
             errs_per_event[ev_idx].append(self.arrival_time_errors[ev_idx, local_row])
 
-        # Compute per-event covariances and error summaries using the final A/r/λ
         for ev in range(self.n_events):
             if self.invalid_events[ev]:
                 continue
             rows = np.array(rows_per_event[ev], dtype=int)
             if rows.size == 0:
                 continue
-            # Extract this event's 4 columns from the final weighted A
             A_e = A_all[:, ev * self.dim : (ev + 1) * self.dim][rows]
             r_e = residuals_flat[rows]
             pick_errs_e = np.array(errs_per_event[ev], dtype=float)
-
             errinfo = self._compute_event_errors(A_e, r_e, pick_errs_e, damping=0.1)
             if errinfo is None:
                 continue
+            self._covariances[ev] = errinfo["C_full"]
+            self._spatial_covariances[ev] = errinfo["C_xyz"]
+            self._principal_std[ev] = errinfo["principal_std_km_1sigma"]
+            self._principal_axes[ev] = errinfo["principal_axes_unit_vectors"].T
+            self._erz_erh[ev] = [errinfo["ERZ_km_1sigma"], errinfo["ERH_km_1sigma"]]
 
-            C_full = errinfo["C_full"]
-            C_xyz = errinfo["C_xyz"]
-            std_axes = errinfo["principal_std_km_1sigma"]
-            evecs = errinfo["principal_axes_unit_vectors"]
-            ERZ = errinfo["ERZ_km_1sigma"]
-            ERH = errinfo["ERH_km_1sigma"]
 
-            self._covariances[ev] = C_full
-            self._spatial_covariances[ev] = C_xyz
-            self._principal_std[ev] = std_axes
-            self._principal_axes[ev] = evecs.T  # store as rows
-            self._erz_erh[ev] = [ERZ, ERH]
-
-        # Write origin times, locations, and attach error products
+    def _finalize_origins(self):
+        scale95 = 2.4
         for event_idx, event in enumerate(self.events):
             if self.invalid_events[event_idx]:
-                print(f"Event {event_idx} is marked as invalid. Skipping update.")
                 continue
             origin = Origin()
             origin.latitude = self.locations[event_idx, 0]
             origin.longitude = self.locations[event_idx, 1]
-            origin.depth = self.locations[event_idx, 2] * 1000.0  # Convert to meters
+            origin.depth = self.locations[event_idx, 2] * 1000.0
             origin.time = self.origin_times[event_idx]
-
-            # Package errors for consumers; include 95% (≈2.4×) scaling
             s1, s2, s3 = self._principal_std[event_idx]
-            evecs = self._principal_axes[event_idx]  # rows
+            evecs = self._principal_axes[event_idx]
             ERZ_1s, ERH_1s = self._erz_erh[event_idx]
-            scale95 = 2.4
 
-            # Extract major axis vector (assumed to be column 0 of `evecs`)
-            v = evecs[:, 0]  # shape (3,)
-
-            # Ensure unit vector
+            v = evecs[:, 0]
             v = v / np.linalg.norm(v)
+            plunge = float(np.rad2deg(np.arcsin(np.clip(v[2], -1.0, 1.0))))
+            azimuth = float((np.rad2deg(np.arctan2(v[0], v[1])) + 360) % 360)
 
-            plunge = np.rad2deg(np.arcsin(np.clip(v[2], -1.0, 1.0)))  # z component
-            plunge = float(plunge)
-
-            azimuth = np.rad2deg(np.arctan2(v[0], v[1]))  # arctan2(East, North)
-            azimuth = float((azimuth + 360) % 360)  # Wrap to [0, 360)
-
-            # Create the ellipsoid with 95% confidence scaling
             confidence_ellipsoid = ConfidenceEllipsoid(
                 semi_major_axis_length=s1 * 1000.0,
                 semi_minor_axis_length=s3 * 1000.0,
@@ -596,9 +537,21 @@ class EventLocator:
                 confidence_level=95.0,
             )
             origin.depth_errors = depth_errors
-            event.origins.append(origin)
 
+            for station_idx, (network, station) in enumerate(self.stations):
+                for phase_idx, phase in enumerate(self.phases):
+                    arr_index = self.n_phases * station_idx + phase_idx
+                    observed_time = self.arrivals[event_idx, arr_index]
+                    if np.isnan(observed_time):
+                        continue
+                    pick = next((pk for pk in event.picks if pk.waveform_id.station_code == station and pk.waveform_id.network_code == network and pk.phase_hint.lower() == phase.lower()), None)
+                    travel_time = self.theoretical_arrivals[event_idx, arr_index]
+                    residual = travel_time - (observed_time - self.origin_times[event_idx])
+                    arrival = Arrival(pick_id=pick.resource_id, phase=phase, time_residual=residual)
+                    origin.arrivals.append(arrival)
+            event.origins.append(origin)
         return self.events
+
 
     def report_invalid_events(self) -> np.ndarray:
         """
