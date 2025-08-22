@@ -2,10 +2,12 @@ from numba import njit
 import numpy as np
 
 @njit(cache=True)
-def gps2dist_azimuth_numba(lat1, lon1, lat2, lon2, R=6371.0e3):
+def gps2dist_azimuth_nb(lat1, lon1, lat2, lon2, R=6371.0e3):
     """
     Compute distance (meters), azimuth (degrees), and back azimuth (degrees)
     between two lat/lon points using spherical Earth approximation.
+
+    @This function is a Numba-optimized version of Obspy's gps2dist_azimuth.
 
     Parameters:
     - lat1, lon1: event (deg)
@@ -38,11 +40,13 @@ def gps2dist_azimuth_numba(lat1, lon1, lat2, lon2, R=6371.0e3):
     return distance, azimuth, back_azimuth
 
 @njit(cache=True)
-def compute_spatial_derivatives(
+def compute_spatial_derivatives_1d(
     takeoff_rad: float, az_deg: float, vel: float
 ) -> tuple:
     """
     Calculate spatial derivatives for travel-time, ray-parameter, and takeoff angle.
+    This approximation is valid for small distances (up to a few hundred km) and
+    only for 1D velocity models.
     """
     dt_dr = np.sin(takeoff_rad) / vel
     dt_dz = -np.cos(takeoff_rad) / vel

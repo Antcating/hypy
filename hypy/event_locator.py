@@ -20,7 +20,7 @@ from scipy.sparse.linalg import lsmr
 
 from .propagation.ray_tracers import RayTracer
 from .propagation.tables import TravelTimeTables
-from .utils.geo import compute_spatial_derivatives, gps2dist_azimuth_numba
+from .utils.geo import compute_spatial_derivatives_1d, gps2dist_azimuth_nb
 
 
 class EventLocator:
@@ -262,7 +262,7 @@ class EventLocator:
     def _derive_travel_time_param(self, event_location, station_location, phase):
         ev_lat, ev_lon, ev_depth = event_location
         st_lat, st_lon, st_elev = station_location
-        dist_m, az_deg, _ = gps2dist_azimuth_numba(
+        dist_m, az_deg, _ = gps2dist_azimuth_nb(
             ev_lat, ev_lon, st_lat, st_lon, R=self.model.model.radius_of_planet * 1000.0
         )
         distance_km = dist_m / 1000.0
@@ -271,7 +271,7 @@ class EventLocator:
         )
         vel = self._get_velocity(ev_depth, phase)
         takeoff_rad = np.deg2rad(takeoff_angle)
-        dt_dr, dt_dz, dt_dx, dt_dy = compute_spatial_derivatives(
+        dt_dr, dt_dz, dt_dx, dt_dy = compute_spatial_derivatives_1d(
             takeoff_rad, az_deg, vel
         )
 

@@ -173,6 +173,8 @@ class TravelTimeTables(PropagationModel):
         )
 
     def get_arrival(self, source_depth, distance, phase):
+        if phase not in self.phases:
+            raise ValueError(f"Phase {phase} not in available phases: {self.phases}")
         time = self.compute_travel_time(phase, source_depth, distance)
         takeoff_angle = self.compute_takeoff_angle(phase, source_depth, distance)
         if np.isnan(time) or np.isnan(takeoff_angle):
