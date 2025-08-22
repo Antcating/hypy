@@ -1,10 +1,10 @@
-# relocpy
+# hypy
 
 ## Overview
-`relocpy` is a Python package designed for locating seismic events based on seismic arrivals. It provides the `EventLocator` class, which facilitates the loading of seismic event data, calculation of travel times, and the determination of event locations using various seismic phases.
+`hypy` is a Python package designed for locating seismic events based on seismic arrivals. It provides the `EventLocator` class, which facilitates the loading of seismic event data, calculation of travel times, and the determination of event locations using various seismic phases.
 
 ## Installation
-To install `relocpy`, you can use pip. Clone the repository and run the following command:
+To install `hypy`, you can use pip. Clone the repository and run the following command:
 
 ```
 pip install .
@@ -14,7 +14,7 @@ Alternatively, you can install it directly from the source:
 
 ```
 git clone <repository-url>
-cd relocpy
+cd hypy
 pip install .
 ```
 
@@ -22,7 +22,7 @@ pip install .
 To use the `EventLocator` class, you need to import it from the package:
 
 ```python
-from relocpy.solve import EventLocator
+from hypy import EventLocator
 ```
 
 ### Example
@@ -30,7 +30,7 @@ Here is a basic example of how to use the `EventLocator` class:
 
 ```python
 from obspy.taup import TauPyModel
-from relocpy.solve import EventLocator
+from hypy import EventLocator
 
 # Load a seismic model
 model = TauPyModel("ak135")
@@ -46,7 +46,7 @@ locator = EventLocator(model=model)
 ```
 
 ## Testing
-To run the tests for the `relocpy` package, navigate to the project directory and execute:
+To run the tests for the `hypy` package, navigate to the project directory and execute:
 
 ```
 pytest tests/test_solve.py
