@@ -494,7 +494,7 @@ class EventLocator:
 
             dx_solution = np.zeros(A.shape[1])
             if self.solver == "lsqr":
-                dx_solution, istop = lsmr(A, b, damp=damping, atol=1e-6, btol=1e-6)[:2]
+                dx_solution = lsmr(A, b, damp=damping, atol=1e-6, btol=1e-6)[0]
             elif self.solver == "svd":
                 U, s, Vt = np.linalg.svd(A, full_matrices=False)
                 s_inv = np.zeros_like(s)
