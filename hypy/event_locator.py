@@ -82,12 +82,16 @@ class EventLocator:
         :param distance_step: Set distance resolution for precalculated table in km. Required
             if using `table` mode.
         :type distance_step: Optional[float]
+        :param fix_depth: If True, depth is fixed to initial guess.
+        :type fix_depth: bool
         """
         self.tvel_file_path = Path(model_tvel)
         self.model_name = self.tvel_file_path.stem
         self.model = TauPyModel(self.model_name)
 
         # The dimesion is 4 for (x, y, z, t) and is hardcoded to 4 for now.
+        
+        self.fix_depth = fix_depth
         # Any other dimension will require changes in the code and is not supported.
         self.dim = 4
 
