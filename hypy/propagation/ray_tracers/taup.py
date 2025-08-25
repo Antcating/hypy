@@ -2,7 +2,7 @@ from typing import List
 
 from obspy.geodetics import kilometer2degrees
 from obspy.taup import TauPyModel
-from obspy.taup.tau import Arrival, Arrivals
+from obspy.taup.tau import Arrival
 
 from hypy.propagation import PropagationModel
 

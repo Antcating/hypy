@@ -7,7 +7,6 @@ Contains the EventLocator class for earthquake location using travel-time tables
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
-import matplotlib.pyplot as plt
 import numpy as np
 from obspy.core.event import Arrival, Catalog, Event, Origin
 from obspy.core.event.base import QuantityError
@@ -34,7 +33,7 @@ class EventLocator:
         model_tvel: str,
         phases: List[str] = ["P"],
         min_picks_per_event: int = 4,
-        time_error_floor: Optional[float] = 0.1,
+        time_error_floor: float = 0.1,
         mode: str = "ray",
         engine: str = "taup",
         solver: str = "lsqr",
@@ -84,8 +83,8 @@ class EventLocator:
             if using `table` mode.
         :type distance_step: Optional[float]
         """
-        self.model_path = Path(model_tvel)
-        self.model_name = self.model_path.stem
+        self.tvel_file_path = Path(model_tvel)
+        self.model_name = self.tvel_file_path.stem
         self.model = TauPyModel(self.model_name)
 
         # The dimesion is 4 for (x, y, z, t) and is hardcoded to 4 for now.
@@ -121,7 +120,7 @@ class EventLocator:
                     f"Unsupported engine: {engine}. Supported engines for ray mode are 'taup' and 'pyrocko'."
                 )
             self.tracer = RayTracer(
-                model_path=self.model_path.as_posix(), engine=engine
+                model_path=self.tvel_file_path.as_posix(), engine=engine
             )
 
         else:
@@ -184,10 +183,9 @@ class EventLocator:
             phase_lower = phase.lower()
             v_profile = []
             for d in depths:
-                try:
-                    v = self.model.model.s_mod.v_mod.evaluate_below(d, phase_lower)[0]
-                except Exception:
-                    v = np.nan
+                if self.model.model.s_mod is None:
+                    raise ValueError("The taup velocity model's s_mod attribute is not initialized.")
+                v = self.model.model.s_mod.v_mod.evaluate_below(d, phase_lower)[0]
                 v_profile.append(v)
             self.velocity_profiles[phase_lower] = (depths, np.array(v_profile))
 
