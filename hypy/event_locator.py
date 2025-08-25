@@ -522,7 +522,6 @@ class EventLocator:
 
             dx[:, 0] = kilometer2degrees(dx[:, 0], self.model.model.radius_of_planet)
             dx[:, 1] = kilometer2degrees(dx[:, 1], self.model.model.radius_of_planet)
-            dx[:, 2] = np.clip(dx[:, 2], -2, 2)
             valid_mask = ~self.invalid_events
             self.locations[valid_mask, :3] -= dx[valid_mask, :3]
             self.origin_times[valid_mask] -= dx[valid_mask, 3]
