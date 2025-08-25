@@ -1,12 +1,16 @@
 from typing import List
+
 try:
     from pyrocko import cake
     from pyrocko.cake import Ray
 except ImportError:
-    raise ImportError("Pyrocko is not installed or not available. Please install Pyrocko to use the PyrockoRayTracer.")
+    raise ImportError(
+        "Pyrocko is not installed or not available. Please install Pyrocko to use the PyrockoRayTracer."
+    )
+from obspy.geodetics import kilometer2degrees
+
 from hypy.propagation import PropagationModel
 
-from obspy.geodetics import kilometer2degrees
 
 class PyrockoRayTracer(PropagationModel):
     """
@@ -21,14 +25,16 @@ class PyrockoRayTracer(PropagationModel):
         """
         Get the arrival time for a given source depth, distance, and seismic phase.
         """
-        if phase.lower() == 'p':
+        if phase.lower() == "p":
             phases = ["p", "P"]
-        elif phase.lower() == 's':
+        elif phase.lower() == "s":
             phases = ["s", "S"]
         else:
-            raise ValueError(f"Unsupported phase: {phase}. Supported phases are 'P' and 'S'.")
-        
-         # Convert distance from km to degrees
+            raise ValueError(
+                f"Unsupported phase: {phase}. Supported phases are 'P' and 'S'."
+            )
+
+        # Convert distance from km to degrees
         arrivals: List[Ray] = self.model.arrivals(
             zstart=source_depth * 1000,
             zstop=0,
@@ -36,7 +42,8 @@ class PyrockoRayTracer(PropagationModel):
             phases=phases,
         )
         if not arrivals:
-            raise ValueError(f"No arrivals found for phase {phase} at distance {distance} and depth {source_depth}.")
-        
+            raise ValueError(
+                f"No arrivals found for phase {phase} at distance {distance} and depth {source_depth}."
+            )
 
         return arrivals[0].t, arrivals[0].takeoff_angle()

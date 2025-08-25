@@ -1,9 +1,11 @@
 from typing import List
+
+from obspy.geodetics import kilometer2degrees
+from obspy.taup import TauPyModel
+from obspy.taup.tau import Arrival, Arrivals
+
 from hypy.propagation import PropagationModel
 
-from obspy.taup import TauPyModel
-from obspy.taup.tau import Arrivals, Arrival
-from obspy.geodetics import kilometer2degrees
 
 class TauPTracer(PropagationModel):
     """
@@ -18,21 +20,24 @@ class TauPTracer(PropagationModel):
         """
         Get the arrival time for a given source depth, distance, and seismic phase.
         """
-        if phase.lower() == 'p':
+        if phase.lower() == "p":
             phases = ["p", "P"]
-        elif phase.lower() == 's':
+        elif phase.lower() == "s":
             phases = ["s", "S"]
         else:
-            raise ValueError(f"Unsupported phase: {phase}. Supported phases are 'P' and 'S'.")
-        
-         # Convert distance from km to degrees
+            raise ValueError(
+                f"Unsupported phase: {phase}. Supported phases are 'P' and 'S'."
+            )
+
+        # Convert distance from km to degrees
         arrivals: List[Arrival] = self.model.get_ray_paths(
             source_depth_in_km=source_depth,
             distance_in_degree=kilometer2degrees(distance),
             phase_list=phases,
         )
         if len(arrivals) == 0:
-            raise ValueError(f"No arrivals found for phase {phase} at distance {distance} and depth {source_depth}.")
-        
+            raise ValueError(
+                f"No arrivals found for phase {phase} at distance {distance} and depth {source_depth}."
+            )
 
         return arrivals[0].time, arrivals[0].takeoff_angle

@@ -1,9 +1,12 @@
 from typing import Optional
+
 import numpy as np
 
 
 def update_damping_factor(
-    current_factor: float, iteration: Optional[int] = None, dx: Optional[np.ndarray] = None
+    current_factor: float,
+    iteration: Optional[int] = None,
+    dx: Optional[np.ndarray] = None,
 ) -> float:
     """
     Simplest damping function that reduces the damping factor by 10% each iteration.

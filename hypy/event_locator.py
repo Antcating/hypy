@@ -5,11 +5,11 @@ Contains the EventLocator class for earthquake location using travel-time tables
 """
 
 from pathlib import Path
-from typing import List, Tuple, Union, Optional
+from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-from obspy.core.event import Catalog, Event, Origin, Arrival
+from obspy.core.event import Arrival, Catalog, Event, Origin
 from obspy.core.event.base import QuantityError
 from obspy.core.event.origin import ConfidenceEllipsoid, OriginUncertainty
 from obspy.core.inventory import Inventory
@@ -20,8 +20,8 @@ from scipy.sparse.linalg import lsmr
 
 from .propagation.ray_tracers import RayTracer
 from .propagation.tables import TravelTimeTables
-from .utils.geo import compute_spatial_derivatives_1d, gps2dist_azimuth_nb
 from .utils.damping import update_damping_factor
+from .utils.geo import compute_spatial_derivatives_1d, gps2dist_azimuth_nb
 
 
 class EventLocator:
@@ -38,31 +38,31 @@ class EventLocator:
     :param time_error_floor: Minimal time-pick error assumed for events with no
         time-pick error provided.
     :type time_error_floor: float
-    :param mode: Set the method for direct propagation. Available options are: 
+    :param mode: Set the method for direct propagation. Available options are:
         `table` and `ray`. \n
-        `table` mode uses precomputed tables and interpolation for teorethical arrival 
-            time and takeoff angle. This mode is faster than alternatives, 
+        `table` mode uses precomputed tables and interpolation for teorethical arrival
+            time and takeoff angle. This mode is faster than alternatives,
             but the accuracycis highly dependent on resolution of the precalculated table.\n
-        `ray` mode uses direct tau-p ray propagation algorithm to allow, in general, 
+        `ray` mode uses direct tau-p ray propagation algorithm to allow, in general,
             for higher accuracy than `table`, but at the cost of higher computational
-            time 
+            time
     :type mode: str
-    :param engine: Set the engine for direct propagation. Available options are: 
+    :param engine: Set the engine for direct propagation. Available options are:
         `taup` and `pyrocko`.
     :type engine: str
-    :param solver: Set the solver for inversion problem. Available options are: 
+    :param solver: Set the solver for inversion problem. Available options are:
         `lsqr` and `svd`.
     :type solver: str
-    :param max_depth: Set bounding depth for precalculated table in km. Required 
+    :param max_depth: Set bounding depth for precalculated table in km. Required
         if using `table` mode.
     :type max_depth: Optional[float]
-    :param max_distance: Set bounding distance for precalculated table in km. Required 
+    :param max_distance: Set bounding distance for precalculated table in km. Required
         if using `table` mode.
     :type max_distance: Optional[float]
-    :param depth_step: Set depth resolution for precalculated table in km. Required 
+    :param depth_step: Set depth resolution for precalculated table in km. Required
         if using `table` mode.
     :type depth_step: Optional[float]
-    :param distance_step: Set distance resolution for precalculated table in km. Required 
+    :param distance_step: Set distance resolution for precalculated table in km. Required
         if using `table` mode.
     :type distance_step: Optional[float]
     """
@@ -97,9 +97,16 @@ class EventLocator:
         self.min_picks_per_event = min_picks_per_event
 
         if mode == "table":
-            if any([x is None for x in [max_depth, max_distance, depth_step, distance_step]]):
-                raise ValueError("In table mode these variables are required: " \
-                "max_depth, max_distance, depth_step, distance_step")
+            if any(
+                [
+                    x is None
+                    for x in [max_depth, max_distance, depth_step, distance_step]
+                ]
+            ):
+                raise ValueError(
+                    "In table mode these variables are required: "
+                    "max_depth, max_distance, depth_step, distance_step"
+                )
             self.tracer = TravelTimeTables(
                 self.model_name,
                 phases,
@@ -439,15 +446,35 @@ class EventLocator:
             "RDERR_s": rderr,
         }
 
-    def locate(self, max_iterations=10, conv_threshold=1e-3, solve_airquakes=False, max_depth=20.0, max_depth_iterations=5, trial_depth=10.0):
+    def locate(
+        self,
+        max_iterations=10,
+        conv_threshold=1e-3,
+        solve_airquakes=False,
+        max_depth=20.0,
+        max_depth_iterations=5,
+        trial_depth=10.0,
+    ):
         self.init_locations(trial_depth=trial_depth)
         self.invalid_events = np.zeros(self.n_events, dtype=bool)
-        self._run_location_iterations(max_iterations, conv_threshold, solve_airquakes, max_depth, max_depth_iterations)
+        self._run_location_iterations(
+            max_iterations,
+            conv_threshold,
+            solve_airquakes,
+            max_depth,
+            max_depth_iterations,
+        )
         self._compute_error_ellipsoids()
         return self._finalize_origins()
 
-
-    def _run_location_iterations(self, max_iterations, conv_threshold, solve_airquakes, max_depth, max_depth_iterations):
+    def _run_location_iterations(
+        self,
+        max_iterations,
+        conv_threshold,
+        solve_airquakes,
+        max_depth,
+        max_depth_iterations,
+    ):
         damping = 1.0
         max_damping = 10
         A = None
@@ -460,7 +487,10 @@ class EventLocator:
             residuals = self.theoretical_arrivals - travel_times_obs
             residuals_flat = residuals.flatten()
             b = self.W[valid_rows] * residuals_flat[valid_rows]
-            A = self.derivative_matrix[valid_rows, :] * self.W[valid_rows][:, np.newaxis]
+            A = (
+                self.derivative_matrix[valid_rows, :]
+                * self.W[valid_rows][:, np.newaxis]
+            )
 
             dx_solution = np.zeros(A.shape[1])
             if self.solver == "lsqr":
@@ -468,7 +498,7 @@ class EventLocator:
             elif self.solver == "svd":
                 U, s, Vt = np.linalg.svd(A, full_matrices=False)
                 s_inv = np.zeros_like(s)
-                s_inv[s > 1e-12] = s[s > 1e-12] / (s[s > 1e-12] ** 2 + damping ** 2)
+                s_inv[s > 1e-12] = s[s > 1e-12] / (s[s > 1e-12] ** 2 + damping**2)
                 dx_solution = Vt.T @ (s_inv * (U.T @ b))
 
             dx = dx_solution.reshape((self.n_events, self.dim))
@@ -502,7 +532,6 @@ class EventLocator:
         self._valid_rows_final = valid_rows
         self._residuals_flat_final = residuals_flat
         self._lambda_final = damping
-
 
     def _compute_error_ellipsoids(self):
         self._covariances = np.zeros((self.n_events, 4, 4))
@@ -540,7 +569,6 @@ class EventLocator:
             self._principal_std[ev] = errinfo["principal_std_km_1sigma"]
             self._principal_axes[ev] = errinfo["principal_axes_unit_vectors"].T
             self._erz_erh[ev] = [errinfo["ERZ_km_1sigma"], errinfo["ERH_km_1sigma"]]
-
 
     def _finalize_origins(self):
         scale95 = 2.4
@@ -589,14 +617,26 @@ class EventLocator:
                     observed_time = self.arrivals[event_idx, arr_index]
                     if np.isnan(observed_time):
                         continue
-                    pick = next((pk for pk in event.picks if pk.waveform_id.station_code == station and pk.waveform_id.network_code == network and pk.phase_hint.lower() == phase.lower()), None)
+                    pick = next(
+                        (
+                            pk
+                            for pk in event.picks
+                            if pk.waveform_id.station_code == station
+                            and pk.waveform_id.network_code == network
+                            and pk.phase_hint.lower() == phase.lower()
+                        ),
+                        None,
+                    )
                     travel_time = self.theoretical_arrivals[event_idx, arr_index]
-                    residual = travel_time - (observed_time - self.origin_times[event_idx])
-                    arrival = Arrival(pick_id=pick.resource_id, phase=phase, time_residual=residual)
+                    residual = travel_time - (
+                        observed_time - self.origin_times[event_idx]
+                    )
+                    arrival = Arrival(
+                        pick_id=pick.resource_id, phase=phase, time_residual=residual
+                    )
                     origin.arrivals.append(arrival)
             event.origins.append(origin)
         return self.events
-
 
     def report_invalid_events(self) -> np.ndarray:
         """
