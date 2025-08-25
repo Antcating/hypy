@@ -21,6 +21,7 @@ from scipy.sparse.linalg import lsmr
 from .propagation.ray_tracers import RayTracer
 from .propagation.tables import TravelTimeTables
 from .utils.geo import compute_spatial_derivatives_1d, gps2dist_azimuth_nb
+from .utils.damping import update_damping_factor
 
 
 class EventLocator:
@@ -493,7 +494,7 @@ class EventLocator:
             valid_mask = ~self.invalid_events
             self.locations[valid_mask, :3] -= dx[valid_mask, :3]
             self.origin_times[valid_mask] -= dx[valid_mask, 3]
-            damping = np.clip(damping * 0.9, 0, max_damping)
+            damping = np.clip(update_damping_factor(damping), 0, max_damping)
             if res_norm < conv_threshold:
                 break
 
