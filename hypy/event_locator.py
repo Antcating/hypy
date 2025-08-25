@@ -597,9 +597,9 @@ class EventLocator:
                 major_axis_plunge=plunge,
                 major_axis_azimuth=azimuth,
             )
-            origin.confidence_ellipsoid = confidence_ellipsoid
 
             origin_uncertainty = OriginUncertainty(
+                confidence_ellipsoid=confidence_ellipsoid,
                 horizontal_uncertainty=ERH_1s * scale95 * 1000.0,
                 preferred_description="confidence ellipsoid",
                 confidence_level=95.0,
