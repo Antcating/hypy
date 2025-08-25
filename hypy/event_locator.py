@@ -5,7 +5,7 @@ Contains the EventLocator class for earthquake location using travel-time tables
 """
 
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,12 +25,50 @@ from .utils.geo import compute_spatial_derivatives_1d, gps2dist_azimuth_nb
 
 class EventLocator:
     """
-    Earthquake event locator using precomputed travel-time tables.
+    Seismic event relocator using 1D velocity model and event P/S phase picks
+
+    :param model_tvel: Absolute path to velocity model .tvel file.
+    :type model_tvel: str
+    :param phases: Phases to solve for. Available options: 'P', 'S'.
+    :type phases: list[str]
+    :param min_picks_per_event: Number of picks required for event to be solved.
+        Absolute minimum required is 4 (example: 4 P-phases per event).
+    :type min_picks_per_event: int
+    :param time_error_floor: Minimal time-pick error assumed for events with no
+        time-pick error provided.
+    :type time_error_floor: float
+    :param mode: Set the method for direct propagation. Available options are: 
+        `table` and `ray`. \n
+        `table` mode uses precomputed tables and interpolation for teorethical arrival 
+            time and takeoff angle. This mode is faster than alternatives, 
+            but the accuracycis highly dependent on resolution of the precalculated table.\n
+        `ray` mode uses direct tau-p ray propagation algorithm to allow, in general, 
+            for higher accuracy than `table`, but at the cost of higher computational
+            time 
+    :type mode: str
+    :param engine: Set the engine for direct propagation. Available options are: 
+        `taup` and `pyrocko`.
+    :type engine: str
+    :param solver: Set the solver for inversion problem. Available options are: 
+        `lsqr` and `svd`.
+    :type solver: str
+    :param max_depth: Set bounding depth for precalculated table in km. Required 
+        if using `table` mode.
+    :type max_depth: Optional[float]
+    :param max_distance: Set bounding distance for precalculated table in km. Required 
+        if using `table` mode.
+    :type max_distance: Optional[float]
+    :param depth_step: Set depth resolution for precalculated table in km. Required 
+        if using `table` mode.
+    :type depth_step: Optional[float]
+    :param distance_step: Set distance resolution for precalculated table in km. Required 
+        if using `table` mode.
+    :type distance_step: Optional[float]
     """
 
     def __init__(
         self,
-        model_path: str,
+        model_tvel: str,
         phases: List[str] = ["P"],
         min_picks_per_event: int = 4,
         time_error_floor: Optional[float] = 0.1,
@@ -45,7 +83,7 @@ class EventLocator:
         """
         Initialize the EventLocator with a velocity model and configure travel-time tables.
         """
-        self.model_path = Path(model_path)
+        self.model_path = Path(model_tvel)
         self.model_name = self.model_path.stem
         self.model = TauPyModel(self.model_name)
 
