@@ -32,15 +32,15 @@ class EventLocator:
         self,
         model_path: str,
         phases: List[str] = ["P"],
-        max_depth: float = 30.0,
-        max_distance: float = 100.0,
-        depth_step: float = 1.0,
-        distance_step: float = 1.0,
-        time_error_floor: float = 0.1,
         min_picks_per_event: int = 4,
+        time_error_floor: Optional[float] = 0.1,
         mode: str = "ray",
         engine: str = "taup",
         solver: str = "lsqr",
+        max_depth: Optional[float] = None,
+        max_distance: Optional[float] = None,
+        depth_step: Optional[float] = None,
+        distance_step: Optional[float] = None,
     ):
         """
         Initialize the EventLocator with a velocity model and configure travel-time tables.
@@ -58,6 +58,9 @@ class EventLocator:
         self.min_picks_per_event = min_picks_per_event
 
         if mode == "table":
+            if any([x is None for x in [max_depth, max_distance, depth_step, distance_step]]):
+                raise ValueError("In table mode these variables are required: " \
+                "max_depth, max_distance, depth_step, distance_step")
             self.tracer = TravelTimeTables(
                 self.model_name,
                 phases,
