@@ -41,6 +41,7 @@ class EventLocator:
         max_distance: Optional[float] = None,
         depth_step: Optional[float] = None,
         distance_step: Optional[float] = None,
+        _fix_depth: bool = False,
     ):
         """
         Initialize the EventLocator
@@ -90,10 +91,10 @@ class EventLocator:
         self.model = TauPyModel(self.model_name)
 
         # The dimesion is 4 for (x, y, z, t) and is hardcoded to 4 for now.
-        
-        self.fix_depth = fix_depth
         # Any other dimension will require changes in the code and is not supported.
         self.dim = 4
+
+        self._fix_depth = _fix_depth
 
         self.phases = phases
         self.n_phases = len(phases)
@@ -188,7 +189,9 @@ class EventLocator:
             v_profile = []
             for d in depths:
                 if self.model.model.s_mod is None:
-                    raise ValueError("The taup velocity model's s_mod attribute is not initialized.")
+                    raise ValueError(
+                        "The taup velocity model's s_mod attribute is not initialized."
+                    )
                 v = self.model.model.s_mod.v_mod.evaluate_below(d, phase_lower)[0]
                 v_profile.append(v)
             self.velocity_profiles[phase_lower] = (depths, np.array(v_profile))
@@ -213,6 +216,10 @@ class EventLocator:
             (sta.latitude, sta.longitude, sta.elevation)
             for net in inv
             for sta in net.stations
+        ]
+        self.fixed_depth_mask = [
+            self._fix_depth or (len(ev.origins) > 0 and ev.origins[-1].depth_type == "operator assigned")
+            for ev in events
         ]
 
         self.n_stations = len(self.stations)
@@ -377,7 +384,9 @@ class EventLocator:
                     # Populate the derivative matrix
                     self.derivative_matrix[row_idx, col_idx + 0] = dt_dx
                     self.derivative_matrix[row_idx, col_idx + 1] = dt_dy
-                    self.derivative_matrix[row_idx, col_idx + 2] = dt_dz
+                    # if not self.fix_depth:
+                    if not self.fixed_depth_mask[event_idx]:
+                        self.derivative_matrix[row_idx, col_idx + 2] = dt_dz
                     self.derivative_matrix[row_idx, col_idx + 3] = 1.0
                     valid_rows.append(row_idx)
         return np.array(valid_rows, dtype=int)
@@ -611,6 +620,11 @@ class EventLocator:
                 confidence_level=95.0,
             )
             origin.depth_errors = depth_errors
+            origin.depth_type = (
+                "operator assigned"
+                if self.fixed_depth_mask[event_idx]
+                else "from location"
+            )
 
             for station_idx, (network, station) in enumerate(self.stations):
                 for phase_idx, phase in enumerate(self.phases):
