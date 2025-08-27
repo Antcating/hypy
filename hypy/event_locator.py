@@ -45,6 +45,7 @@ class EventLocator:
         distance_cutoff: Optional[float] = None,
         cutoff_width: Optional[float] = None,
         _fix_depth: bool = False,
+        _precalculate_velocities: bool = False,
     ):
         """
         Initialize the EventLocator
@@ -95,6 +96,11 @@ class EventLocator:
         :type cutoff_width: Optional[float]
         :param _fix_depth: If True, depth is fixed to initial guess FOR ALL EVENTS.
         :type _fix_depth: bool
+        :param _precalculate_velocities: If True, velocities are precalculated for
+            each phase at depth intervals defined by `depth_step` up to `max_depth`.
+            This is only supported for 1D velocity models and is intended to speed up
+            the location process.
+        :type _precalculate_velocities: bool
         """
         self.tvel_file_path = Path(model_tvel)
         self.model_name = self.tvel_file_path.stem
@@ -191,11 +197,18 @@ class EventLocator:
         self._principal_axes = None  # (n_events, 3, 3) eigenvectors as rows (ex,ey,ez)
         self._erz_erh = None  # (n_events, 2) [ERZ, ERH] @ 1σ
 
-        # Currently only 1D velocity models are supported
-        self.velocity_profile_dimensionality = 1
-        if self.velocity_profile_dimensionality == 1:
-            # Precompute velocity profiles for each phase
-            self._precompute_velocity_profiles_1d(max_depth, depth_step)
+        self._precalculate_velocities = _precalculate_velocities
+        if self._precalculate_velocities and any([x is None for x in [max_depth, depth_step]]):
+            raise ValueError(
+                "When using precalculated velocities for each depth, " \
+                "max_depth and depth_step must be provided."
+            )
+        if self._precalculate_velocities:
+            # Currently only 1D velocity models are supported
+            self.velocity_profile_dimensionality = 1
+            if self.velocity_profile_dimensionality == 1:
+                # Precompute velocity profiles for each phase
+                self._precompute_velocity_profiles_1d(max_depth, depth_step)
 
     def _precompute_velocity_profiles_1d(self, max_depth, depth_step):
         """
@@ -217,9 +230,11 @@ class EventLocator:
 
     def _get_velocity_1d(self, depth, phase):
         """
-        Interpolate velocity for a given depth and phase from precomputed profile.
+        Get velocity at a given depth for a specific phase.
         """
         phase_lower = phase.lower()
+        if not self._precalculate_velocities:
+            return self.model.model.s_mod.v_mod.evaluate_below(depth, phase)[0]
         depths, v_profile = self.velocity_profiles[phase_lower]
         return np.interp(depth, depths, v_profile)
 
