@@ -336,7 +336,7 @@ class EventLocator:
             takeoff_rad, az_deg, vel
         )
 
-        return travel_time, dt_dx, dt_dy, dt_dz
+        return distance_km, travel_time, dt_dx, dt_dy, dt_dz
 
     def init_locations(
         self, trial_depth: float = 10.0, trial_time: float = 2.0
@@ -373,7 +373,7 @@ class EventLocator:
                     observed_time = self.arrivals[event_idx, arr_index]
                     if np.isnan(observed_time):
                         continue
-                    travel_time, dt_dx, dt_dy, dt_dz = self._derive_travel_time_param(
+                    distance_km, travel_time, dt_dx, dt_dy, dt_dz = self._derive_travel_time_param(
                         (ev_lat, ev_lon, ev_depth),
                         (sta_lat, sta_lon, sta_elev),
                         phase,
