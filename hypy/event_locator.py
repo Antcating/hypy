@@ -21,6 +21,7 @@ from .propagation.ray_tracers import RayTracer
 from .propagation.tables import TravelTimeTables
 from .utils.damping import update_damping_factor
 from .utils.geo import compute_spatial_derivatives_1d, gps2dist_azimuth_nb
+from .utils.distance import compute_distance_weight
 
 
 class EventLocator:
@@ -41,6 +42,8 @@ class EventLocator:
         max_distance: Optional[float] = None,
         depth_step: Optional[float] = None,
         distance_step: Optional[float] = None,
+        distance_cutoff: Optional[float] = None,
+        cutoff_width: Optional[float] = None,
         _fix_depth: bool = False,
     ):
         """
@@ -83,8 +86,15 @@ class EventLocator:
         :param distance_step: Set distance resolution for precalculated table in km. Required
             if using `table` mode.
         :type distance_step: Optional[float]
-        :param fix_depth: If True, depth is fixed to initial guess.
-        :type fix_depth: bool
+        :param distance_cutoff: Set distance at distance weighting becomes significant.
+            If `distance_cutoff` is not set, distance weighting is not performed.
+        :type distance_cutoff: Optional[float]
+        :param cutoff_width: Width of the distance weight transition from 1 to 0 around 
+            `distance_cutoff`. If `cutoff_width` is not set, distance weighting 
+            is not performed.
+        :type cutoff_width: Optional[float]
+        :param _fix_depth: If True, depth is fixed to initial guess FOR ALL EVENTS.
+        :type _fix_depth: bool
         """
         self.tvel_file_path = Path(model_tvel)
         self.model_name = self.tvel_file_path.stem
@@ -164,6 +174,15 @@ class EventLocator:
         self.arrival_time_errors: np.ndarray
         # Weighting matrix W for LSQR
         self.W: np.ndarray
+
+        # Weights for distance-based damping
+        self.distance_W: np.ndarray
+        self.distance_cutoff = distance_cutoff
+        self.cutoff_width = cutoff_width
+        if self.distance_cutoff is None or self.cutoff_width is None:
+            self._distance_weighting = False
+        else:
+            self._distance_weighting = True
 
         # Storage for error products
         self._covariances = None  # (n_events, 4, 4) full parameter covariance (x,y,z,t)
@@ -245,6 +264,7 @@ class EventLocator:
             (n_events * n_phases * n_stations, n_events * self.dim)
         )
         self.W = np.ones(n_events * n_phases * n_stations)
+        self.distance_W = np.ones(n_events * n_phases * n_stations)
         self.locations = np.zeros((n_events, self.dim - 1))
         self.invalid_events = np.zeros(n_events, dtype=bool)
 
@@ -381,6 +401,12 @@ class EventLocator:
                     self.theoretical_arrivals[event_idx, arr_index] = travel_time
                     row_idx = event_idx * (self.n_stations * self.n_phases) + arr_index
 
+                    if self._distance_weighting:
+                        # Weighting for distance-based damping
+                        self.distance_W[row_idx] = compute_distance_weight(
+                            distance_km, self.distance_cutoff, self.cutoff_width
+                        )
+
                     # Populate the derivative matrix
                     self.derivative_matrix[row_idx, col_idx + 0] = dt_dx
                     self.derivative_matrix[row_idx, col_idx + 1] = dt_dy
@@ -497,10 +523,10 @@ class EventLocator:
             travel_times_obs = self.arrivals - self.origin_times[:, np.newaxis]
             residuals = self.theoretical_arrivals - travel_times_obs
             residuals_flat = residuals.flatten()
-            b = self.W[valid_rows] * residuals_flat[valid_rows]
+            b = self.distance_W[valid_rows] * self.W[valid_rows] * residuals_flat[valid_rows]
             A = (
                 self.derivative_matrix[valid_rows, :]
-                * self.W[valid_rows][:, np.newaxis]
+                * self.W[valid_rows][:, np.newaxis] * self.distance_W[valid_rows][:, np.newaxis]
             )
 
             dx_solution = np.zeros(A.shape[1])
