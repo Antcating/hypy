@@ -30,11 +30,16 @@ class TauPRayTracer(PropagationModel):
             )
 
         # Convert distance from km to degrees
-        arrivals: List[Arrival] = self.model.get_ray_paths(
-            source_depth_in_km=source_depth,
-            distance_in_degree=kilometer2degrees(distance),
-            phase_list=phases,
-        )
+        try:
+            arrivals: List[Arrival] = self.model.get_ray_paths(
+                source_depth_in_km=source_depth,
+                distance_in_degree=kilometer2degrees(distance),
+                phase_list=phases,
+            )
+        except Exception as e:
+            raise ValueError(
+                f"Error computing arrivals for phase {phase} at distance {distance} and depth {source_depth}: {e}"
+            )
         if len(arrivals) == 0:
             raise ValueError(
                 f"No arrivals found for phase {phase} at distance {distance} and depth {source_depth}."

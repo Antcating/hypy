@@ -35,12 +35,17 @@ class PyrockoRayTracer(PropagationModel):
             )
 
         # Convert distance from km to degrees
-        arrivals: List[Ray] = self.model.arrivals(
-            zstart=source_depth * 1000,
-            zstop=0,
-            distances=[kilometer2degrees(distance)],
-            phases=phases,
-        )
+        try:
+            arrivals: List[Ray] = self.model.arrivals(
+                zstart=source_depth * 1000,
+                zstop=0,
+                distances=[kilometer2degrees(distance)],
+                phases=phases,
+            )
+        except Exception as e:
+            raise ValueError(
+                f"Error computing arrivals for phase {phase} at distance {distance} and depth {source_depth}: {e}"
+            )
         if not arrivals:
             raise ValueError(
                 f"No arrivals found for phase {phase} at distance {distance} and depth {source_depth}."
