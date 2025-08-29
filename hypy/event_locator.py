@@ -264,27 +264,65 @@ class EventLocator:
         Load station inventory (station metadata) and events (with picks) into the locator.
         This must be called before running locate().
         """
+        
+        # Read inventory data
         self.inv = inv
         self.networks = [net.code for net in inv]
-        self.stations = [(net.code, sta.code) for net in inv for sta in net.stations]
-        self.stations_locations = [
+        all_stations = [(net.code, sta.code) for net in inv for sta in net.stations]
+        all_stations_locations = [
             (sta.latitude, sta.longitude, sta.elevation)
             for net in inv
             for sta in net.stations
         ]
-        self.fixed_depth_mask = [
-            self._fix_depth or (len(ev.origins) > 0 and ev.origins[-1].depth_type == "operator assigned")
-            for ev in events
+
+        
+        # Read events and picks
+        self.events = events
+        self.n_events = len(events)
+
+        # Extract stations from picks in events
+        ev_stations = list(
+            set(
+                [
+                    (pk.waveform_id.network_code, pk.waveform_id.station_code)
+                    for ev in events
+                    for pk in ev.picks
+                ]
+            )
+        )
+
+        # Check for stations in picks that are not in inventory
+        missing_stations = [sta for sta in ev_stations if sta not in all_stations]
+        if len(missing_stations) > 0:
+            print(
+                f"The following stations are present in event picks but missing in inventory: {missing_stations}"
+            )
+
+        # Mask stations to only those present in both inventory and picks
+        stations = list(set(all_stations) & set(ev_stations))
+
+        # Load stations data
+        self.stations = stations
+        self.n_stations = len(self.stations)
+        self.stations_locations = [
+            all_stations_locations[all_stations.index(sta)] for sta in stations
         ]
 
-        self.n_stations = len(self.stations)
+        # Validate data
         if self.n_phases * self.n_stations < self.min_picks_per_event:
             raise ValueError(
                 f"{self.n_stations} stations * {self.n_phases} phases < {self.min_picks_per_event} picks per event. "
                 f"Not enough stations and phases to satisfy minimum picks per event."
             )
-        self.events = events
-        self.n_events = len(events)
+        
+        # Create fixed depth mask for events
+        self.fixed_depth_mask = [
+            self._fix_depth
+            or (
+                len(ev.origins) > 0 and ev.origins[-1].depth_type == "operator assigned"
+            )
+            for ev in events
+        ]
         self._allocate_arrays(self.n_events, self.n_stations, self.n_phases)
         self._fill_data()
 
