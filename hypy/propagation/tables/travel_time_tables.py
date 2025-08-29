@@ -14,7 +14,9 @@ from pathlib import Path
 from hypy.propagation import PropagationModel
 
 from hypy.utils.interp import interp_quant
+from hypy.logger import get_logger
 
+logger = get_logger(__name__)
 
 class TravelTimeTables(PropagationModel):
     """
@@ -97,7 +99,7 @@ class TravelTimeTables(PropagationModel):
         for phase in self.phases:
             fname = self._table_filename(phase)
             if os.path.exists(fname) and not overwrite:
-                print(f"Loading travel-time tables from {fname}")
+                logger.info(f"Loading travel-time tables from {fname}")
                 self.load(fname, phase)
                 continue
             depth_values = np.arange(0.1, self.max_depth + 0.1 + 1e-6, self.depth_step)
@@ -126,7 +128,7 @@ class TravelTimeTables(PropagationModel):
                         time, angle = self.tracer.get_arrival(depth, dist, "S")
                         self.travel_time_tables["S"][i, j] = time
                         self.takeoff_angle_tables["S"][i, j] = angle
-            print(f"Saving travel-time tables to {fname}")
+            logger.info(f"Saving travel-time tables to {fname}")
             self.save(fname)
 
     def compute_travel_time(self, phase: str, depth: float, distance: float) -> float:

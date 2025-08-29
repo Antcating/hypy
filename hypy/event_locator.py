@@ -22,7 +22,9 @@ from .propagation.tables import TravelTimeTables
 from .utils.damping import update_damping_factor
 from .utils.geo import compute_spatial_derivatives_1d, gps2dist_azimuth_nb
 from .utils.distance import compute_distance_weight
+from .logger import get_logger
 
+logger = get_logger(__name__)
 
 class EventLocator:
     """
@@ -174,6 +176,7 @@ class EventLocator:
         self.theoretical_arrivals: np.ndarray
         self.derivative_matrix: np.ndarray
         self.locations: np.ndarray
+        self.max_distance: Optional[float] = max_distance
 
         # --- Error handling ---
         # If the time error is not provided or is zero, we use a default floor value.
@@ -297,7 +300,7 @@ class EventLocator:
         # Check for stations in picks that are not in inventory
         missing_stations = [sta for sta in ev_stations if sta not in all_stations]
         if len(missing_stations) > 0:
-            print(
+            logger.warning(
                 f"The following stations are present in event picks but missing in inventory: {missing_stations}"
             )
 
@@ -351,7 +354,7 @@ class EventLocator:
         """
         for event_idx, event in enumerate(self.events):
             if len(event.picks) < self.min_picks_per_event:
-                print(
+                logger.warning(
                     f"Event {event.resource_id} has only {len(event.picks)} picks, skipping."
                 )
                 self.invalid_events[event_idx] = True
@@ -361,8 +364,8 @@ class EventLocator:
                 (pk.waveform_id.network_code, pk.waveform_id.station_code)
                 for pk in event.picks
             )
-            if len(picked_stations) < self.min_picks_per_event:
-                print(
+            if len(picked_stations) * self.n_phases < self.min_picks_per_event:
+                logger.warning(
                     f"Event {event.resource_id} has picks at only {len(picked_stations)} unique stations, skipping."
                 )
                 self.invalid_events[event_idx] = True
@@ -396,7 +399,7 @@ class EventLocator:
 
                     # Replace NaN or zero errors with the time error floor
                     if np.isnan(arrival_time_error) or arrival_time_error <= 0.0:
-                        print(
+                        logger.warning(
                             f"Pick for {network}.{station} phase {phase} has invalid time error. Using floor value: {self.time_error_floor} s."
                         )
                         arrival_time_error = self.time_error_floor
@@ -480,7 +483,7 @@ class EventLocator:
                         )
                     )
                     if travel_time is None:
-                        print(
+                        logger.warning(
                             f"No travel time found for event {event_idx}, station {self.stations[station_idx]}, phase {phase}. Skipping this arrival."
                         )
                         continue
@@ -606,13 +609,13 @@ class EventLocator:
         max_depth,
         max_depth_iterations,
     ):
-        print(f"Locating {self.n_events} events with {self.n_stations} stations.")
-        print(f"Using phases: {self.phases}")
-        print(f"Using {self.solver} solver.")
-        print(f"Using {self.mode} mode for travel-time calculations.")
-        print(f"Distance weighting: {self._distance_weighting}")
-        print(f"Fix depth: {self._fix_depth}")
-        print(f"Precalculate velocities: {self._precalculate_velocities}")
+        logger.info(f"Locating {self.n_events} events with {self.n_stations} stations.")
+        logger.info(f"Using phases: {self.phases}")
+        logger.info(f"Using {self.solver} solver.")
+        logger.info(f"Using {self.mode} mode for travel-time calculations.")
+        logger.info(f"Distance weighting: {self._distance_weighting}")
+        logger.info(f"Fix depth: {self._fix_depth}")
+        logger.info(f"Precalculate velocities: {self._precalculate_velocities}")
 
         damping = 1.0
         max_damping = 10
