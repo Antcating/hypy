@@ -42,8 +42,12 @@ class EventLocator:
         max_distance: Optional[float] = None,
         depth_step: Optional[float] = None,
         distance_step: Optional[float] = None,
-        distance_cutoff: Optional[float] = None,
-        cutoff_width: Optional[float] = None,
+        
+        distance_weight_start: Optional[float] = None,
+        distance_weight_end: Optional[float] = None,
+        weight_start: Optional[float] = 0.99,
+        weight_end: Optional[float] = 0.01,
+
         _fix_depth: bool = False,
         _precalculate_velocities: bool = False,
     ):
@@ -183,11 +187,28 @@ class EventLocator:
 
         # Weights for distance-based damping
         self.distance_W: np.ndarray
-        self.distance_cutoff = distance_cutoff
-        self.cutoff_width = cutoff_width
-        if self.distance_cutoff is None or self.cutoff_width is None:
+
+        if any(
+            [
+                x is None
+                for x in [
+                    distance_weight_start,
+                    distance_weight_end,
+                    weight_start,
+                    weight_end,
+                ]
+            ]
+        ):
             self._distance_weighting = False
+            self.k = None
+            self.x0 = None
         else:
+            self.k = (
+                np.log((1.0 / weight_end) - 1.0) - np.log((1.0 / weight_start) - 1.0)
+            ) / (distance_weight_start - distance_weight_start)
+            self.x0 = distance_weight_start - (
+                np.log((1.0 / weight_start) - 1.0) / self.k
+            )
             self._distance_weighting = True
 
         # Storage for error products
@@ -419,7 +440,7 @@ class EventLocator:
                     if self._distance_weighting:
                         # Weighting for distance-based damping
                         self.distance_W[row_idx] = compute_distance_weight(
-                            distance_km, self.distance_cutoff, self.cutoff_width
+                            distance_km, k=self.k, x0=self.x0
                         )
 
                     # Populate the derivative matrix
