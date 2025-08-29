@@ -75,6 +75,16 @@ def test_get_arrival(travel_time_tables):
     assert isinstance(angle_s, float)
     assert pytest.approx(angle_s, rel=1e-1) == 88.82780282349177
 
+def test_get_arrival_out_of_bounds(travel_time_tables):
+    depth = 150.0
+    distance = 500.0
+    with pytest.raises(ValueError):
+        travel_time_tables.get_arrival(depth, distance, "P")
+    depth = 50.0
+    distance = 1500.0
+    with pytest.raises(ValueError):
+        travel_time_tables.get_arrival(depth, distance, "P")
+
 
 def test_invalid_phase(travel_time_tables):
     depth = 50.0
