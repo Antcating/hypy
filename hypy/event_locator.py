@@ -201,7 +201,7 @@ class EventLocator:
         else:
             self.k = (
                 np.log((1.0 / weight_end) - 1.0) - np.log((1.0 / weight_start) - 1.0)
-            ) / (distance_weight_start - distance_weight_start)
+            ) / (distance_weight_end - distance_weight_start)
             self.x0 = distance_weight_start - (
                 np.log((1.0 / weight_start) - 1.0) / self.k
             )
