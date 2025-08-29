@@ -107,8 +107,11 @@ class EventLocator:
         """
         self.tvel_file_path = Path(model_tvel)
         self.model_name = self.tvel_file_path.stem
-        self.model = TauPyModel(self.model_name)
-
+        try:
+            self.model = TauPyModel(self.model_name)
+        except FileNotFoundError:
+            build_taup_model(self.tvel_file_path.as_posix())
+            self.model = TauPyModel(self.model_name)
         # The dimesion is 4 for (x, y, z, t) and is hardcoded to 4 for now.
         # Any other dimension will require changes in the code and is not supported.
         self.dim = 4
