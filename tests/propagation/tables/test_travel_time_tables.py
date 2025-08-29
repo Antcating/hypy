@@ -4,7 +4,7 @@ from pathlib import Path
 import obspy
 import pytest
 
-from hypy.propagation.tables.travel_time_tables import TravelTimeTables
+from hypy.propagation.tables import TravelTimeTables
 
 
 @pytest.fixture(params=["taup", "pyrocko"])
