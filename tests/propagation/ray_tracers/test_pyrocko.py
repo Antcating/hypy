@@ -12,7 +12,7 @@ def tracer():
     return PyrockoRayTracer(model_path=model_path)
 
 
-def test_get_arrival(tracer):
+def test_get_arrival(tracer: PyrockoRayTracer):
     depth = 50.0
     distance = 500.0
     time_p, angle_p = tracer.get_arrival(depth, distance, "P")
@@ -29,8 +29,17 @@ def test_get_arrival(tracer):
     assert pytest.approx(angle_s, rel=1e-1) == 88.83770931419198
 
 
-def test_invalid_phase(tracer):
+def test_invalid_phase(tracer: PyrockoRayTracer):
     depth = 50.0
     distance = 500.0
     with pytest.raises(ValueError):
         tracer.get_arrival(depth, distance, "X")
+
+
+def test_get_arrival_out_of_bounds(tracer: PyrockoRayTracer):
+    depth = -50.0
+    distance = 500.0
+    with pytest.raises(ValueError):
+        tracer.get_arrival(depth, distance, "P")
+    with pytest.raises(ValueError):
+        tracer.get_arrival(depth, distance, "S")
