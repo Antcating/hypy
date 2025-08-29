@@ -76,9 +76,18 @@ def interp_quant(
     """
     Numba-compatible generic interpolation over depth and distance.
     """
-    # Clamp
-    depth = max(min(depth, depth_grid[-1]), depth_grid[0])
-    distance = max(min(distance, distance_grid[-1]), distance_grid[0])
+
+    if depth > depth_grid[-1]:
+        raise ValueError(f"Depth {depth} exceeds max depth {depth_grid[-1]} of travel-time table.")
+    if distance > distance_grid[-1]:
+        raise ValueError(
+            f"Distance {distance} outside range of travel-time table: [{distance_grid[0]}, {distance_grid[-1]}]"
+        )
+    
+    # Clamp depth to minimum grid value
+    # TODO: consider raising an error instead
+    depth = max(depth, depth_grid[0])
+    distance = max(distance, distance_grid[0])
 
     # Locate depth bounds
     i1 = np.searchsorted(depth_grid, depth)

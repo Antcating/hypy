@@ -143,6 +143,8 @@ class EventLocator:
                 distance_step,
                 engine
             )
+            self.max_distance = max_distance
+            self.max_depth = max_depth
         elif mode == "ray":
             if engine not in ["taup", "pyrocko"]:
                 raise ValueError(
@@ -422,6 +424,8 @@ class EventLocator:
             ev_lat, ev_lon, st_lat, st_lon, R=self.model.model.radius_of_planet * 1000.0
         )
         distance_km = dist_m / 1000.0
+        if self.max_distance is not None and distance_km > self.max_distance:
+            return distance_km, None, None, None, None
         travel_time, takeoff_angle = self.tracer.get_arrival(
             source_depth=ev_depth + st_elev / 1000, distance=distance_km, phase=phase
         )
@@ -475,6 +479,12 @@ class EventLocator:
                             phase,
                         )
                     )
+                    if travel_time is None:
+                        print(
+                            f"No travel time found for event {event_idx}, station {self.stations[station_idx]}, phase {phase}. Skipping this arrival."
+                        )
+                        continue
+
                     self.theoretical_arrivals[event_idx, arr_index] = travel_time
                     row_idx = event_idx * (self.n_stations * self.n_phases) + arr_index
 
@@ -691,7 +701,8 @@ class EventLocator:
             rows = np.array(rows_per_event[ev], dtype=int)
             if rows.size == 0:
                 continue
-            A_e = A_all[:, ev * self.dim : (ev + 1) * self.dim][rows]
+            # A_e = A_all[:, ev * self.dim : (ev + 1) * self.dim][rows]
+            A_e = A_all
             r_e = residuals_flat[rows]
             pick_errs_e = np.array(errs_per_event[ev], dtype=float)
             errinfo = self._compute_event_errors(A_e, r_e, pick_errs_e, damping=0.1)
