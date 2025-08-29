@@ -168,7 +168,6 @@ class EventLocator:
         self.stations_locations: List[Tuple[float, float, float]] = []
         self.n_stations: int = 0
 
-        # TODO: Replace the list of events with proper Catalog handling
         self.events: Union[List[Event], Catalog] = []
         self.n_events: int = 0
         self.origin_times: np.ndarray
@@ -590,7 +589,6 @@ class EventLocator:
         self.solver = solver
 
         self.init_locations(trial_depth=trial_depth)
-        self.invalid_events = np.zeros(self.n_events, dtype=bool)
         self._run_location_iterations(
             max_iterations,
             conv_threshold,
