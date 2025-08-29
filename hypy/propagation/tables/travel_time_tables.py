@@ -4,17 +4,16 @@ travel_time_tables.py
 Handles travel-time, ray-parameter, and takeoff angle table creation, saving, loading, and interpolation.
 """
 
-from typing import Dict, List, Optional
-import numpy as np
-from obspy.taup import TauPyModel
-from obspy.geodetics import kilometer2degrees
 import os
 from pathlib import Path
+from typing import Dict, List, Optional
 
-from hypy.propagation import PropagationModel
+import numpy as np
+from obspy.taup import TauPyModel
 
-from hypy.utils.interp import interp_quant
 from hypy.logger import get_logger
+from hypy.propagation import PropagationModel
+from hypy.utils.interp import interp_quant
 
 logger = get_logger(__name__)
 
