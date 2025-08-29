@@ -217,9 +217,6 @@ class EventLocator:
         if self._precalculate_velocities and any(
             [x is None for x in [max_depth, depth_step]]
         ):
-        if self._precalculate_velocities and any(
-            [x is None for x in [max_depth, depth_step]]
-        ):
             raise ValueError(
                 "When using precalculated velocities for each depth, "
                 "max_depth and depth_step must be provided."
