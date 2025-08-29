@@ -23,15 +23,26 @@ class TravelTimeTables(PropagationModel):
 
     def __init__(
         self,
+        model_tvel: str,
         model: str,
         phases: List[str],
         max_depth: float,
         max_distance: float,
         depth_step: float,
         distance_step: float,
+        engine: str = "pyrocko",
         overwrite: bool = False,
     ):
         self.model = TauPyModel(model)
+        self.engine = engine
+        if engine == "taup":
+            from hypy.propagation.ray_tracers.taup import TauPRayTracer
+            self.tracer = TauPRayTracer(model_tvel)
+        elif engine == "pyrocko":
+            from hypy.propagation.ray_tracers.pyrocko import PyrockoRayTracer
+            self.tracer = PyrockoRayTracer(model_tvel)
+        else:
+            raise ValueError(f"Unsupported engine: {engine}")
         self.model_name = model
         self.phases = phases
         self.max_depth = max_depth
@@ -48,7 +59,7 @@ class TravelTimeTables(PropagationModel):
     def _table_filename(self) -> str:
         phase_str = "_".join(sorted(self.phases))
         table_root_dir = Path(__file__).parent
-        table_name = f"travel_time_tables_{self.model_name}_{phase_str}_d{self.max_depth}_r{self.max_distance}_dz{self.depth_step}_dr{self.distance_step}.npz"
+        table_name = f"travel_time_tables_{self.model_name}_{self.engine}_{phase_str}_d{self.max_depth}_r{self.max_distance}_dz{self.depth_step}_dr{self.distance_step}.npz"
         return os.path.join(table_root_dir, "data", table_name)
 
     def save(self, filename: Optional[str] = None) -> None:
@@ -113,44 +124,14 @@ class TravelTimeTables(PropagationModel):
                 dist_deg = kilometer2degrees(dist)
                 # Handle P phase
                 if "P" in self.phases and "P" in self.travel_time_tables:
-                    try:
-                        arrivals = self.model.get_travel_times(
-                            source_depth_in_km=depth,
-                            distance_in_degree=dist_deg,
-                            phase_list=["ttp"],
-                        )
-                    except Exception:
-                        arrivals = []
-                    if arrivals:
-                        arr = arrivals[0]
-                        if hasattr(arr, "time"):
-                            self.travel_time_tables["P"][i, j] = getattr(
-                                arr, "time", np.nan
-                            )
-                        if hasattr(arr, "takeoff_angle"):
-                            self.takeoff_angle_tables["P"][i, j] = getattr(
-                                arr, "takeoff_angle", np.nan
-                            )
+                    time, angle = self.tracer.get_arrival(depth, dist, "P")
+                    self.travel_time_tables["P"][i, j] = time
+                    self.takeoff_angle_tables["P"][i, j] = angle
                 # Handle S phase
                 if "S" in self.phases and "S" in self.travel_time_tables:
-                    try:
-                        arrivals = self.model.get_travel_times(
-                            source_depth_in_km=depth,
-                            distance_in_degree=dist_deg,
-                            phase_list=["tts"],
-                        )
-                    except Exception:
-                        arrivals = []
-                    if arrivals:
-                        arr = arrivals[0]
-                        if hasattr(arr, "time"):
-                            self.travel_time_tables["S"][i, j] = getattr(
-                                arr, "time", np.nan
-                            )
-                        if hasattr(arr, "takeoff_angle"):
-                            self.takeoff_angle_tables["S"][i, j] = getattr(
-                                arr, "takeoff_angle", np.nan
-                            )
+                    time, angle = self.tracer.get_arrival(depth, dist, "S")
+                    self.travel_time_tables["P"][i, j] = time
+                    self.takeoff_angle_tables["P"][i, j] = angle
         print(f"Saving travel-time tables to {fname}")
         self.save(fname)
 
