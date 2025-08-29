@@ -9,9 +9,9 @@ class RayTracer:
 
             self.tracer = PyrockoRayTracer(model_path)
         elif engine == "taup":
-            from .taup import TauPTracer
+            from .taup import TauPRayTracer
 
-            self.tracer = TauPTracer(model_path)
+            self.tracer = TauPRayTracer(model_path)
         else:
             raise ValueError(f"Unknown backend: {engine}. Choose 'pyrocko' or 'taup'.")
 

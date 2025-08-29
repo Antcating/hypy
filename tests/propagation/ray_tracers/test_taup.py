@@ -1,5 +1,5 @@
 import unittest
-from hypy.propagation.ray_tracers.taup import TauPTracer
+from hypy.propagation.ray_tracers.taup import TauPRayTracer
 import os
 import obspy
 
@@ -15,7 +15,7 @@ class TestTravelTimeTables(unittest.TestCase):
 
         obspy_path = os.path.dirname(obspy.__file__)
         model_path = os.path.join(obspy_path, "taup", "data", "iasp91.tvel")
-        self.tracer = TauPTracer(model_path=model_path)
+        self.tracer = TauPRayTracer(model_path=model_path)
 
     def test_get_arrival(self):
         depth = 50.0

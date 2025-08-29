@@ -7,7 +7,7 @@ from obspy.taup.tau import Arrival
 from hypy.propagation import PropagationModel
 
 
-class TauPTracer(PropagationModel):
+class TauPRayTracer(PropagationModel):
     """
     Ray tracer using Pyrocko's cake module for seismic ray tracing.
     """
