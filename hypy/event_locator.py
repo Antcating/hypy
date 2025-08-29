@@ -216,6 +216,9 @@ class EventLocator:
         if self._precalculate_velocities and any(
             [x is None for x in [max_depth, depth_step]]
         ):
+        if self._precalculate_velocities and any(
+            [x is None for x in [max_depth, depth_step]]
+        ):
             raise ValueError(
                 "When using precalculated velocities for each depth, "
                 "max_depth and depth_step must be provided."
@@ -558,26 +561,18 @@ class EventLocator:
     def locate(
         self,
         max_iterations=1000,
-        solver: str = "lsqr",
         conv_threshold=1e-3,
         solve_airquakes=False,
         max_depth=20.0,
         max_depth_iterations=5,
         trial_depth=10.0,
+        solver: str = "lsqr",
     ):
         if solver not in ["lsqr", "svd"]:
             raise ValueError(
                 f"Unsupported solver: {solver}. Supported solvers are 'lsqr' and 'svd'."
             )
         self.solver = solver
-
-        print(f"Locating {self.n_events} events with {self.n_stations} stations.")
-        print(f"Using phases: {self.phases}")
-        print(f"Using {self.solver} solver.")
-        print(f"Using {self.mode} mode for travel-time calculations.")
-        print(f"Distance weighting: {self._distance_weighting}")
-        print(f"Fix depth: {self._fix_depth}")
-        print(f"Precalculate velocities: {self._precalculate_velocities}")
 
         self.init_locations(trial_depth=trial_depth)
         self.invalid_events = np.zeros(self.n_events, dtype=bool)
@@ -599,6 +594,14 @@ class EventLocator:
         max_depth,
         max_depth_iterations,
     ):
+        print(f"Locating {self.n_events} events with {self.n_stations} stations.")
+        print(f"Using phases: {self.phases}")
+        print(f"Using {self.solver} solver.")
+        print(f"Using {self.mode} mode for travel-time calculations.")
+        print(f"Distance weighting: {self._distance_weighting}")
+        print(f"Fix depth: {self._fix_depth}")
+        print(f"Precalculate velocities: {self._precalculate_velocities}")
+
         damping = 1.0
         max_damping = 10
         A = None
