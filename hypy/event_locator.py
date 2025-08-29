@@ -138,6 +138,7 @@ class EventLocator:
                 max_distance,
                 depth_step,
                 distance_step,
+                engine
             )
         elif mode == "ray":
             if engine not in ["taup", "pyrocko"]:
