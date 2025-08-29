@@ -37,7 +37,6 @@ class EventLocator:
         time_error_floor: float = 0.1,
         mode: str = "ray",
         engine: str = "taup",
-        solver: str = "lsqr",
         max_depth: Optional[float] = None,
         max_distance: Optional[float] = None,
         depth_step: Optional[float] = None,
@@ -94,8 +93,8 @@ class EventLocator:
         :param distance_cutoff: Set distance at distance weighting becomes significant.
             If `distance_cutoff` is not set, distance weighting is not performed.
         :type distance_cutoff: Optional[float]
-        :param cutoff_width: Width of the distance weight transition from 1 to 0 around 
-            `distance_cutoff`. If `cutoff_width` is not set, distance weighting 
+        :param cutoff_width: Width of the distance weight transition from 1 to 0 around
+            `distance_cutoff`. If `cutoff_width` is not set, distance weighting
             is not performed.
         :type cutoff_width: Optional[float]
         :param _fix_depth: If True, depth is fixed to initial guess FOR ALL EVENTS.
@@ -153,11 +152,6 @@ class EventLocator:
                 f"Unsupported mode: {mode}. Supported modes are 'table' and 'ray'."
             )
         self.mode = mode
-        if solver not in ["lsqr", "svd"]:
-            raise ValueError(
-                f"Unsupported solver: {solver}. Supported solvers are 'lsqr' and 'svd'."
-            )
-        self.solver = solver
 
         self.inv: Inventory
         self.networks: List[str] = []
@@ -219,9 +213,11 @@ class EventLocator:
         self._erz_erh = None  # (n_events, 2) [ERZ, ERH] @ 1σ
 
         self._precalculate_velocities = _precalculate_velocities
-        if self._precalculate_velocities and any([x is None for x in [max_depth, depth_step]]):
+        if self._precalculate_velocities and any(
+            [x is None for x in [max_depth, depth_step]]
+        ):
             raise ValueError(
-                "When using precalculated velocities for each depth, " \
+                "When using precalculated velocities for each depth, "
                 "max_depth and depth_step must be provided."
             )
         if self._precalculate_velocities:
@@ -467,10 +463,12 @@ class EventLocator:
                     observed_time = self.arrivals[event_idx, arr_index]
                     if np.isnan(observed_time):
                         continue
-                    distance_km, travel_time, dt_dx, dt_dy, dt_dz = self._derive_travel_time_param(
-                        (ev_lat, ev_lon, ev_depth),
-                        (sta_lat, sta_lon, sta_elev),
-                        phase,
+                    distance_km, travel_time, dt_dx, dt_dy, dt_dz = (
+                        self._derive_travel_time_param(
+                            (ev_lat, ev_lon, ev_depth),
+                            (sta_lat, sta_lon, sta_elev),
+                            phase,
+                        )
                     )
                     self.theoretical_arrivals[event_idx, arr_index] = travel_time
                     row_idx = event_idx * (self.n_stations * self.n_phases) + arr_index
@@ -559,13 +557,28 @@ class EventLocator:
 
     def locate(
         self,
-        max_iterations=10,
+        max_iterations=1000,
+        solver: str = "lsqr",
         conv_threshold=1e-3,
         solve_airquakes=False,
         max_depth=20.0,
         max_depth_iterations=5,
         trial_depth=10.0,
     ):
+        if solver not in ["lsqr", "svd"]:
+            raise ValueError(
+                f"Unsupported solver: {solver}. Supported solvers are 'lsqr' and 'svd'."
+            )
+        self.solver = solver
+
+        print(f"Locating {self.n_events} events with {self.n_stations} stations.")
+        print(f"Using phases: {self.phases}")
+        print(f"Using {self.solver} solver.")
+        print(f"Using {self.mode} mode for travel-time calculations.")
+        print(f"Distance weighting: {self._distance_weighting}")
+        print(f"Fix depth: {self._fix_depth}")
+        print(f"Precalculate velocities: {self._precalculate_velocities}")
+
         self.init_locations(trial_depth=trial_depth)
         self.invalid_events = np.zeros(self.n_events, dtype=bool)
         self._run_location_iterations(
@@ -597,10 +610,15 @@ class EventLocator:
             travel_times_obs = self.arrivals - self.origin_times[:, np.newaxis]
             residuals = self.theoretical_arrivals - travel_times_obs
             residuals_flat = residuals.flatten()
-            b = self.distance_W[valid_rows] * self.W[valid_rows] * residuals_flat[valid_rows]
+            b = (
+                self.distance_W[valid_rows]
+                * self.W[valid_rows]
+                * residuals_flat[valid_rows]
+            )
             A = (
                 self.derivative_matrix[valid_rows, :]
-                * self.W[valid_rows][:, np.newaxis] * self.distance_W[valid_rows][:, np.newaxis]
+                * self.W[valid_rows][:, np.newaxis]
+                * self.distance_W[valid_rows][:, np.newaxis]
             )
 
             dx_solution = np.zeros(A.shape[1])
