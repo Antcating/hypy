@@ -130,8 +130,8 @@ class TravelTimeTables(PropagationModel):
                 # Handle S phase
                 if "S" in self.phases and "S" in self.travel_time_tables:
                     time, angle = self.tracer.get_arrival(depth, dist, "S")
-                    self.travel_time_tables["P"][i, j] = time
-                    self.takeoff_angle_tables["P"][i, j] = angle
+                    self.travel_time_tables["S"][i, j] = time
+                    self.takeoff_angle_tables["S"][i, j] = angle
         print(f"Saving travel-time tables to {fname}")
         self.save(fname)
 
