@@ -26,3 +26,6 @@ __pycache__/
 *.py[cod]
 # Cython compiled files
 *.cpython*
+
+# Logs 
+logs/
