@@ -22,9 +22,7 @@ from .propagation.tables import TravelTimeTables
 from .utils.damping import update_damping_factor
 from .utils.geo import compute_spatial_derivatives_1d, gps2dist_azimuth_nb
 from .utils.distance import compute_distance_weight
-from .logger import get_logger
-
-logger = get_logger(__name__)
+from .logger import logger
 
 class EventLocator:
     """
