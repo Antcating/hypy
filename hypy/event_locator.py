@@ -21,7 +21,7 @@ from .propagation.ray_tracers import RayTracer
 from .propagation.tables import TravelTimeTables
 from .utils.damping import update_damping_factor
 from .utils.geo import compute_spatial_derivatives_1d, gps2dist_azimuth_nb
-from .utils.distance import compute_distance_weight
+from .utils.weighting import distance_weight, time_error_weight
 from .logger import logger
 
 class EventLocator:
@@ -413,9 +413,7 @@ class EventLocator:
                         event_idx * self.n_phases * self.n_stations
                         + station_idx * self.n_phases
                         + phase_idx
-                    ] = 1.0 / (
-                        (arrival_time_error + 1) ** 2 if arrival_time_error > 0 else 1.0
-                    )
+                    ] = time_error_weight(arrival_time_error)
 
     def _derive_travel_time_param(self, event_location, station_location, phase):
         ev_lat, ev_lon, ev_depth = event_location
@@ -490,7 +488,7 @@ class EventLocator:
 
                     if self._distance_weighting:
                         # Weighting for distance-based damping
-                        self.distance_W[row_idx] = compute_distance_weight(
+                        self.distance_W[row_idx] = distance_weight(
                             distance_km, k=self.k, x0=self.x0
                         )
 
