@@ -5,7 +5,7 @@ Contains the EventLocator class for earthquake location using travel-time tables
 """
 
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Literal, Sequence
 
 import numpy as np
 from obspy.core.event import Arrival, Catalog, Event, Origin
@@ -24,6 +24,7 @@ from .utils.geo import compute_spatial_derivatives_1d, gps2dist_azimuth_nb
 from .utils.weighting import distance_weight, time_error_weight
 from .logger import logger
 
+
 class EventLocator:
     """
     Seismic event relocator using 1D velocity model and event P/S phase picks
@@ -32,207 +33,237 @@ class EventLocator:
     def __init__(
         self,
         model_tvel: str,
-        phases: List[str] = ["P"],
+        phases: Sequence[str] = ["P"],
         min_picks_per_event: int = 4,
         time_error_floor: float = 0.1,
-        mode: str = "ray",
-        engine: str = "taup",
+        mode: Literal["table", "ray"] = "table",
+        engine: Literal["taup", "pyrocko"] = "taup",
         max_depth: Optional[float] = None,
         max_distance: Optional[float] = None,
         depth_step: Optional[float] = None,
         distance_step: Optional[float] = None,
-        
         distance_weight_start: Optional[float] = None,
         distance_weight_end: Optional[float] = None,
         weight_start: Optional[float] = 0.99,
         weight_end: Optional[float] = 0.01,
-
         _fix_depth: bool = False,
         _precalculate_velocities: bool = False,
     ):
         """
-        Initialize the EventLocator
+        Initialize the EventLocator.
 
-        :param model_tvel: Absolute path to velocity model .tvel file.
-        :type model_tvel: str
-        :param phases: Phases to solve for. Available options: 'P', 'S'.
-        :type phases: list[str]
-        :param min_picks_per_event: Number of picks required for event to be solved.
-            Absolute minimum required is 4 (example: 4 P-phases per event).
-        :type min_picks_per_event: int
-        :param time_error_floor: Minimal time-pick error assumed for events with no
-            time-pick error provided.
-        :type time_error_floor: float
-        :param mode: Set the method for direct propagation. Available options are:
-            `table` and `ray`. \n
-            `table` mode uses precomputed tables and interpolation for teorethical arrival
-                time and takeoff angle. This mode is faster than alternatives,
-                but the accuracycis highly dependent on resolution of the precalculated table.\n
-            `ray` mode uses direct tau-p ray propagation algorithm to allow, in general,
-                for higher accuracy than `table`, but at the cost of higher computational
-                time
-        :type mode: str
-        :param engine: Set the engine for direct propagation. Available options are:
-            `taup` and `pyrocko`.
-        :type engine: str
-        :param solver: Set the solver for inversion problem. Available options are:
-            `lsqr` and `svd`.
-        :type solver: str
-        :param max_depth: Set bounding depth for precalculated table in km. Required
-            if using `table` mode.
-        :type max_depth: Optional[float]
-        :param max_distance: Set bounding distance for precalculated table in km. Required
-            if using `table` mode.
-        :type max_distance: Optional[float]
-        :param depth_step: Set depth resolution for precalculated table in km. Required
-            if using `table` mode.
-        :type depth_step: Optional[float]
-        :param distance_step: Set distance resolution for precalculated table in km. Required
-            if using `table` mode.
-        :type distance_step: Optional[float]
-        :param distance_cutoff: Set distance at distance weighting becomes significant.
-            If `distance_cutoff` is not set, distance weighting is not performed.
-        :type distance_cutoff: Optional[float]
-        :param cutoff_width: Width of the distance weight transition from 1 to 0 around
-            `distance_cutoff`. If `cutoff_width` is not set, distance weighting
-            is not performed.
-        :type cutoff_width: Optional[float]
-        :param _fix_depth: If True, depth is fixed to initial guess FOR ALL EVENTS.
-        :type _fix_depth: bool
-        :param _precalculate_velocities: If True, velocities are precalculated for
-            each phase at depth intervals defined by `depth_step` up to `max_depth`.
-            This is only supported for 1D velocity models and is intended to speed up
-            the location process.
-        :type _precalculate_velocities: bool
+        Parameters
+        ----------
+        model_tvel : str
+            Absolute path to the velocity-model `.tvel` file (TauP).
+        phases : Sequence[str], optional
+            Phases to solve for (e.g., ("P",), ("P","S")). Default: ("P",).
+        min_picks_per_event : int
+            Minimum number of picks per event to attempt a solution (>=4).
+        time_error_floor : float
+            Fallback pick-time error (s) when a pick has no uncertainty.
+        mode : {"table","ray"}
+            Travel-time engine mode. "table" uses precomputed TT/takeoff tables
+            with interpolation; "ray" uses direct ray tracing.
+        engine : {"taup","pyrocko"}
+            Backend engine used by the tracer.
+        max_depth, max_distance, depth_step, distance_step : float, optional
+            Table bounds/resolution (km) required when mode="table".
+        distance_weight_start, distance_weight_end : float, optional
+            Distance (km) over which the logistic distance weighting transitions.
+        weight_start, weight_end : float, optional
+            Logistic weighting values at the corresponding start/end distances.
+        _fix_depth : bool
+            If True, fixes event depths to their initial values (all events).
+        _precalculate_velocities : bool
+            If True, precomputes per-phase velocities for a 1D model at
+            [0, max_depth] with spacing `depth_step` (for speed).
         """
-        self.tvel_file_path = Path(model_tvel)
-        self.model_name = self.tvel_file_path.stem
-        try:
-            self.model = TauPyModel(self.model_name)
-        except FileNotFoundError:
-            build_taup_model(self.tvel_file_path.as_posix())
-            self.model = TauPyModel(self.model_name)
-        # The dimesion is 4 for (x, y, z, t) and is hardcoded to 4 for now.
-        # Any other dimension will require changes in the code and is not supported.
-        self.dim = 4
+        # --- Basic config / validation
+        self.dim: int = 4  # Solve for (x, y, z, t0); hardcoded invariant.
+        self._fix_depth: bool = _fix_depth
 
-        self._fix_depth = _fix_depth
+        self.tvel_file_path: Path = Path(model_tvel).expanduser().resolve()
+        self.model_name: str = self.tvel_file_path.stem
 
-        self.phases = phases
-        self.n_phases = len(phases)
-        self.min_picks_per_event = min_picks_per_event
+        self.phases: Tuple[str, ...] = tuple(phases or ("P",))
+        self.n_phases: int = len(self.phases)
+        self.min_picks_per_event: int = int(min_picks_per_event)
+        self.time_error_floor: float = float(time_error_floor)
 
-        if mode == "table":
-            if any(
-                [
-                    x is None
-                    for x in [max_depth, max_distance, depth_step, distance_step]
-                ]
-            ):
-                raise ValueError(
-                    "In table mode these variables are required: "
-                    "max_depth, max_distance, depth_step, distance_step"
-                )
-            self.tracer = TravelTimeTables(
-                self.tvel_file_path.as_posix(),
-                self.model_name,
-                phases,
-                max_depth,
-                max_distance,
-                depth_step,
-                distance_step,
-                engine
-            )
-            self.max_distance = max_distance
-            self.max_depth = max_depth
-        elif mode == "ray":
-            if engine not in ["taup", "pyrocko"]:
-                raise ValueError(
-                    f"Unsupported engine: {engine}. Supported engines for ray mode are 'taup' and 'pyrocko'."
-                )
-            self.tracer = RayTracer(
-                model_path=self.tvel_file_path.as_posix(), engine=engine
-            )
+        self.mode: Literal["table", "ray"] = self._validate_mode(mode)
+        self.engine: Literal["taup", "pyrocko"] = self._validate_engine(engine)
 
-        else:
-            raise ValueError(
-                f"Unsupported mode: {mode}. Supported modes are 'table' and 'ray'."
-            )
-        self.mode = mode
+        # --- Velocity model & tracer setup
+        self.model = self._init_velocity_model(self.model_name, self.tvel_file_path)
+        self.tracer: Union[TravelTimeTables, RayTracer]
+        self.tracer, self.max_depth = self._init_tracer(
+            mode=self.mode,
+            engine=self.engine,
+            phases=self.phases,
+            tvel_path=self.tvel_file_path,
+            model_name=self.model_name,
+            max_depth=max_depth,
+            max_distance=max_distance,
+            depth_step=depth_step,
+            distance_step=distance_step,
+        )
+        self.max_distance: Optional[float] = max_distance
 
+        # --- Station / event containers (filled later by your loaders)
         self.inv: Inventory
         self.networks: List[str] = []
         self.stations: List[Tuple[str, str]] = []
-        self.stations_locations: List[Tuple[float, float, float]] = []
+        self.stations_locations: np.ndarray # shape (S,3): lat,lon,elev(m)
+
         self.n_stations: int = 0
 
-        self.events: Union[List[Event], Catalog] = []
+        self.events: Union[List[Event], Catalog]
         self.n_events: int = 0
-        self.origin_times: np.ndarray
-        self.arrivals: np.ndarray
-        self.theoretical_arrivals: np.ndarray
-        self.derivative_matrix: np.ndarray
-        self.locations: np.ndarray
-        self.max_distance: Optional[float] = max_distance
 
-        # --- Error handling ---
-        # If the time error is not provided or is zero, we use a default floor value.
-        # If testing with synthetic data with zero time-error,
-        # you *must* explicitly set time_error_floor to 0,
-        # otherwise pick errors will be overridden to be time_error_floor.
-        self.time_error_floor = time_error_floor
-        # Array to store arrival time errors for each pick
-        self.arrival_time_errors: np.ndarray
-        # Weighting matrix W for LSQR
-        self.W: np.ndarray
+        # --- Data & model matrices (allocated later)
+        self.origin_times: np.ndarray  # (E,)
+        self.arrivals: np.ndarray  # (E, S*P)
+        self.theoretical_arrivals: np.ndarray  # (E, S*P)
+        self.derivative_matrix: np.ndarray  # (E*(S*P), E*dim)
+        self.locations: np.ndarray  # (E,3) lat,lon,depth(km)
 
-        # Weights for distance-based damping
-        self.distance_W: np.ndarray
+        # --- Error/weights
+        self.arrival_time_errors: np.ndarray  # (E, S*P)
+        self.time_error_W: np.ndarray  # (E*(S*P),)
+        self.distance_W: np.ndarray  # (E*(S*P),)
 
-        if any(
-            [
-                x is None
-                for x in [
-                    distance_weight_start,
-                    distance_weight_end,
-                    weight_start,
-                    weight_end,
-                ]
-            ]
-        ):
-            self._distance_weighting = False
-            self.k = None
-            self.x0 = None
-        else:
-            self.k = (
-                np.log((1.0 / weight_end) - 1.0) - np.log((1.0 / weight_start) - 1.0)
-            ) / (distance_weight_end - distance_weight_start)
-            self.x0 = distance_weight_start - (
-                np.log((1.0 / weight_start) - 1.0) / self.k
+        (self._distance_weighting, self.k, self.x0) = (
+            self._configure_distance_weighting(
+                distance_weight_start, distance_weight_end, weight_start, weight_end
             )
-            self._distance_weighting = True
+        )
 
-        # Storage for error products
-        self._covariances = None  # (n_events, 4, 4) full parameter covariance (x,y,z,t)
-        self._spatial_covariances = None  # (n_events, 3, 3)
-        self._principal_std = None  # (n_events, 3)
-        self._principal_axes = None  # (n_events, 3, 3) eigenvectors as rows (ex,ey,ez)
-        self._erz_erh = None  # (n_events, 2) [ERZ, ERH] @ 1σ
+        # --- Uncertainty/covariance products (computed post-inversion)
+        self._covariances: np.ndarray  # (E,4,4)
+        self._spatial_covariances: np.ndarray  # (E,3,3)
+        self._principal_std: np.ndarray  # (E,3)
+        self._principal_axes: np.ndarray  # (E,3,3)
+        self._erz_erh: np.ndarray  # (E,2) -> [ERZ, ERH] @ 1σ
 
-        self._precalculate_velocities = _precalculate_velocities
-        if self._precalculate_velocities and any(
-            [x is None for x in [max_depth, depth_step]]
-        ):
-            raise ValueError(
-                "When using precalculated velocities for each depth, "
-                "max_depth and depth_step must be provided."
-            )
+        # --- Optional velocity precomputation (1D only)
+        self._precalculate_velocities: bool = bool(_precalculate_velocities)
         if self._precalculate_velocities:
-            # Currently only 1D velocity models are supported
-            self.velocity_profile_dimensionality = 1
-            if self.velocity_profile_dimensionality == 1:
-                # Precompute velocity profiles for each phase
-                self._precompute_velocity_profiles_1d(max_depth, depth_step)
+            self._validate_precompute_args(max_depth, depth_step)
+            # Currently only 1D velocity models are supported for this feature
+            self.velocity_profile_dimensionality: int = 1
+            self._precompute_velocity_profiles_1d(max_depth, depth_step)
+
+    @staticmethod
+    def _validate_mode(mode: str) -> Literal["table", "ray"]:
+        if mode not in ("table", "ray"):
+            raise ValueError(f"Unsupported mode: {mode!r}. Use 'table' or 'ray'.")
+        return mode  # type: ignore[return-value]
+
+    @staticmethod
+    def _validate_engine(engine: str) -> Literal["taup", "pyrocko"]:
+        if engine not in ("taup", "pyrocko"):
+            raise ValueError(
+                f"Unsupported engine: {engine!r}. Use 'taup' or 'pyrocko'."
+            )
+        return engine  # type: ignore[return-value]
+
+    @staticmethod
+    def _init_velocity_model(model_name: str, tvel_path: Path):
+        try:
+            return TauPyModel(model_name)
+        except FileNotFoundError:
+            # Build TauP model from .tvel if missing, then load
+            build_taup_model(tvel_path.as_posix())
+            return TauPyModel(model_name)
+
+    @staticmethod
+    def _configure_distance_weighting(
+        distance_weight_start: Optional[float],
+        distance_weight_end: Optional[float],
+        weight_start: Optional[float],
+        weight_end: Optional[float],
+    ) -> tuple[bool, Optional[float], Optional[float]]:
+        """
+        Compute logistic weighting parameters (k, x0) if all inputs are provided.
+        Returns: (enabled, k, x0).
+        """
+        args = (distance_weight_start, distance_weight_end, weight_start, weight_end)
+        if any(a is None for a in args):
+            return False, None, None
+
+        d0 = float(distance_weight_start)  # km
+        d1 = float(distance_weight_end)  # km
+        w0 = float(weight_start)
+        w1 = float(weight_end)
+
+        if not (0.0 < w0 < 1.0 and 0.0 < w1 < 1.0):
+            raise ValueError("weight_start and weight_end must be in (0, 1).")
+        if d1 <= d0:
+            raise ValueError(
+                "distance_weight_end must be greater than distance_weight_start."
+            )
+
+        # Solve logistic parameters for: w(d) = 1 / (1 + exp(-k (d - x0)))
+        k = (np.log((1.0 / w1) - 1.0) - np.log((1.0 / w0) - 1.0)) / (d1 - d0)
+        x0 = d0 - (np.log((1.0 / w0) - 1.0) / k)
+        return True, float(k), float(x0)
+
+    @staticmethod
+    def _validate_precompute_args(
+        max_depth: Optional[float], depth_step: Optional[float]
+    ) -> None:
+        if max_depth is None or depth_step is None:
+            raise ValueError(
+                "When using precalculated velocities, 'max_depth' and 'depth_step' must be provided."
+            )
+
+    def _init_tracer(
+        self,
+        *,
+        mode: Literal["table", "ray"],
+        engine: Literal["taup", "pyrocko"],
+        phases: Tuple[str, ...],
+        tvel_path: Path,
+        model_name: str,
+        max_depth: Optional[float],
+        max_distance: Optional[float],
+        depth_step: Optional[float],
+        distance_step: Optional[float],
+    ):
+        tracer: Union[TravelTimeTables, RayTracer]
+        if mode == "table":
+            # Validate required table params
+            missing = [
+                name
+                for name, val in dict(
+                    max_depth=max_depth,
+                    max_distance=max_distance,
+                    depth_step=depth_step,
+                    distance_step=distance_step,
+                ).items()
+                if val is None
+            ]
+            if missing:
+                raise ValueError(
+                    "In table mode these variables are required: "
+                    "max_depth, max_distance, depth_step, distance_step "
+                    f"(missing: {', '.join(missing)})"
+                )
+            tracer = TravelTimeTables(
+                tvel_path.as_posix(),
+                model_name,
+                list(phases),
+                float(max_depth),
+                float(max_distance),
+                float(depth_step),
+                float(distance_step),
+                engine,
+            )
+            return tracer, float(max_depth)
+        else:  # mode == "ray"
+            tracer = RayTracer(model_path=tvel_path.as_posix(), engine=engine)
+            return tracer, max_depth  # max_depth unused in ray mode
 
     def _precompute_velocity_profiles_1d(self, max_depth, depth_step):
         """
@@ -267,7 +298,7 @@ class EventLocator:
         Load station inventory (station metadata) and events (with picks) into the locator.
         This must be called before running locate().
         """
-        
+
         # Read inventory data
         self.inv = inv
         self.networks = [net.code for net in inv]
@@ -278,7 +309,6 @@ class EventLocator:
             for sta in net.stations
         ]
 
-        
         # Read events and picks
         self.events = events
         self.n_events = len(events)
@@ -317,7 +347,7 @@ class EventLocator:
                 f"{self.n_stations} stations * {self.n_phases} phases < {self.min_picks_per_event} picks per event. "
                 f"Not enough stations and phases to satisfy minimum picks per event."
             )
-        
+
         # Create fixed depth mask for events
         self.fixed_depth_mask = [
             self._fix_depth
@@ -340,7 +370,7 @@ class EventLocator:
         self.derivative_matrix = np.zeros(
             (n_events * n_phases * n_stations, n_events * self.dim)
         )
-        self.W = np.ones(n_events * n_phases * n_stations)
+        self.time_error_W = np.ones(n_events * n_phases * n_stations)
         self.distance_W = np.ones(n_events * n_phases * n_stations)
         self.locations = np.zeros((n_events, self.dim - 1))
         self.invalid_events = np.zeros(n_events, dtype=bool)
@@ -395,7 +425,7 @@ class EventLocator:
                     )
 
                     # Replace NaN or zero errors with the time error floor
-                    if np.isnan(arrival_time_error) or arrival_time_error <= 0.0:
+                    if arrival_time_error is None or arrival_time_error <= 0.0:
                         logger.warning(
                             f"Pick for {network}.{station} phase {phase} has invalid time error. Using floor value: {self.time_error_floor} s."
                         )
@@ -409,7 +439,7 @@ class EventLocator:
                         event_idx, self.n_phases * station_idx + phase_idx
                     ] = arrival_time_error
 
-                    self.W[
+                    self.time_error_W[
                         event_idx * self.n_phases * self.n_stations
                         + station_idx * self.n_phases
                         + phase_idx
@@ -624,12 +654,12 @@ class EventLocator:
             residuals_flat = residuals.flatten()
             b = (
                 self.distance_W[valid_rows]
-                * self.W[valid_rows]
+                * self.time_error_W[valid_rows]
                 * residuals_flat[valid_rows]
             )
             A = (
                 self.derivative_matrix[valid_rows, :]
-                * self.W[valid_rows][:, np.newaxis]
+                * self.time_error_W[valid_rows][:, np.newaxis]
                 * self.distance_W[valid_rows][:, np.newaxis]
             )
 
