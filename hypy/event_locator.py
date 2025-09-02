@@ -757,8 +757,15 @@ class EventLocator:
 
             v = evecs[:, 0]
             v = v / np.linalg.norm(v)
-            plunge = float(np.rad2deg(np.arcsin(np.clip(v[2], -1.0, 1.0))))
-            azimuth = float((np.rad2deg(np.arctan2(v[0], v[1])) + 360) % 360)
+            if not np.isfinite(v[2]):
+                logger.warning(
+                    "Invalid value for v[2], setting plunge and azimuth to 0."
+                )
+                plunge = 0.0
+                azimuth = 0.0
+            else:
+                plunge = float(np.rad2deg(np.arcsin(np.clip(v[2], -1.0, 1.0))))
+                azimuth = float((np.rad2deg(np.arctan2(v[0], v[1])) + 360) % 360)
 
             confidence_ellipsoid = ConfidenceEllipsoid(
                 semi_major_axis_length=s1 * 1000.0,
