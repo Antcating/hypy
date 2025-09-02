@@ -453,6 +453,9 @@ class EventLocator:
         )
         distance_km = dist_m / 1000.0
         if self.max_distance is not None and distance_km > self.max_distance:
+            logger.info(
+                f"Station at distance {distance_km:.2f} km exceeds max_distance {self.max_distance} km. Skipping this arrival."
+            )
             return distance_km, None, None, None, None
         travel_time, takeoff_angle = self.tracer.get_arrival(
             source_depth=ev_depth + st_elev / 1000, distance=distance_km, phase=phase
@@ -474,6 +477,12 @@ class EventLocator:
         for event_idx, event in enumerate(self.events):
             if len(event.picks) == 0:
                 continue
+            event.picks = [
+                pick
+                for pick in event.picks
+                if (pick.waveform_id.network_code, pick.waveform_id.station_code)
+                in self.stations
+            ]
             first_pick = min(event.picks, key=lambda pk: pk.time)
             net_code = first_pick.waveform_id.network_code
             sta_code = first_pick.waveform_id.station_code
@@ -506,6 +515,11 @@ class EventLocator:
                             (sta_lat, sta_lon, sta_elev),
                             phase,
                         )
+                    )
+                    logger.debug(
+                        f"Event {event_idx}, Station {self.stations[station_idx]}, Phase {phase}: "
+                        f"Distance {distance_km:.2f} km, Travel time {travel_time}, "
+                        f"Derivatives dt/dx {dt_dx}, dt/dy {dt_dy}, dt/dz {dt_dz}"
                     )
                     if travel_time is None:
                         logger.warning(
@@ -623,6 +637,7 @@ class EventLocator:
             max_depth_iterations,
         )
         self._compute_error_ellipsoids()
+        logger.info("Event location completed.")
         return self._finalize_origins()
 
     def _run_location_iterations(
@@ -683,9 +698,15 @@ class EventLocator:
                     continue
                 new_depth = self.locations[event_idx, 2] - dx[event_idx, 2]
                 if not solve_airquakes and new_depth < 0.0:
+                    logger.warning(
+                        f"Event {event_idx} depth would become negative ({new_depth} km). Marking as invalid."
+                    )
                     self.invalid_events[event_idx] = True
                     dx[event_idx, :] = 0.0
                 elif it > max_depth_iterations and new_depth > max_depth:
+                    logger.warning(
+                        f"Event {event_idx} depth would exceed max depth ({new_depth} km > {max_depth} km). Marking as invalid."
+                    )
                     self.invalid_events[event_idx] = True
                     dx[event_idx, :] = 0.0
 
@@ -702,6 +723,10 @@ class EventLocator:
         self._valid_rows_final = valid_rows
         self._residuals_flat_final = residuals_flat
         self._lambda_final = damping
+        logger.info(f"Location iterations completed in {it + 1} iterations.")
+        logger.info(
+            f"Located {np.sum(~self.invalid_events)} events, {np.sum(self.invalid_events)} events invalid."
+        )
 
     def _compute_error_ellipsoids(self):
         self._covariances = np.zeros((self.n_events, 4, 4))
