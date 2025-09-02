@@ -29,3 +29,6 @@ __pycache__/
 
 # Logs 
 logs/
+
+# Austin 
+*.austin
