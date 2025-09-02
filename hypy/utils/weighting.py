@@ -30,6 +30,6 @@ def time_error_weight(time_error, **kwargs):
         Time error in seconds.
     """
 
-    weight = 1.0 / ((time_error + 1) ** 2 if time_error > 0 else 1.0)
+    weight = 1.0 / ((time_error + 1) ** 2)
 
     return weight
