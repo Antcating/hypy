@@ -114,7 +114,7 @@ class EventLocator:
         self.inv: Inventory
         self.networks: List[str] = []
         self.stations: List[Tuple[str, str]] = []
-        self.stations_locations: np.ndarray # shape (S,3): lat,lon,elev(m)
+        self.stations_locations: np.ndarray  # shape (S,3): lat,lon,elev(m)
 
         self.n_stations: int = 0
 
@@ -456,17 +456,24 @@ class EventLocator:
             logger.info(
                 f"Station at distance {distance_km:.2f} km exceeds max_distance {self.max_distance} km. Skipping this arrival."
             )
-            return distance_km, None, None, None, None
+            return distance_km, None, (None, None, None, None)
+        if distance_km == 0.0:
+            logger.debug(
+                "Station is co-located with event epicenter; Ignoring arrival."
+            )
+            return distance_km, None, (None, None, None, None)
         travel_time, takeoff_angle = self.tracer.get_arrival(
             source_depth=ev_depth + st_elev / 1000, distance=distance_km, phase=phase
         )
         vel = self._get_velocity_1d(ev_depth, phase)
         takeoff_rad = np.deg2rad(takeoff_angle)
-        dt_dr, dt_dz, dt_dx, dt_dy = compute_spatial_derivatives_1d(
+        (dt_dr, dt_dx, dt_dy, dt_dz) = compute_spatial_derivatives_1d(
             takeoff_rad, az_deg, vel
         )
 
-        return distance_km, travel_time, dt_dx, dt_dy, dt_dz
+        spatial_derivatives = (dt_dr, dt_dx, dt_dy, dt_dz)
+
+        return distance_km, travel_time, spatial_derivatives
 
     def init_locations(
         self, trial_depth: float = 10.0, trial_time: float = 2.0
@@ -509,23 +516,24 @@ class EventLocator:
                     observed_time = self.arrivals[event_idx, arr_index]
                     if np.isnan(observed_time):
                         continue
-                    distance_km, travel_time, dt_dx, dt_dy, dt_dz = (
+                    distance_km, travel_time, spatial_derivatives = (
                         self._derive_travel_time_param(
                             (ev_lat, ev_lon, ev_depth),
                             (sta_lat, sta_lon, sta_elev),
                             phase,
                         )
                     )
-                    logger.debug(
-                        f"Event {event_idx}, Station {self.stations[station_idx]}, Phase {phase}: "
-                        f"Distance {distance_km:.2f} km, Travel time {travel_time}, "
-                        f"Derivatives dt/dx {dt_dx}, dt/dy {dt_dy}, dt/dz {dt_dz}"
-                    )
                     if travel_time is None:
                         logger.warning(
                             f"No travel time found for event {event_idx}, station {self.stations[station_idx]}, phase {phase}. Skipping this arrival."
                         )
                         continue
+                    dt_dr, dt_dx, dt_dy, dt_dz = spatial_derivatives
+                    logger.debug(
+                        f"Event {event_idx}, Station {self.stations[station_idx]}, Phase {phase}: "
+                        f"Distance {distance_km:.2f} km, Travel time {travel_time}, "
+                        f"Derivatives dt/dx {dt_dx}, dt/dy {dt_dy}, dt/dz {dt_dz}"
+                    )
 
                     self.theoretical_arrivals[event_idx, arr_index] = travel_time
                     row_idx = event_idx * (self.n_stations * self.n_phases) + arr_index
@@ -537,8 +545,8 @@ class EventLocator:
                         )
 
                     # Populate the derivative matrix
-                    self.derivative_matrix[row_idx, col_idx + 0] = dt_dx
-                    self.derivative_matrix[row_idx, col_idx + 1] = dt_dy
+                    self.derivative_matrix[row_idx, col_idx + 0] = dt_dy
+                    self.derivative_matrix[row_idx, col_idx + 1] = dt_dx
                     # if not self.fix_depth:
                     if not self.fixed_depth_mask[event_idx]:
                         self.derivative_matrix[row_idx, col_idx + 2] = dt_dz
