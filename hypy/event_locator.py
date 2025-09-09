@@ -575,7 +575,7 @@ class EventLocator:
 
         # Normal matrix with Tikhonov regularization consistent with the inversion above
         N = A_e.T @ A_e
-        N_reg = N + (damping**2) * np.eye(4)
+        N_reg = N + (damping**2) * np.eye(self.dim)
 
         # Data variance estimate: include both RMS of residuals and robust pick error scale
         # Hypoinverse scales with RMS and RDERR. Use sigma^2 ≈ RMS^2 + median(pick_err)^2
@@ -737,10 +737,12 @@ class EventLocator:
         )
 
     def _compute_error_ellipsoids(self):
-        self._covariances = np.zeros((self.n_events, 4, 4))
-        self._spatial_covariances = np.zeros((self.n_events, 3, 3))
-        self._principal_std = np.zeros((self.n_events, 3))
-        self._principal_axes = np.zeros((self.n_events, 3, 3))
+        self._covariances = np.zeros((self.n_events, self.dim, self.dim))
+        self._spatial_covariances = np.zeros(
+            (self.n_events, self.dim - 1, self.dim - 1)
+        )
+        self._principal_std = np.zeros((self.n_events, self.dim - 1))
+        self._principal_axes = np.zeros((self.n_events, self.dim - 1, self.dim - 1))
         self._erz_erh = np.zeros((self.n_events, 2))
 
         A_all = self._A_final
