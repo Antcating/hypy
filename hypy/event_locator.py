@@ -722,7 +722,7 @@ class EventLocator:
             dx[:, 1] = kilometer2degrees(dx[:, 1], self.model.model.radius_of_planet)
             valid_mask = ~self.invalid_events
             self.locations[valid_mask, :3] -= dx[valid_mask, :3]
-            self.origin_times[valid_mask] -= dx[valid_mask, 3]
+            self.origin_times[valid_mask] += dx[valid_mask, 3]
             damping = np.clip(update_damping_factor(damping), 0, max_damping)
             if res_norm < conv_threshold:
                 break
