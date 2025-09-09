@@ -192,10 +192,10 @@ def _one_sided_semicircle(
     return sta
 
 
-def _cluster_near(center, radius_km=5.0, n=5, prefix="CL"):
+def _cluster_near(center, radius_km=5.0, n=5, prefix="CL", seed=123):
     # random small cluster around event
     lat0, lon0, _ = center
-    rng = np.random.default_rng(123)
+    rng = np.random.default_rng(seed)
     sta = {}
     for i in range(n):
         r = radius_km * np.sqrt(rng.random())
@@ -204,6 +204,64 @@ def _cluster_near(center, radius_km=5.0, n=5, prefix="CL"):
         de = r * np.sin(th)
         dlat, dlon = _km_to_deg_offsets(lat0, dn, de)
         sta[f"{prefix}{i + 1:02d}"] = (lat0 + dlat, lon0 + dlon, 0.0)
+    return sta
+
+
+def _cluster_one_side(
+    center,
+    n=8,
+    r_min_km=5.0,
+    r_max_km=40.0,
+    bearing_center_deg=90.0,  # 0=N, 90=E, 180=S, 270=W
+    aperture_deg=120.0,  # total angular width of the sector
+    seed=123,
+    prefix="CS",
+):
+    """
+    Build a random cluster of 'n' stations confined to a sector on ONE SIDE
+    of the event (like land-only stations for an offshore earthquake).
+
+    Parameters
+    ----------
+    center : (lat, lon, depth)
+        Event location; stations are distributed around this point.
+    n : int
+        Number of stations.
+    r_min_km, r_max_km : float
+        Radial distance bounds (km) from the event to stations.
+    bearing_center_deg : float
+        Direction (from the event) pointing to the middle of the sector.
+        0=N, 90=E, 180=S, 270=W.
+    aperture_deg : float
+        Total angular width of the sector in degrees.
+    seed : int
+        RNG seed for reproducibility.
+    prefix : str
+        Station code prefix.
+
+    Returns
+    -------
+    dict: {code: (lat, lon, elev_m)}
+    """
+    lat0, lon0, _ = center
+    rng = np.random.default_rng(seed)
+    sta = {}
+
+    half_ap = np.deg2rad(aperture_deg / 2.0)
+    th_center = np.deg2rad(bearing_center_deg)
+
+    for i in range(n):
+        # Uniform in a ring sector: radius ~ sqrt(U) for area-uniform sampling
+        r = np.sqrt(rng.uniform(r_min_km**2, r_max_km**2))
+        # Angle within sector around bearing_center
+        theta = th_center + rng.uniform(-half_ap, half_ap)
+
+        dn = r * np.cos(theta)  # north component (km)
+        de = r * np.sin(theta)  # east  component (km)
+
+        dlat, dlon = _km_to_deg_offsets(lat0, dn, de)
+        sta[f"{prefix}{i + 1:02d}"] = (lat0 + dlat, lon0 + dlon, 0.0)
+
     return sta
 
 
@@ -397,8 +455,39 @@ GEOMETRIES = {
     ),
     "cluster_near_5": (
         _cluster_near,
-        dict(radius_km=5.0, n=5, prefix="C"),
+        dict(radius_km=5.0, n=5, prefix="C5"),
         (7.0, 6.0, 1.0),
+    ),
+    "cluster_near_10": (
+        _cluster_near,
+        dict(radius_km=10.0, n=10, prefix="C10"),
+        (7.0, 6.0, 1.0),
+    ),
+    "cluster_one_side_east": (
+        _cluster_one_side,
+        dict(
+            n=10,
+            r_min_km=8.0,
+            r_max_km=45.0,
+            bearing_center_deg=90.0,  # cluster to the EAST of the event
+            aperture_deg=120.0,  # 120° wide sector
+            seed=42,
+            prefix="CSE",
+        ),
+        (6.5, 5.0, 1.0),  # tolerances: tune as you see fit
+    ),
+    "cluster_one_side_east_far": (
+        _cluster_one_side,
+        dict(
+            n=10,
+            r_min_km=100.0,
+            r_max_km=200.0,
+            bearing_center_deg=90.0,  # cluster to the EAST of the event
+            aperture_deg=120.0,  # 120° wide sector
+            seed=42,
+            prefix="CSEF",
+        ),
+        (6.5, 5.0, 1.0),  # tolerances: tune as you see fit
     ),
 }
 
@@ -447,7 +536,7 @@ def test_event_location_vs_geometry(
             phases=phases,
             mode="table",
             engine=engine,
-            max_distance=100.0,
+            max_distance=250.0,
             distance_step=1.0,
             max_depth=20.0,
             depth_step=1.0,
@@ -464,7 +553,6 @@ def test_event_location_vs_geometry(
     est_depth_km = e.origins[-1].depth / 1000.0
     est_time = e.origins[-1].time.timestamp
 
-    # --- NEW: compute errors & save plot BEFORE assertions ---
     arc_m, _, _ = gps2dist_azimuth(true_loc[0], true_loc[1], est_lat, est_lon)
     geo_err_km = arc_m / 1000.0
     depth_err_km = abs(true_loc[2] - est_depth_km)
