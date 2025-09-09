@@ -1,6 +1,7 @@
 from numba import njit
 import numpy as np
 
+
 @njit(cache=True)
 def gps2dist_azimuth_nb(lat1, lon1, lat2, lon2, R=6371.0e3):
     """
@@ -23,35 +24,53 @@ def gps2dist_azimuth_nb(lat1, lon1, lat2, lon2, R=6371.0e3):
     d_lon_rad = np.radians(lon2 - lon1)
 
     # Haversine distance
-    a = np.sin(d_lat_rad / 2) ** 2 + np.cos(lan1_rad) * np.cos(lat2_rad) * np.sin(d_lon_rad / 2) ** 2
+    a = (
+        np.sin(d_lat_rad / 2) ** 2
+        + np.cos(lan1_rad) * np.cos(lat2_rad) * np.sin(d_lon_rad / 2) ** 2
+    )
     c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
     distance = R * c
 
     # Azimuth
     y = np.sin(d_lon_rad) * np.cos(lat2_rad)
-    x = np.cos(lan1_rad) * np.sin(lat2_rad) - np.sin(lan1_rad) * np.cos(lat2_rad) * np.cos(d_lon_rad)
+    x = np.cos(lan1_rad) * np.sin(lat2_rad) - np.sin(lan1_rad) * np.cos(
+        lat2_rad
+    ) * np.cos(d_lon_rad)
     azimuth = np.degrees(np.arctan2(y, x)) % 360
 
     # Back azimuth
     y_back = -np.sin(d_lon_rad) * np.cos(lan1_rad)
-    x_back = np.cos(lat2_rad) * np.sin(lan1_rad) - np.sin(lat2_rad) * np.cos(lan1_rad) * np.cos(-d_lon_rad)
+    x_back = np.cos(lat2_rad) * np.sin(lan1_rad) - np.sin(lat2_rad) * np.cos(
+        lan1_rad
+    ) * np.cos(-d_lon_rad)
     back_azimuth = np.degrees(np.arctan2(y_back, x_back)) % 360
 
     return distance, azimuth, back_azimuth
 
-@njit(cache=True)
-def compute_spatial_derivatives_1d(
-    takeoff_rad: float, az_deg: float, vel: float
-) -> tuple:
-    """
-    Calculate spatial derivatives for travel-time, ray-parameter, and takeoff angle.
-    This approximation is valid for small distances (up to a few hundred km) and
-    only for 1D velocity models.
-    """
-    dt_dr = np.sin(takeoff_rad) / vel
-    dt_dz = -np.cos(takeoff_rad) / vel
-    az_rad = np.deg2rad(az_deg)
-    dt_dx = -dt_dr * np.cos(az_rad)
-    dt_dy = -dt_dr * np.sin(az_rad)
 
-    return dt_dr, dt_dz, dt_dx, dt_dy
+@njit(cache=True)
+def compute_spatial_derivatives_1d(takeoff_rad: float, az_deg: float, vel: float):
+    """
+    Spatial derivatives of travel time T for a 1D isotropic model.
+
+    Axes & conventions:
+      - x = East (km), y = North (km), z = depth (km, positive DOWN).
+      - takeoff_rad: angle from DOWN (TauP).
+      - az_deg: azimuth from source to receiver, clockwise from North.
+      - vel: phase velocity (km/s).
+
+    Returns (s/km): dt_dr (horizontal magnitude), dt_dz, dt_dx (East), dt_dy (North)
+    """
+    az_rad = np.deg2rad(az_deg)
+
+    # Horizontal slowness magnitude
+    dt_dr = np.sin(takeoff_rad) / vel
+
+    # Depth derivative (depth positive down)
+    dt_dz = np.cos(takeoff_rad) / vel
+
+    # Project horizontal slowness using azimuth-from-North (cw)
+    dt_dx = dt_dr * np.sin(az_rad)  # East
+    dt_dy = dt_dr * np.cos(az_rad)  # North
+
+    return (dt_dr, dt_dx, dt_dy, dt_dz)
