@@ -481,7 +481,7 @@ class EventLocator:
     ) -> np.ndarray:
         """
         Initialize event locations and origin times using a multi-seed search:
-        - epicenter seeds: station centroid, componentwise medians, earliest-pick station
+        - epicenter seeds: station centroid, componentwise medians, earliest-pick station, closest station
         - shallow depth grid around `trial_depth`
         - t0 via weighted least squares on (t_obs - t_theory)
         Falls back to the legacy heuristic if scoring fails.
@@ -552,6 +552,19 @@ class EventLocator:
             if earliest_idx is not None:
                 e_lat, e_lon = self.stations_locations[earliest_idx][:2]
                 seeds.append((float(e_lat), float(e_lon)))
+
+            # Add the station with the earliest pick time to the seeds
+            earliest_pick_idx = min(
+                picked,
+                key=lambda idx: min(
+                    pk.time
+                    for pk in self.events[event_idx].picks
+                    if (pk.waveform_id.network_code, pk.waveform_id.station_code)
+                    == self.stations[idx]
+                ),
+            )
+            earliest_lat, earliest_lon = self.stations_locations[earliest_pick_idx][:2]
+            seeds.append((float(earliest_lat), float(earliest_lon)))
 
             # Deduplicate (numeric)
             uniq, seen = [], set()
