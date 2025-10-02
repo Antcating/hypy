@@ -265,6 +265,85 @@ def _cluster_one_side(
     return sta
 
 
+def _pair_opposite(center, radius_km=20.0, azimuth_deg=0.0, prefix="PO"):
+    """
+    Two stations at the same range, opposite azimuths (±azimuth_deg).
+    Good for epicenter trade-off, weak depth.
+    """
+    lat0, lon0, _ = center
+    sta = {}
+    for i, sign in enumerate([+1, -1], start=1):
+        az = np.deg2rad(sign * azimuth_deg)
+        dn = radius_km * np.cos(az)
+        de = radius_km * np.sin(az)
+        dlat, dlon = _km_to_deg_offsets(lat0, dn, de)
+        sta[f"{prefix}{i:02d}"] = (lat0 + dlat, lon0 + dlon, 0.0)
+    return sta
+
+
+def _pair_same_az_near_far(
+    center, r_near_km=10.0, r_far_km=30.0, azimuth_deg=90.0, prefix="PA"
+):
+    """
+    Two stations on the same azimuth from the source but at different ranges (near/far).
+    Strengthens time–depth constraints along one ray family.
+    """
+    lat0, lon0, _ = center
+    sta = {}
+    az = np.deg2rad(azimuth_deg)
+    for i, r in enumerate([r_near_km, r_far_km], start=1):
+        dn = r * np.cos(az)
+        de = r * np.sin(az)
+        dlat, dlon = _km_to_deg_offsets(lat0, dn, de)
+        sta[f"{prefix}{i:02d}"] = (lat0 + dlat, lon0 + dlon, 0.0)
+    return sta
+
+
+def _pair_orthogonal_equal_radius(
+    center, radius_km=20.0, azimuth0_deg=0.0, prefix="POE"
+):
+    """
+    Two stations 90° apart at equal range (azimuth0 and azimuth0+90).
+    Better azimuthal coverage than colinear pairs.
+    """
+    lat0, lon0, _ = center
+    sta = {}
+    for i, azdeg in enumerate([azimuth0_deg, azimuth0_deg + 90.0], start=1):
+        az = np.deg2rad(azdeg % 360.0)
+        dn = radius_km * np.cos(az)
+        de = radius_km * np.sin(az)
+        dlat, dlon = _km_to_deg_offsets(lat0, dn, de)
+        sta[f"{prefix}{i:02d}"] = (lat0 + dlat, lon0 + dlon, 0.0)
+    return sta
+
+
+def _pair_one_side_random(
+    center,
+    r_min_km=8.0,
+    r_max_km=35.0,
+    bearing_center_deg=90.0,
+    aperture_deg=60.0,
+    seed=7,
+    prefix="PRS",
+):
+    """
+    Two stations randomly placed within a sector on one side of the source (e.g., land-only).
+    """
+    lat0, lon0, _ = center
+    rng = np.random.default_rng(seed)
+    sta = {}
+    half_ap = np.deg2rad(aperture_deg / 2.0)
+    th_center = np.deg2rad(bearing_center_deg)
+    for i in range(2):
+        r = np.sqrt(rng.uniform(r_min_km**2, r_max_km**2))
+        theta = th_center + rng.uniform(-half_ap, +half_ap)
+        dn = r * np.cos(theta)
+        de = r * np.sin(theta)
+        dlat, dlon = _km_to_deg_offsets(lat0, dn, de)
+        sta[f"{prefix}{i + 1:02d}"] = (lat0 + dlat, lon0 + dlon, 0.0)
+    return sta
+
+
 def build_inventory(station_dict):
     net = Network(code="NET", start_date=UTCDateTime("2020-01-01"))
     for code, (lat, lon, elev) in station_dict.items():
@@ -384,6 +463,9 @@ def _save_geom_plot(
         zorder=3,
     )
 
+    ax.set_xlim(min(st_lons) - 0.1, max(st_lons) + 0.1)
+    ax.set_ylim(min(st_lats) - 0.1, max(st_lats) + 0.1)
+
     # Cosmetics
     ax.set_xlabel("Longitude (°)")
     ax.set_ylabel("Latitude (°)")
@@ -489,29 +571,68 @@ GEOMETRIES = {
         ),
         (6.5, 5.0, 1.0),  # tolerances: tune as you see fit
     ),
+    "pair_opposite_20km_az0": (
+        _pair_opposite,
+        dict(radius_km=20.0, azimuth_deg=0.0, prefix="PO"),
+        (8.0, 8.0, 1.2),
+    ),
+    "pair_same_az_near_far_E": (
+        _pair_same_az_near_far,
+        dict(r_near_km=10.0, r_far_km=30.0, azimuth_deg=90.0, prefix="PA"),
+        (9.0, 10.0, 1.3),
+    ),
+    "pair_orthogonal_equal_20km": (
+        _pair_orthogonal_equal_radius,
+        dict(radius_km=20.0, azimuth0_deg=0.0, prefix="POE"),
+        (7.0, 7.0, 1.1),
+    ),
+    "pair_one_side_random_E_sector": (
+        _pair_one_side_random,
+        dict(
+            r_min_km=8.0,
+            r_max_km=35.0,
+            bearing_center_deg=90.0,
+            aperture_deg=60.0,
+            seed=7,
+            prefix="PRS",
+        ),
+        (10.0, 12.0, 1.5),
+    ),
 }
 
 
 # build parameter grid and nice IDs
-_PARAMS = list(
-    itertools.product(
-        list(GEOMETRIES.keys()),
-        [["P"], ["S"], ["P", "S"]],
-        ["ray", "table"],
-        ["taup", "pyrocko"],
+ALL_PHASE_SETS = [["P"], ["S"], ["P", "S"]]
+
+# Which geometries are exactly 2-station?
+TWO_STATION_GEOMS = {
+    "pair_opposite_20km_az0",
+    "pair_same_az_near_far_E",
+    "pair_orthogonal_equal_20km",
+    "pair_one_side_random_E_sector",
+}
+
+
+def _phase_id(phs):
+    return "+".join(phs)
+
+
+_PARAMS = []
+for geom_name in GEOMETRIES.keys():
+    allowed_phase_sets = (
+        [["P", "S"]] if geom_name in TWO_STATION_GEOMS else ALL_PHASE_SETS
     )
-)
-
-
-def _phase_id(phases):
-    return "+".join(phases)
-
+    for phases in allowed_phase_sets:
+        for mode in ["ray", "table"]:
+            for eng in ["taup", "pyrocko"]:
+                _PARAMS.append((geom_name, phases, mode, eng))
 
 _IDS = [
     f"{geom}|phases={_phase_id(phs)}|{mode}/{eng}" for (geom, phs, mode, eng) in _PARAMS
 ]
 
 
+# -------------------- The Test Itself --------------------
 @pytest.mark.parametrize("geometry_name, phases, mode, engine", _PARAMS, ids=_IDS)
 def test_event_location_vs_geometry(
     taup_model, true_event_params, geometry_name, phases, mode, engine
@@ -538,8 +659,8 @@ def test_event_location_vs_geometry(
             engine=engine,
             max_distance=250.0,
             distance_step=1.0,
-            max_depth=20.0,
-            depth_step=1.0,
+            max_depth=50.0,
+            depth_step=2.0,
         )
 
     # run
