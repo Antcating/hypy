@@ -15,7 +15,7 @@ from obspy.core.inventory import Inventory
 from obspy.geodetics import kilometer2degrees
 from obspy.taup import TauPyModel
 from obspy.taup.taup_create import build_taup_model
-from scipy.sparse.linalg import lsmr
+from scipy.sparse.linalg import lsmr, lsqr
 from scipy.linalg import lstsq
 
 from .propagation.ray_tracers import RayTracer
@@ -804,7 +804,7 @@ class EventLocator:
 
             dx_solution = np.zeros(A.shape[1])
             if self.solver == "lsqr":
-                dx_solution = lstsq(A, b)[0]
+                dx_solution = lsqr(A, b, damp=0)[0]
             elif self.solver == "svd":
                 U, s, Vt = np.linalg.svd(A, full_matrices=False)
                 s_inv = np.zeros_like(s)
