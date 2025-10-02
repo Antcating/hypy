@@ -825,9 +825,19 @@ class EventLocator:
                 dx_solution = Vt.T @ (s_inv * (U.T @ b))
 
             dx = dx_solution.reshape((self.n_events, self.dim))
+            dx[:, 0:2] = np.clip(dx[:, 0:2], -3, 3)
             dx[:, 2] = np.clip(dx[:, 2], -1, 1)
-            dx[:, 0:2] = np.clip(dx[:, 0:2], -0.5, 0.5)
             dx[:, 3] = np.clip(dx[:, 3], -1, 1)
+            # Prevent large horizontal shifts from causing large depth changes
+            mask = np.any(np.abs(dx[:, :2]) > 1, axis=1)
+            mask2 = np.any(np.abs(dx[:, :2]) > 3, axis=1)
+            if (np.any(mask) and it < max_depth_iterations) or np.any(mask2):
+                logger.warning(
+                    f"Iteration {it}: Preventing large horizontal shifts from causing large depth changes for {np.sum(mask)} events."
+                )
+                dx[:, 2] = np.where(mask, 0, dx[:, 2])
+                dx[:, 3] = np.where(mask, 0, dx[:, 3])
+
             residual_vector = A @ dx_solution - b
             res_norm = np.linalg.norm(residual_vector)
             residual_norms.append(res_norm)
