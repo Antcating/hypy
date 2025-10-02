@@ -755,7 +755,7 @@ class EventLocator:
         conv_threshold=1e-3,
         solve_airquakes=False,
         max_depth=50.0,
-        max_depth_iterations=5,
+        safe_iteration_limit=20,
         trial_depth=10.0,
         solver: str = "lsqr",
     ):
@@ -771,7 +771,7 @@ class EventLocator:
             conv_threshold,
             solve_airquakes,
             max_depth,
-            max_depth_iterations,
+            safe_iteration_limit,
         )
         self._compute_error_ellipsoids()
         logger.info("Event location completed.")
