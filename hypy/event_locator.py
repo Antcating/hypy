@@ -838,13 +838,13 @@ class EventLocator:
                 new_depth = self.locations[event_idx, 2] - dx[event_idx, 2]
                 if not solve_airquakes and new_depth < 0.0:
                     logger.warning(
-                        f"Event {event_idx} depth would become negative ({new_depth} km). Marking as invalid."
+                        f"Event {event_idx} depth will become negative ({new_depth} km). Marking as invalid."
                     )
                     self.invalid_events[event_idx] = True
                     dx[event_idx, :] = 0.0
                 elif it > max_depth_iterations and new_depth > max_depth:
                     logger.warning(
-                        f"Event {event_idx} depth would exceed max depth ({new_depth} km > {max_depth} km). Marking as invalid."
+                        f"Event {event_idx} depth will exceed max depth ({new_depth} km > {max_depth} km). Marking as invalid."
                     )
                     self.invalid_events[event_idx] = True
                     dx[event_idx, :] = 0.0
