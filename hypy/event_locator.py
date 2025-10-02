@@ -16,6 +16,7 @@ from obspy.geodetics import kilometer2degrees
 from obspy.taup import TauPyModel
 from obspy.taup.taup_create import build_taup_model
 from scipy.sparse.linalg import lsmr
+from scipy.linalg import lstsq
 
 from .propagation.ray_tracers import RayTracer
 from .propagation.tables import TravelTimeTables
@@ -457,11 +458,11 @@ class EventLocator:
                 f"Station at distance {distance_km:.2f} km exceeds max_distance {self.max_distance} km. Skipping this arrival."
             )
             return distance_km, None, (None, None, None, None)
-        if distance_km == 0.0:
-            logger.debug(
-                "Station is co-located with event epicenter; Ignoring arrival."
-            )
-            return distance_km, None, (None, None, None, None)
+        # if distance_km == 0.0:
+        #     logger.debug(
+        #         "Station is co-located with event epicenter; Ignoring arrival."
+        #     )
+        #     return distance_km, None, (None, None, None, None)
         travel_time, takeoff_angle = self.tracer.get_arrival(
             source_depth=ev_depth + st_elev / 1000, distance=distance_km, phase=phase
         )
@@ -479,27 +480,142 @@ class EventLocator:
         self, trial_depth: float = 10.0, trial_time: float = 2.0
     ) -> np.ndarray:
         """
-        Initialize the event locations and origin times for iterative location.
+        Initialize event locations and origin times using a multi-seed search:
+        - epicenter seeds: station centroid, componentwise medians, earliest-pick station
+        - shallow depth grid around `trial_depth`
+        - t0 via weighted least squares on (t_obs - t_theory)
+        Falls back to the legacy heuristic if scoring fails.
         """
+
+        def _usable_arrivals_for_event(ev_idx: int):
+            """Return list of (station_idx, phase_idx, t_obs, sigma)."""
+            usable = []
+            for s in range(self.n_stations):
+                for p in range(self.n_phases):
+                    j = p + s * self.n_phases
+                    t_obs = self.arrivals[ev_idx, j]
+                    if not np.isnan(t_obs):
+                        sigma = self.arrival_time_errors[ev_idx, j]
+                        if not (sigma is None or np.isnan(sigma) or sigma <= 0.0):
+                            usable.append((s, p, float(t_obs), float(sigma)))
+            return usable
+
+        def _estimate_t0_and_score(
+            ev_idx: int, lat: float, lon: float, depth_km: float
+        ):
+            """Given a candidate hypocenter, compute weighted t0 and return (t0, wrms, n)."""
+            items = _usable_arrivals_for_event(ev_idx)
+            if len(items) < max(3, self.min_picks_per_event // 2):
+                return None
+            obs_minus_tt, w = [], []
+            for s, p, t_obs, sigma in items:
+                sta_lat, sta_lon, sta_elev = self.stations_locations[s]
+                phase = self.phases[p]
+                _, t_theory, _ = self._derive_travel_time_param(
+                    (lat, lon, depth_km), (sta_lat, sta_lon, sta_elev), phase
+                )
+                if t_theory is None or not np.isfinite(t_theory):
+                    continue
+                obs_minus_tt.append(t_obs - float(t_theory))
+                w.append(1.0 / (sigma * sigma))
+            if len(obs_minus_tt) < max(3, self.min_picks_per_event // 2):
+                return None
+            obs_minus_tt = np.asarray(obs_minus_tt, dtype=float)
+            w = np.asarray(w, dtype=float)
+            t0 = float(np.sum(w * obs_minus_tt) / np.sum(w))  # weighted mean
+            wrms = float(np.sqrt(np.sum(w * (obs_minus_tt - t0) ** 2) / np.sum(w)))
+            return t0, wrms, len(obs_minus_tt)
+
+        def _seed_candidates_for_event(event_idx: int, trial_depth_km: float):
+            """Build a small set of epicentral seeds + a depth list."""
+            # Stations with picks for this event
+            picked = []
+            t_first = np.inf
+            earliest_idx = None
+            for pk in self.events[event_idx].picks:
+                key = (pk.waveform_id.network_code, pk.waveform_id.station_code)
+                if key in self.stations:
+                    sidx = self.stations.index(key)
+                    picked.append(sidx)
+                    if pk.time < t_first:
+                        t_first = pk.time
+                        earliest_idx = sidx
+            picked = sorted(set(picked))
+            if not picked:
+                return [], []
+
+            # Centroid & componentwise median of picked stations
+            pts = np.asarray([self.stations_locations[i][:2] for i in picked], float)
+            lat_c, lon_c = float(np.mean(pts[:, 0])), float(np.mean(pts[:, 1]))
+            lat_m, lon_m = float(np.median(pts[:, 0])), float(np.median(pts[:, 1]))
+            seeds = [(lat_c, lon_c), (lat_m, lon_m)]
+            if earliest_idx is not None:
+                e_lat, e_lon = self.stations_locations[earliest_idx][:2]
+                seeds.append((float(e_lat), float(e_lon)))
+
+            # Deduplicate (numeric)
+            uniq, seen = [], set()
+            for lat, lon in seeds:
+                key = (round(lat, 4), round(lon, 4))
+                if key not in seen:
+                    uniq.append((lat, lon))
+                    seen.add(key)
+
+            # Depth grid around trial_depth, bounded by self.max_depth if set
+            d0 = max(0.0, float(trial_depth_km))
+            dmax = float(self.max_depth) if self.max_depth is not None else d0 + 20.0
+            grid = {round(x, 2) for x in [d0 * 0.5, d0, d0 * 1.5, d0 + 5.0, d0 + 10.0]}
+            depths = sorted([d for d in grid if 0.0 <= d <= dmax]) or [d0]
+            return uniq, depths
+
+        # ---- main body ----
         for event_idx, event in enumerate(self.events):
             if len(event.picks) == 0:
                 continue
+            # keep only picks from known stations (as before)
             event.picks = [
                 pick
                 for pick in event.picks
                 if (pick.waveform_id.network_code, pick.waveform_id.station_code)
                 in self.stations
             ]
-            first_pick = min(event.picks, key=lambda pk: pk.time)
-            net_code = first_pick.waveform_id.network_code
-            sta_code = first_pick.waveform_id.station_code
-            station = self.inv.select(network=net_code, station=sta_code)[0][0]
-            self.locations[event_idx] = (
-                station.latitude,
-                station.longitude,
-                trial_depth,
-            )
-            self.origin_times[event_idx] = first_pick.time - trial_time
+
+            seeds, depths = _seed_candidates_for_event(event_idx, trial_depth)
+            best = None  # (wrms, lat, lon, depth_km, t0)
+
+            for lat, lon in seeds:
+                for depth_km in depths:
+                    scored = _estimate_t0_and_score(event_idx, lat, lon, depth_km)
+                    if scored is None:
+                        continue
+                    t0, wrms, _ = scored
+                    if np.isfinite(wrms) and (best is None or wrms < best[0]):
+                        best = (wrms, lat, lon, depth_km, t0)
+
+            if best is not None:
+                _, lat, lon, depth_km, t0 = best
+                self.locations[event_idx] = (lat, lon, depth_km)
+                self.origin_times[event_idx] = t0
+                logger.debug(
+                    f"[init] ev#{event_idx}: lat={lat:.4f} lon={lon:.4f} z={depth_km:.2f} km, t0={t0:.3f}"
+                )
+            else:
+                # ---- fallback to legacy heuristic ----
+                first_pick = min(event.picks, key=lambda pk: pk.time)
+                net_code = first_pick.waveform_id.network_code
+                sta_code = first_pick.waveform_id.station_code
+                station = self.inv.select(network=net_code, station=sta_code)[0][0]
+                self.locations[event_idx] = (
+                    station.latitude,
+                    station.longitude,
+                    trial_depth,
+                )
+                self.origin_times[event_idx] = first_pick.time - trial_time
+                logger.debug(
+                    f"[init:fallback] ev#{event_idx}: lat={station.latitude:.4f} "
+                    f"lon={station.longitude:.4f} z={trial_depth:.2f} km, t0≈first_pick−{trial_time:.2f}s"
+                )
+
         return self.locations
 
     def _populate_derivative_matrix(self):
@@ -625,7 +741,7 @@ class EventLocator:
         max_iterations=1000,
         conv_threshold=1e-3,
         solve_airquakes=False,
-        max_depth=20.0,
+        max_depth=50.0,
         max_depth_iterations=5,
         trial_depth=10.0,
         solver: str = "lsqr",
@@ -673,7 +789,7 @@ class EventLocator:
         for it in range(max_iterations):
             valid_rows = self._populate_derivative_matrix()
             travel_times_obs = self.arrivals - self.origin_times[:, np.newaxis]
-            residuals = self.theoretical_arrivals - travel_times_obs
+            residuals = travel_times_obs - self.theoretical_arrivals
             residuals_flat = residuals.flatten()
             b = (
                 self.distance_W[valid_rows]
@@ -688,7 +804,7 @@ class EventLocator:
 
             dx_solution = np.zeros(A.shape[1])
             if self.solver == "lsqr":
-                dx_solution = lsmr(A, b, damp=damping, atol=1e-6, btol=1e-6)[0]
+                dx_solution = lstsq(A, b)[0]
             elif self.solver == "svd":
                 U, s, Vt = np.linalg.svd(A, full_matrices=False)
                 s_inv = np.zeros_like(s)
@@ -696,7 +812,9 @@ class EventLocator:
                 dx_solution = Vt.T @ (s_inv * (U.T @ b))
 
             dx = dx_solution.reshape((self.n_events, self.dim))
-            dx[:, 2] = np.clip(dx[:, 2], -2, 2)
+            dx[:, 2] = np.clip(dx[:, 2], -1, 1)
+            dx[:, 0:2] = np.clip(dx[:, 0:2], -0.5, 0.5)
+            dx[:, 3] = np.clip(dx[:, 3], -1, 1)
             residual_vector = A @ dx_solution - b
             res_norm = np.linalg.norm(residual_vector)
             residual_norms.append(res_norm)
