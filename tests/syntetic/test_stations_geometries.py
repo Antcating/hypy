@@ -41,7 +41,7 @@ def taup_model():
 @pytest.fixture(scope="session")
 def true_event_params():
     # (lat, lon, depth[km]), origin time
-    return (10.0, 10.0, 15.0), UTCDateTime("2023-01-01T00:00:00.000Z")
+    return (10.0, 10.0, 10.0), UTCDateTime("2023-01-01T00:00:00.000Z")
 
 
 def _iasp91_tvel_path():
@@ -463,8 +463,8 @@ def _save_geom_plot(
         zorder=3,
     )
 
-    ax.set_xlim(min(st_lons) - 0.1, max(st_lons) + 0.1)
-    ax.set_ylim(min(st_lats) - 0.1, max(st_lats) + 0.1)
+    ax.set_xlim(min([est_loc[1], true_loc[1], min(st_lons)]) - 0.1, max([est_loc[1], true_loc[1], max(st_lons)]) + 0.1)
+    ax.set_ylim(min([est_loc[0], true_loc[0], min(st_lats)]) - 0.1, max([est_loc[0], true_loc[0], max(st_lats)]) + 0.1)
 
     # Cosmetics
     ax.set_xlabel("Longitude (°)")
@@ -573,7 +573,7 @@ GEOMETRIES = {
     ),
     "pair_opposite_20km_az0": (
         _pair_opposite,
-        dict(radius_km=20.0, azimuth_deg=0.0, prefix="PO"),
+        dict(radius_km=20.0, azimuth_deg=10.0, prefix="PO"),
         (8.0, 8.0, 1.2),
     ),
     "pair_same_az_near_far_E": (
