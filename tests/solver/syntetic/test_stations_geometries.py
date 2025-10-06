@@ -317,6 +317,55 @@ def _pair_orthogonal_equal_radius(
     return sta
 
 
+def _uniform_grid_geometry(center, grid_size=3, spacing_km=10.0, prefix="UG"):
+    """
+    Stations arranged in a uniform grid around the event.
+    grid_size: number of stations per side (e.g., 3 for 3x3)
+    spacing_km: distance between adjacent stations
+    """
+    lat0, lon0, _ = center
+    sta = {}
+    offset = (grid_size - 1) / 2
+    for i in range(grid_size):
+        for j in range(grid_size):
+            dn = (i - offset) * spacing_km
+            de = (j - offset) * spacing_km
+            dlat, dlon = _km_to_deg_offsets(lat0, dn, de)
+            sta[f"{prefix}{i + 1}{j + 1}"] = (lat0 + dlat, lon0 + dlon, 0.0)
+    return sta
+
+
+def _sparse_geometry(center, n=3, spread_km=50.0, prefix="SP"):
+    """
+    Sparse geometry: few stations spread far apart.
+    """
+    lat0, lon0, _ = center
+    sta = {}
+    angles = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    for i, th in enumerate(angles):
+        dn = spread_km * np.cos(th)
+        de = spread_km * np.sin(th)
+        dlat, dlon = _km_to_deg_offsets(lat0, dn, de)
+        sta[f"{prefix}{i + 1}"] = (lat0 + dlat, lon0 + dlon, 0.0)
+    return sta
+
+
+def _elevation_variation_geometry(center, n=6, radius_km=20.0, prefix="EL"):
+    """
+    Stations on a circle, each with different elevation.
+    """
+    lat0, lon0, _ = center
+    sta = {}
+    elevations = np.linspace(0, 1000, n)  # 0 to 1000 meters
+    angles = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    for i, (th, elev) in enumerate(zip(angles, elevations)):
+        dn = radius_km * np.cos(th)
+        de = radius_km * np.sin(th)
+        dlat, dlon = _km_to_deg_offsets(lat0, dn, de)
+        sta[f"{prefix}{i + 1}"] = (lat0 + dlat, lon0 + dlon, elev)
+    return sta
+
+
 def _pair_one_side_random(
     center,
     r_min_km=8.0,
@@ -463,8 +512,14 @@ def _save_geom_plot(
         zorder=3,
     )
 
-    ax.set_xlim(min([est_loc[1], true_loc[1], min(st_lons)]) - 0.1, max([est_loc[1], true_loc[1], max(st_lons)]) + 0.1)
-    ax.set_ylim(min([est_loc[0], true_loc[0], min(st_lats)]) - 0.1, max([est_loc[0], true_loc[0], max(st_lats)]) + 0.1)
+    ax.set_xlim(
+        min([est_loc[1], true_loc[1], min(st_lons)]) - 0.1,
+        max([est_loc[1], true_loc[1], max(st_lons)]) + 0.1,
+    )
+    ax.set_ylim(
+        min([est_loc[0], true_loc[0], min(st_lats)]) - 0.1,
+        max([est_loc[0], true_loc[0], max(st_lats)]) + 0.1,
+    )
 
     # Cosmetics
     ax.set_xlabel("Longitude (°)")
@@ -492,6 +547,21 @@ def _save_geom_plot(
 # -------------------- Parametrization --------------------
 
 GEOMETRIES = {
+    "uniform_grid_3x3": (
+        _uniform_grid_geometry,
+        dict(grid_size=3, spacing_km=10.0, prefix="UG"),
+        (2.5, 1.5, 0.6),
+    ),
+    "sparse_3sta": (
+        _sparse_geometry,
+        dict(n=3, spread_km=50.0, prefix="SP"),
+        (10.0, 8.0, 1.5),
+    ),
+    "elevation_variation": (
+        _elevation_variation_geometry,
+        dict(n=6, radius_km=20.0, prefix="EL"),
+        (3.0, 2.0, 0.7),
+    ),
     # name: (builder_fn, kwargs, tolerances (arc_km, depth_km, time_s))
     "ring_20km_8sta": (
         _circle_geometry,
@@ -611,6 +681,9 @@ TWO_STATION_GEOMS = {
     "pair_orthogonal_equal_20km",
     "pair_one_side_random_E_sector",
 }
+THREE_STATION_GEOMS = {
+    "sparse_3sta",
+}
 
 
 def _phase_id(phs):
@@ -620,7 +693,9 @@ def _phase_id(phs):
 _PARAMS = []
 for geom_name in GEOMETRIES.keys():
     allowed_phase_sets = (
-        [["P", "S"]] if geom_name in TWO_STATION_GEOMS else ALL_PHASE_SETS
+        [["P", "S"]]
+        if (geom_name in TWO_STATION_GEOMS or geom_name in THREE_STATION_GEOMS)
+        else ALL_PHASE_SETS
     )
     for phases in allowed_phase_sets:
         for mode in ["ray", "table"]:
