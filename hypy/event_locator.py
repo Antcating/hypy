@@ -783,8 +783,38 @@ class EventLocator:
         conv_threshold,
         solve_airquakes,
         max_depth,
-        max_depth_iterations,
+        init_phase_iteration_max,
     ):
+        def _clip_updates(
+            it, dx, max_horizontal_km=3.0, max_vertical_km=1.0, max_time_s=1.0
+        ):
+            # Clip updates to prevent excessive changes in location and time
+            dx[:, 0:2] = np.clip(dx[:, 0:2], -max_horizontal_km, max_horizontal_km)
+            dx[:, 2] = np.clip(dx[:, 2], -max_vertical_km, max_vertical_km)
+            dx[:, 3] = np.clip(dx[:, 3], -max_time_s, max_time_s)
+            # Due to possible cross-talk between variables, we limit vertical shifts upon certain conditions:
+            # 1) During initial iterations, if horizontal shifts exceed vertical limit
+            # 2) If horizontal shifts exceed a general limit at any iteration
+            # This prevents large horizontal shifts from causing unrealistic depth/time changes.
+
+            # Check for large horizontal shifts causing instability in depth/time
+            is_horiz_exceeds_depth = np.any(np.abs(dx[:, :2]) > max_vertical_km, axis=1)
+            # General horizontal limit, if exceeded, zero depth/time changes
+            is_horiz_exceeds_limit = np.any(
+                np.abs(dx[:, :2]) > max_horizontal_km, axis=1
+            )
+
+            if (
+                it < init_phase_iteration_max and np.any(is_horiz_exceeds_depth)
+            ) or np.any(is_horiz_exceeds_limit):
+                logger.warning(
+                    f"Iteration {it}: Preventing large horizontal shifts from causing large depth changes for {np.sum(is_horiz_exceeds_depth)} events."
+                )
+                dx[:, 2] = np.where(is_horiz_exceeds_depth, 0, dx[:, 2])
+                dx[:, 3] = np.where(is_horiz_exceeds_depth, 0, dx[:, 3])
+
+            return dx
+
         logger.info(f"Locating {self.n_events} events with {self.n_stations} stations.")
         logger.info(f"Using phases: {self.phases}")
         logger.info(f"Using {self.solver} solver.")
@@ -825,19 +855,7 @@ class EventLocator:
                 dx_solution = Vt.T @ (s_inv * (U.T @ b))
 
             dx = dx_solution.reshape((self.n_events, self.dim))
-            dx[:, 0:2] = np.clip(dx[:, 0:2], -3, 3)
-            dx[:, 2] = np.clip(dx[:, 2], -1, 1)
-            dx[:, 3] = np.clip(dx[:, 3], -1, 1)
-            # Prevent large horizontal shifts from causing large depth changes
-            mask = np.any(np.abs(dx[:, :2]) > 1, axis=1)
-            mask2 = np.any(np.abs(dx[:, :2]) > 3, axis=1)
-            if (np.any(mask) and it < max_depth_iterations) or np.any(mask2):
-                logger.warning(
-                    f"Iteration {it}: Preventing large horizontal shifts from causing large depth changes for {np.sum(mask)} events."
-                )
-                dx[:, 2] = np.where(mask, 0, dx[:, 2])
-                dx[:, 3] = np.where(mask, 0, dx[:, 3])
-
+            dx = _clip_updates(it, dx)
             residual_vector = A @ dx_solution - b
             res_norm = np.linalg.norm(residual_vector)
             residual_norms.append(res_norm)
@@ -852,7 +870,7 @@ class EventLocator:
                     )
                     self.invalid_events[event_idx] = True
                     dx[event_idx, :] = 0.0
-                elif it > max_depth_iterations and new_depth > max_depth:
+                elif it > init_phase_iteration_max and new_depth > max_depth:
                     logger.warning(
                         f"Event {event_idx} depth will exceed max depth ({new_depth} km > {max_depth} km). Marking as invalid."
                     )
