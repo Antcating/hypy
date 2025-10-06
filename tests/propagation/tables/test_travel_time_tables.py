@@ -93,10 +93,9 @@ def test_get_arrival(travel_time_tables, phases):
 
 
 @pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
-def test_get_arrival_out_of_bounds(travel_time_tables, phases):
+@pytest.mark.parametrize("depth,distance", [(150.0, 500.0), (50.0, 1500.0)])
+def test_get_arrival_out_of_bounds(travel_time_tables, phases, depth, distance):
     tables = travel_time_tables(phases)
-    depth = 150.0
-    distance = 500.0
     if "P" in phases:
         with pytest.raises(ValueError):
             tables.get_arrival(depth, distance, "P")
