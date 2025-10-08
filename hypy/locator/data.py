@@ -82,7 +82,7 @@ class DataMixin:
         self.locations = np.zeros((n_events, self.dim - 1))
         self.invalid_events = np.zeros(n_events, dtype=bool)
 
-    def _fill_data(self) -> None:
+    def _fill_data(self: "LocatorState") -> None:
         for event_idx, event in enumerate(self.events):
             if len(event.picks) < self.min_picks_per_event:
                 logger.warning(
