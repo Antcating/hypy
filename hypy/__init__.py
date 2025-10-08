@@ -1,1 +1,1 @@
-from hypy.event_locator import EventLocator
+from hypy.locator import EventLocator

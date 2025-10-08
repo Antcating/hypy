@@ -1,0 +1,53 @@
+from typing import Optional, Tuple, Union
+
+from ..propagation.ray_tracers import RayTracer
+from ..propagation.tables import TravelTimeTables
+from .types import EngineLiteral, ModeLiteral
+
+
+class TracerSetupMixin:
+    def _init_tracer(
+        self,
+        *,
+        mode: ModeLiteral,
+        engine: EngineLiteral,
+        phases: tuple[str, ...],
+        tvel_path,
+        model_name: str,
+        max_depth: Optional[float],
+        max_distance: Optional[float],
+        depth_step: Optional[float],
+        distance_step: Optional[float],
+    ):
+        tracer: Union[TravelTimeTables, RayTracer]
+        if mode == "table":
+            missing = [
+                name
+                for name, val in dict(
+                    max_depth=max_depth,
+                    max_distance=max_distance,
+                    depth_step=depth_step,
+                    distance_step=distance_step,
+                ).items()
+                if val is None
+            ]
+            if missing:
+                raise ValueError(
+                    "In table mode these variables are required: "
+                    "max_depth, max_distance, depth_step, distance_step "
+                    f"(missing: {', '.join(missing)})"
+                )
+            tracer = TravelTimeTables(
+                tvel_path.as_posix(),
+                model_name,
+                list(phases),
+                float(max_depth),
+                float(max_distance),
+                float(depth_step),
+                float(distance_step),
+                engine,
+            )
+            return tracer, float(max_depth)
+        else:
+            tracer = RayTracer(model_path=tvel_path.as_posix(), engine=engine)
+            return tracer, max_depth  # max_depth unused in ray mode
