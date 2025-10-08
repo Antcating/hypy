@@ -2,124 +2,275 @@ from .types import np
 from ..logger import logger  # type: ignore[import-not-found]
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from .state import LocatorState
 
+
 class InitLocationsMixin:
-    def init_locations(self: "LocatorState", trial_depth: float = 10.0, trial_time: float = 2.0):
+    def init_locations(
+        self: "LocatorState", trial_depth: float = 10.0, trial_time: float = 2.0
+    ):
         """Smart multi-seed initialization; falls back to legacy heuristic."""
-        def _usable_arrivals_for_event(ev_idx: int):
+
+        def _usable_arrivals_for_event(event_id: int):
             usable = []
-            for s in range(self.n_stations):
-                for p in range(self.n_phases):
-                    j = p + s * self.n_phases
-                    t_obs = self.arrivals[ev_idx, j]
-                    if not np.isnan(t_obs):
-                        sigma = self.arrival_time_errors[ev_idx, j]
+            for station_id in range(self.n_stations):
+                for phase_id in range(self.n_phases):
+                    event_arrival_id = phase_id + station_id * self.n_phases
+                    arrival_time = self.arrivals[event_id, event_arrival_id]
+                    if not np.isnan(arrival_time):
+                        sigma = self.arrival_time_errors[event_id, event_arrival_id]
                         if not (sigma is None or np.isnan(sigma) or sigma <= 0.0):
-                            usable.append((s, p, float(t_obs), float(sigma)))
+                            usable.append(
+                                (
+                                    station_id,
+                                    phase_id,
+                                    float(arrival_time),
+                                    float(sigma),
+                                )
+                            )
             return usable
 
-        def _estimate_t0_and_score(ev_idx: int, lat: float, lon: float, depth_km: float):
-            items = _usable_arrivals_for_event(ev_idx)
-            if len(items) < max(3, self.min_picks_per_event // 2):
+        def _estimate_t0_and_score(
+            ev_idx: int, lat: float, lon: float, depth_km: float
+        ):
+            """
+            Estimate origin time (t0) and evaluate solution quality for a candidate hypocenter.
+
+            Parameters
+            ----------
+            ev_idx : int
+                Index of the event being tested.
+            lat, lon : float
+                Candidate epicenter coordinates (degrees).
+            depth_km : float
+                Candidate depth (kilometers).
+
+            Returns
+            -------
+            tuple or None
+                (t0, wrms, n_obs) if a valid solution is computed, otherwise None.
+            """
+
+            # Collect all usable picks for the event — each item is (station_idx, phase_idx, t_obs, sigma)
+            picks = _usable_arrivals_for_event(ev_idx)
+
+            # Require at least a minimal number of picks to compute a stable origin time
+            if len(picks) < max(3, self.min_picks_per_event // 2):
                 return None
-            obs_minus_tt, w = [], []
-            for s, p, t_obs, sigma in items:
-                sta_lat, sta_lon, sta_elev = self.stations_locations[s]
-                phase = self.phases[p]
-                _, t_theory, _ = self._derive_travel_time_param(
+
+            # Prepare arrays for observed minus theoretical times and their weights
+            residual_arrival_times: list[float] = []
+            weights: list[float] = []
+
+            # Iterate over all usable station–phase picks
+            for station_id, phase_id, observed_arrival_time, measurement_error in picks:
+                # Get the station’s geographic position
+                sta_lat, sta_lon, sta_elev = self.stations_locations[station_id]
+                phase = self.phases[phase_id]
+
+                # Compute theoretical travel time for this candidate source–station pair
+                _, theoretical_arrival_time, _ = self._derive_travel_time_param(
                     (lat, lon, depth_km), (sta_lat, sta_lon, sta_elev), phase
                 )
-                if t_theory is None or not np.isfinite(t_theory):
-                    continue
-                obs_minus_tt.append(t_obs - float(t_theory))
-                w.append(1.0 / (sigma * sigma))
-            if len(obs_minus_tt) < max(3, self.min_picks_per_event // 2):
-                return None
-            obs_minus_tt = np.asarray(obs_minus_tt, dtype=float)
-            w = np.asarray(w, dtype=float)
-            t0 = float(np.sum(w * obs_minus_tt) / np.sum(w))
-            wrms = float(np.sqrt(np.sum(w * (obs_minus_tt - t0) ** 2) / np.sum(w)))
-            return t0, wrms, len(obs_minus_tt)
 
-        def _seed_candidates_for_event(event_idx: int, trial_depth_km: float):
-            picked, t_first, earliest_idx = [], float("inf"), None
-            for pk in self.events[event_idx].picks:
-                key = (pk.waveform_id.network_code, pk.waveform_id.station_code)
-                if key in self.stations:
-                    sidx = self.stations.index(key)
-                    picked.append(sidx)
-                    if pk.time < t_first:
-                        t_first, earliest_idx = pk.time, sidx
-            picked = sorted(set(picked))
-            if not picked:
+                # Skip if travel time couldn’t be computed or is invalid
+                if theoretical_arrival_time is None or not np.isfinite(
+                    theoretical_arrival_time
+                ):
+                    continue
+
+                # Residual: observed arrival time minus theoretical travel time
+                residual_arrival_times.append(
+                    observed_arrival_time - float(theoretical_arrival_time)
+                )
+
+                # Weight: inverse of variance (1/σ²)
+                weights.append(1.0 / (measurement_error * measurement_error))
+
+            # Check again that we have enough usable picks after filtering invalid ones
+            if len(residual_arrival_times) < max(3, self.min_picks_per_event // 2):
+                return None
+
+            # Convert to NumPy arrays for vectorized operations
+            residual_arrival_times = np.asarray(residual_arrival_times, dtype=float)
+            weights = np.asarray(weights, dtype=float)
+
+            # Weighted average of (t_obs - t_theory) gives the best-fit origin time t0
+            t0 = float(np.sum(weights * residual_arrival_times) / np.sum(weights))
+
+            # Weighted root-mean-square (WRMS) residual measures fit quality
+            wrms = float(
+                np.sqrt(
+                    np.sum(weights * (residual_arrival_times - t0) ** 2)
+                    / np.sum(weights)
+                )
+            )
+
+            # Return estimated origin time, residual RMS, and number of contributing picks
+            return t0, wrms, len(residual_arrival_times)
+
+        def _seed_candidates_for_event(event_index: int, trial_depth_km: float):
+            """
+            Build candidate epicenter seeds and a small depth grid for a given event.
+
+            Seeds are drawn from:
+            1) Centroid of stations that have picks for the event.
+            2) Component-wise median of those station coordinates.
+            3) Station of the earliest pick determined by a full scan over picked stations.
+            Depth candidates are formed around `trial_depth_km` and clipped by `self.max_depth` if set.
+            """
+            # ---- Gather stations that have picks for this event; track a fast "earliest" station as we go ----
+            seeds = []
+            selected_station_indices: list[int] = []
+
+            for pick in self.events[event_index].picks:
+                net_sta_key = (
+                    pick.waveform_id.network_code,
+                    pick.waveform_id.station_code,
+                )
+                if net_sta_key in self.stations:
+                    station_index = self.stations.index(net_sta_key)
+                    selected_station_indices.append(station_index)
+
+            # Deduplicate and sort indices of stations with picks
+            selected_station_indices = sorted(set(selected_station_indices))
+            if not selected_station_indices:
                 return [], []
 
-            pts = np.asarray([self.stations_locations[i][:2] for i in picked], float)
-            lat_c, lon_c = float(np.mean(pts[:, 0])), float(np.mean(pts[:, 1]))
-            lat_m, lon_m = float(np.median(pts[:, 0])), float(np.median(pts[:, 1]))
-            seeds = [(lat_c, lon_c), (lat_m, lon_m)]
-            if earliest_idx is not None:
-                e_lat, e_lon = self.stations_locations[earliest_idx][:2]
-                seeds.append((float(e_lat), float(e_lon)))
+            # ---- Compute seed epicenters by type ----
+            # Station coordinates (lat, lon) for all picked stations
+            station_latlon = np.asarray(
+                [self.stations_locations[i][:2] for i in selected_station_indices],
+                dtype=float,
+            )
 
-            earliest_pick_idx = min(
-                picked,
+            # 1) Geometric centroid (mean latitude and longitude)
+            lat_centroid = float(np.mean(station_latlon[:, 0]))
+            lon_centroid = float(np.mean(station_latlon[:, 1]))
+            seeds.append((lat_centroid, lon_centroid))  # centroid seed
+
+            # 2) Component-wise median (robust to outliers)
+            lat_median = float(np.median(station_latlon[:, 0]))
+            lon_median = float(np.median(station_latlon[:, 1]))
+            seeds.append((lat_median, lon_median))  # median seed
+
+            # 3) Earliest-pick station via full scan over the picked stations
+            earliest_station_index = min(
+                selected_station_indices,
                 key=lambda idx: min(
-                    pk.time for pk in self.events[event_idx].picks
-                    if (pk.waveform_id.network_code, pk.waveform_id.station_code) == self.stations[idx]
+                    pk.time
+                    for pk in self.events[event_index].picks
+                    if (pk.waveform_id.network_code, pk.waveform_id.station_code)
+                    == self.stations[idx]
                 ),
             )
-            earliest_lat, earliest_lon = self.stations_locations[earliest_pick_idx][:2]
-            seeds.append((float(earliest_lat), float(earliest_lon)))
+            earliest_full_lat, earliest_full_lon = self.stations_locations[
+                earliest_station_index
+            ][:2]
+            seeds.append(
+                (float(earliest_full_lat), float(earliest_full_lon))
+            )  # earliest-by-full-scan seed
 
-            uniq, seen = [], set()
+            # Deduplicate seeds numerically (to avoid nearly-identical duplicates)
+            unique_seeds: list[tuple[float, float]] = []
+            seen_keys: set[tuple[float, float]] = set()
             for lat, lon in seeds:
-                key = (round(lat, 4), round(lon, 4))
-                if key not in seen:
-                    uniq.append((lat, lon)); seen.add(key)
+                key = (
+                    round(lat, 4),
+                    round(lon, 4),
+                )  # 1e-4 deg ≈ 10 m; good enough to merge near-duplicates
+                if key not in seen_keys:
+                    unique_seeds.append((lat, lon))
+                    seen_keys.add(key)
 
-            d0 = max(0.0, float(trial_depth_km))
-            dmax = float(self.max_depth) if self.max_depth is not None else d0 + 20.0
-            grid = {round(x, 2) for x in [d0 * 0.5, d0, d0 * 1.5, d0 + 5.0, d0 + 10.0]}
-            depths = sorted([d for d in grid if 0.0 <= d <= dmax]) or [d0]
-            return uniq, depths
+            # ---- Build a small depth candidate grid around the trial depth ----
+            initial_depth_km = max(0.0, float(trial_depth_km))
+            max_depth_km = (
+                float(self.max_depth)
+                if self.max_depth is not None
+                else initial_depth_km + 20.0
+            )
+            depth_grid_candidates = {
+                round(x, 2)
+                for x in [
+                    initial_depth_km * 0.5,
+                    initial_depth_km,
+                    initial_depth_km * 1.5,
+                    initial_depth_km + 5.0,
+                    initial_depth_km + 10.0,
+                ]
+            }
+            candidate_depths = sorted(
+                [d for d in depth_grid_candidates if 0.0 <= d <= max_depth_km]
+            ) or [initial_depth_km]
+            return unique_seeds, candidate_depths
 
-        for event_idx, event in enumerate(self.events):
+        # ---- Initialization loop using the seeds above ----
+        for event_index, event in enumerate(self.events):
             if len(event.picks) == 0:
                 continue
+
+            # Keep only picks from stations we know about
             event.picks = [
-                pick for pick in event.picks
-                if (pick.waveform_id.network_code, pick.waveform_id.station_code) in self.stations
+                pick
+                for pick in event.picks
+                if (pick.waveform_id.network_code, pick.waveform_id.station_code)
+                in self.stations
             ]
 
-            seeds, depths = _seed_candidates_for_event(event_idx, trial_depth)
-            best = None  # (wrms, lat, lon, depth_km, t0)
+            seeds, candidate_depths = _seed_candidates_for_event(
+                event_index, trial_depth
+            )
+            best_solution: tuple[float, float, float, float, float] | None = (
+                None  # (wrms, lat, lon, depth_km, t0)
+            )
 
-            for lat, lon in seeds:
-                for depth_km in depths:
-                    scored = _estimate_t0_and_score(event_idx, lat, lon, depth_km)
+            # Evaluate all seed/ depth pairs, keep the one with the lowest WRMS
+            for lat_seed, lon_seed in seeds:
+                for depth_candidate_km in candidate_depths:
+                    scored = _estimate_t0_and_score(
+                        event_index, lat_seed, lon_seed, depth_candidate_km
+                    )
                     if scored is None:
                         continue
-                    t0, wrms, _ = scored
-                    if np.isfinite(wrms) and (best is None or wrms < best[0]):
-                        best = (wrms, lat, lon, depth_km, t0)
+                    t0_estimate, wrms, _ = scored
+                    if np.isfinite(wrms) and (
+                        best_solution is None or wrms < best_solution[0]
+                    ):
+                        best_solution = (
+                            wrms,
+                            lat_seed,
+                            lon_seed,
+                            depth_candidate_km,
+                            t0_estimate,
+                        )
 
-            if best is not None:
-                _, lat, lon, depth_km, t0 = best
-                self.locations[event_idx] = (lat, lon, depth_km)
-                self.origin_times[event_idx] = t0
-                logger.debug(f"[init] ev#{event_idx}: lat={lat:.4f} lon={lon:.4f} z={depth_km:.2f} km, t0={t0:.3f}")
+            if best_solution is not None:
+                _, lat_best, lon_best, depth_best_km, t0_best = best_solution
+                self.locations[event_index] = (lat_best, lon_best, depth_best_km)
+                self.origin_times[event_index] = t0_best
+                logger.debug(
+                    f"[init] ev#{event_index}: lat={lat_best:.4f} lon={lon_best:.4f} "
+                    f"z={depth_best_km:.2f} km, t0={t0_best:.3f}"
+                )
             else:
+                # Fallback: use the station of the earliest pick and back off origin time by trial_time
                 first_pick = min(event.picks, key=lambda pk: pk.time)
                 net_code = first_pick.waveform_id.network_code
                 sta_code = first_pick.waveform_id.station_code
-                station = self.inv.select(network=net_code, station=sta_code)[0][0]
-                self.locations[event_idx] = (station.latitude, station.longitude, trial_depth)
-                self.origin_times[event_idx] = first_pick.time - trial_time
-                logger.debug(
-                    f"[init:fallback] ev#{event_idx}: lat={station.latitude:.4f} "
-                    f"lon={station.longitude:.4f} z={trial_depth:.2f} km, t0≈first_pick−{trial_time:.2f}s"
+                station_meta = self.inv.select(network=net_code, station=sta_code)[0][0]
+                self.locations[event_index] = (
+                    station_meta.latitude,
+                    station_meta.longitude,
+                    trial_depth,
                 )
+                self.origin_times[event_index] = first_pick.time - trial_time
+                logger.debug(
+                    f"[init:fallback] ev#{event_index}: lat={station_meta.latitude:.4f} "
+                    f"lon={station_meta.longitude:.4f} z={trial_depth:.2f} km, "
+                    f"t0≈first_pick-{trial_time:.2f}s"
+                )
+
         return self.locations
