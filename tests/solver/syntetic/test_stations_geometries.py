@@ -6,12 +6,12 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from obspy import UTCDateTime
-from obspy.core.event import Catalog, Event, Pick, WaveformStreamID
-from obspy.core.event.base import QuantityError
-from obspy.core.inventory import Inventory, Network, Site, Station
-from obspy.geodetics import gps2dist_azimuth
-from obspy.taup import TauPyModel
+from obspy import UTCDateTime # type: ignore[import-untyped]
+from obspy.core.event import Catalog, Event, Pick, WaveformStreamID # type: ignore[import-untyped]
+from obspy.core.event.base import QuantityError # type: ignore[import-untyped]
+from obspy.core.inventory import Inventory, Network, Site, Station # type: ignore[import-untyped]
+from obspy.geodetics import gps2dist_azimuth # type: ignore[import-untyped]
+from obspy.taup import TauPyModel # type: ignore[import-untyped]
 
 # --- NEW: plotting imports (non-interactive backend) ---
 import matplotlib
@@ -20,7 +20,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 # -------------------------------------------------------
 
-from hypy.event_locator import EventLocator
+from hypy.locator import EventLocator
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
