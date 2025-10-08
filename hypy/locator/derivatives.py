@@ -3,8 +3,12 @@ from ..utils.geo import compute_spatial_derivatives_1d, gps2dist_azimuth_nb
 from ..utils.weighting import distance_weight
 from  ..logger import logger  # type: ignore[import-not-found]
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .state import LocatorState
+
 class DerivativesMixin:
-    def _derive_travel_time_param(self, event_location, station_location, phase):
+    def _derive_travel_time_param(self: "LocatorState", event_location, station_location, phase):
         ev_lat, ev_lon, ev_depth = event_location
         st_lat, st_lon, st_elev = station_location
         dist_m, az_deg, _ = gps2dist_azimuth_nb(
@@ -28,7 +32,7 @@ class DerivativesMixin:
         spatial_derivatives = (dt_dr, dt_dx, dt_dy, dt_dz)
         return distance_km, travel_time, spatial_derivatives
 
-    def _populate_derivative_matrix(self):
+    def _populate_derivative_matrix(self: "LocatorState"):
         valid_rows = []
         for event_idx in range(self.n_events):
             if self.invalid_events[event_idx]:
