@@ -1,10 +1,18 @@
+from typing import TYPE_CHECKING
+
 import numpy as np
 from obspy.core.event import Arrival, Origin
 from obspy.core.event.base import QuantityError
 from obspy.core.event.origin import ConfidenceEllipsoid, OriginUncertainty
 
+from .types import Union, List, Event, Catalog
+
+if TYPE_CHECKING:
+    from .state import LocatorState
+
+
 class FinalizeMixin:
-    def _finalize_origins(self):
+    def _finalize_origins(self: "LocatorState") -> Union[List[Event], Catalog]:
         scale95 = 2.4
         for event_idx, event in enumerate(self.events):
             if self.invalid_events[event_idx]:
@@ -48,7 +56,11 @@ class FinalizeMixin:
                 confidence_level=95.0,
             )
             origin.depth_errors = depth_errors
-            origin.depth_type = "operator assigned" if self.fixed_depth_mask[event_idx] else "from location"
+            origin.depth_type = (
+                "operator assigned"
+                if self.fixed_depth_mask[event_idx]
+                else "from location"
+            )
 
             for station_idx, (network, station) in enumerate(self.stations):
                 for phase_idx, phase in enumerate(self.phases):
@@ -57,15 +69,22 @@ class FinalizeMixin:
                     if np.isnan(observed_time):
                         continue
                     pick = next(
-                        (pk for pk in event.picks
-                         if pk.waveform_id.station_code == station
-                         and pk.waveform_id.network_code == network
-                         and pk.phase_hint.lower() == phase.lower()),
+                        (
+                            pk
+                            for pk in event.picks
+                            if pk.waveform_id.station_code == station
+                            and pk.waveform_id.network_code == network
+                            and pk.phase_hint.lower() == phase.lower()
+                        ),
                         None,
                     )
                     travel_time = self.theoretical_arrivals[event_idx, arr_index]
-                    residual = travel_time - (observed_time - self.origin_times[event_idx])
-                    arrival = Arrival(pick_id=pick.resource_id, phase=phase, time_residual=residual)
+                    residual = travel_time - (
+                        observed_time - self.origin_times[event_idx]
+                    )
+                    arrival = Arrival(
+                        pick_id=pick.resource_id, phase=phase, time_residual=residual
+                    )
                     origin.arrivals.append(arrival)
             event.origins.append(origin)
         return self.events
