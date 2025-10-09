@@ -15,6 +15,7 @@ class FinalizeMixin:
     def _finalize_origins(self: "LocatorState") -> Union[List[Event], Catalog]:
         scale95 = 2.4
         for event_idx, event in enumerate(self.events):
+            # If invalid - no origins are added
             if self.invalid_events[event_idx]:
                 continue
             origin = Origin()
@@ -89,7 +90,7 @@ class FinalizeMixin:
             event.origins.append(origin)
         return self.events
 
-    def report_invalid_events(self):
+    def report_invalid_events(self: "LocatorState") -> np.ndarray:
         if hasattr(self, "invalid_events"):
             return np.where(self.invalid_events)[0]
         return np.array([])
