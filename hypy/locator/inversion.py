@@ -37,7 +37,7 @@ class InversionMixin:
         )
         self._compute_error_ellipsoids()
         logger.info("Event location completed.")
-        return self._finalize_origins()
+        return self._finalize_origins(), self.report_invalid_events()
 
     def _run_location_iterations(
         self: "LocatorState",
