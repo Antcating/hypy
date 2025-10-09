@@ -68,7 +68,7 @@ class LocatorState(Protocol):
     _principal_axes: np.ndarray
     _erz_erh: np.ndarray
 
-    # --- cross-mixin methods used by others (add these) ---
+    # --- DerivativesMixin ---
     def _derive_travel_time_param(
         self,
         event_location: Tuple[float, float, float],
@@ -84,34 +84,84 @@ class LocatorState(Protocol):
         """
         Compute great-circle distance/azimuth, travel time, and spatial derivatives
         for a given event-station pair and phase.
-
-        Parameters
-        ----------
-        event_location : tuple of float
-            (latitude, longitude, depth_km) of the event.
-        station_location : tuple of float
-            (latitude, longitude, elevation_m) of the station.
-        phase : str
-            Seismic phase name (e.g., 'P', 'S').
-
-        Returns
-        -------
-        (distance_km, travel_time, (dt_dr, dt_dx, dt_dy, dt_dz))
-            If the path exceeds self.max_distance, travel_time and derivatives are None.
+        Returns (distance_km, travel_time, (dt_dr, dt_dx, dt_dy, dt_dz)).
+        If the path exceeds self.max_distance, travel_time and derivatives are None.
         """
         ...
 
-    def _get_velocity_1d(self, depth: float, phase: str) -> float: ...
+    def _populate_derivative_matrix(self) -> np.ndarray:
+        """
+        Fill the design (derivative) matrix rows corresponding to all valid
+        event-station-phase observations, and compute theoretical arrivals.
+        Returns 1D array of row indices (into the global design matrix) that were populated.
+        """
+        ...
 
-    def _populate_derivative_matrix(self) -> np.ndarray: ...
+    # --- ModelMixin ---
+    def _get_velocity_1d(self, depth: float, phase: str) -> float:
+        """
+        Get velocity at a given depth for a specific phase.
+        """
+        ...
 
+    def _precompute_velocity_profiles_1d(
+        self, max_depth: float, depth_step: float
+    ) -> None:
+        """
+        Precompute and store velocity as a function of depth for each phase.
+        """
+        ...
+
+    # --- DataMixin ---
+    def load_data(
+        self,
+        inventory: Inventory,
+        events: Union[List[Event], Catalog],
+    ) -> None:
+        """
+        Load inventory and events, extract the set of stations present in picks,
+        validate counts, allocate arrays, and populate arrival/time-error matrices.
+        """
+        ...
+
+    def _allocate_arrays(self, n_events: int, n_stations: int, n_phases: int) -> None:
+        """
+        Allocate all working arrays used during event location.
+        """
+        ...
+
+    def _fill_data(self) -> None:
+        """
+        Populate arrival and error matrices from loaded event and station data.
+        """
+        ...
+
+    # --- InitLocationsMixin ---
     def init_locations(
         self, trial_depth: float = ..., trial_time: float = ...
-    ) -> np.ndarray: ...
+    ) -> np.ndarray:
+        """
+        Smart multi-seed initialization; falls back to legacy heuristic.
+        Returns initial locations array.
+        """
+        ...
 
-    def _compute_error_ellipsoids(self) -> None: ...
-
-    def _finalize_origins(self): ...
+    # --- InversionMixin ---
+    def locate(
+        self,
+        max_iterations: int = 1000,
+        conv_threshold: float = 1e-3,
+        solve_airquakes: bool = False,
+        max_depth: float = 50.0,
+        safe_iteration_limit: int = 20,
+        trial_depth: float = 10.0,
+        solver: str = "lsqr",
+    ) -> Tuple[Any, np.ndarray]:
+        """
+        Main entry point for event location. Runs initialization, inversion, error analysis, and finalization.
+        Returns (finalized origins, invalid event indices).
+        """
+        ...
 
     def _run_location_iterations(
         self,
@@ -120,18 +170,43 @@ class LocatorState(Protocol):
         solve_airquakes: bool,
         max_depth: float,
         init_phase_iteration_max: int,
-    ) -> None: ...
+    ) -> None:
+        """
+        Run iterative location updates for all events until convergence or max iterations.
+        Updates locations, origin times, and residuals.
+        """
+        ...
 
+    # --- ErrorAnalysisMixin ---
     def _compute_event_errors(
         self,
-        A_e: np.ndarray,  # (m, 4)
-        r_e: np.ndarray,  # (m,)
-        pick_errs_e: np.ndarray,  # (m,)
+        A_e: np.ndarray,
+        r_e: np.ndarray,
+        pick_errs_e: np.ndarray,
         damping: float,
-    ) -> Optional[Dict[str, Any]]: ...
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Compute full and spatial covariance matrices, principal axes, and error metrics for a single event.
+        Returns a dictionary of error/covariance results.
+        """
+        ...
 
-    # ---- Data I/O helpers used by DataIOMixin ----
-    def _allocate_arrays(
-        self, n_events: int, n_stations: int, n_phases: int
-    ) -> None: ...
-    def _fill_data(self) -> None: ...
+    def _compute_error_ellipsoids(self) -> None:
+        """
+        Compute and store error ellipsoids and principal axes for all events.
+        """
+        ...
+
+    # --- FinalizeMixin ---
+    def _finalize_origins(self) -> Union[List[Event], Catalog]:
+        """
+        Finalize and attach computed origins and uncertainties to each event.
+        Returns the updated list or catalog of events.
+        """
+        ...
+
+    def report_invalid_events(self) -> np.ndarray:
+        """
+        Return indices of events marked as invalid after location.
+        """
+        ...
