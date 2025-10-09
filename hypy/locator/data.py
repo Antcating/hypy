@@ -131,7 +131,7 @@ class DataMixin:
         # Each row corresponds to an event; each column to a station–phase pair.
         self.arrivals = np.full((n_events, n_phases * n_stations), np.nan)
         self.arrival_time_errors = np.full((n_events, n_phases * n_stations), np.nan)
-        self.theoretical_arrivals = np.zeros((n_events, n_phases * n_stations))
+        self.theoretical_travel_times = np.zeros((n_events, n_phases * n_stations))
 
         # --- Derivative (design) matrix ---
         # Shape: (n_events * n_stations * n_phases, n_events * self.dim)
@@ -181,7 +181,8 @@ class DataMixin:
             # ---- Quick coverage check: unique stations represented for this event ----
             # Prevents unstable solutions (many picks from few stations).
             station_keys_for_event = {
-                (pk.waveform_id.network_code, pk.waveform_id.station_code) for pk in event.picks
+                (pk.waveform_id.network_code, pk.waveform_id.station_code)
+                for pk in event.picks
             }
             if len(station_keys_for_event) * self.n_phases < self.min_picks_per_event:
                 logger.warning(
@@ -223,7 +224,10 @@ class DataMixin:
                         sigma = self.time_error_floor
                         logger.warning(
                             "Pick %s.%s %s: invalid/undefined time error → using floor %.3fs.",
-                            network_code, station_code, phase_name, self.time_error_floor,
+                            network_code,
+                            station_code,
+                            phase_name,
+                            self.time_error_floor,
                         )
                     else:
                         sigma = pick.time_errors.uncertainty
@@ -236,7 +240,9 @@ class DataMixin:
                     self.arrival_time_errors[event_index, obs_col] = sigma
 
                     # Global flattened index for weight vectors (event-major)
-                    obs_flat_index = event_index * (self.n_phases * self.n_stations) + obs_col
+                    obs_flat_index = (
+                        event_index * (self.n_phases * self.n_stations) + obs_col
+                    )
 
                     # Time-based weight derived from uncertainty (your mapping)
                     self.time_error_W[obs_flat_index] = time_error_weight(sigma)

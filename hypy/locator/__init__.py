@@ -101,7 +101,7 @@ class EventLocator(
         # --- Data & model matrices (allocated later)
         self.origin_times: np.ndarray
         self.arrivals: np.ndarray
-        self.theoretical_arrivals: np.ndarray
+        self.theoretical_travel_times: np.ndarray
         self.derivative_matrix: np.ndarray
         self.locations: np.ndarray
 

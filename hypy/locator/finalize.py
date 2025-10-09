@@ -78,7 +78,7 @@ class FinalizeMixin:
                         ),
                         None,
                     )
-                    travel_time = self.theoretical_arrivals[event_idx, arr_index]
+                    travel_time = self.theoretical_travel_times[event_idx, arr_index]
                     residual = travel_time - (
                         observed_time - self.origin_times[event_idx]
                     )

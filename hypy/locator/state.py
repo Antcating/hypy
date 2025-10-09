@@ -45,7 +45,7 @@ class LocatorState(Protocol):
     # data & matrices
     origin_times: np.ndarray
     arrivals: np.ndarray
-    theoretical_arrivals: np.ndarray
+    theoretical_travel_times: np.ndarray
     derivative_matrix: np.ndarray
     locations: np.ndarray
 
@@ -80,7 +80,26 @@ class LocatorState(Protocol):
         Tuple[
             Optional[float], Optional[float], Optional[float], Optional[float]
         ],  # (dt_dr, dt_dx, dt_dy, dt_dz)
-    ]: ...
+    ]:
+        """
+        Compute great-circle distance/azimuth, travel time, and spatial derivatives
+        for a given event-station pair and phase.
+
+        Parameters
+        ----------
+        event_location : tuple of float
+            (latitude, longitude, depth_km) of the event.
+        station_location : tuple of float
+            (latitude, longitude, elevation_m) of the station.
+        phase : str
+            Seismic phase name (e.g., 'P', 'S').
+
+        Returns
+        -------
+        (distance_km, travel_time, (dt_dr, dt_dx, dt_dy, dt_dz))
+            If the path exceeds self.max_distance, travel_time and derivatives are None.
+        """
+        ...
 
     def _get_velocity_1d(self, depth: float, phase: str) -> float: ...
 
@@ -112,5 +131,7 @@ class LocatorState(Protocol):
     ) -> Optional[Dict[str, Any]]: ...
 
     # ---- Data I/O helpers used by DataIOMixin ----
-    def _allocate_arrays(self, n_events: int, n_stations: int, n_phases: int) -> None: ...
+    def _allocate_arrays(
+        self, n_events: int, n_stations: int, n_phases: int
+    ) -> None: ...
     def _fill_data(self) -> None: ...

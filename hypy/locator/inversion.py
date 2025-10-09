@@ -89,7 +89,7 @@ class InversionMixin:
             valid_rows = self._populate_derivative_matrix()
 
             travel_times_obs = self.arrivals - self.origin_times[:, np.newaxis]
-            residuals = travel_times_obs - self.theoretical_arrivals
+            residuals = travel_times_obs - self.theoretical_travel_times
             residuals_flat = residuals.flatten()
 
             b = (
