@@ -23,7 +23,7 @@ from .init_locations import InitLocationsMixin
 from .inversion import InversionMixin
 from .model import ModelMixin
 from .tracer_setup import TracerSetupMixin
-from .types import Catalog, Event, Inventory  # noqa: F401
+from .types import Catalog, Event, Inventory, SolverLiteral  # noqa: F401
 
 
 class EventLocator(
@@ -74,6 +74,7 @@ class EventLocator(
 
         self.mode = validate_mode(mode)
         self.engine = validate_engine(engine)
+        self.solver: SolverLiteral = "lsqr"
 
         # --- Velocity model & tracer setup
         self.model = self._init_velocity_model(self.model_name, self.tvel_file_path)
@@ -126,7 +127,7 @@ class EventLocator(
         if self._precalculate_velocities:
             validate_precompute_args(max_depth, depth_step)
             self.velocity_profile_dimensionality: int = 1
-            self._precompute_velocity_profiles_1d(max_depth, depth_step)
+            self._precompute_velocity_profiles_1d(max_depth, depth_step)  # type: ignore[arg-type]
 
 
 __all__ = ["EventLocator"]

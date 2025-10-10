@@ -2,6 +2,7 @@ from ..logger import logger  # type: ignore[import-not-found]
 from ..utils.weighting import time_error_weight
 from .types import Catalog, Event, Inventory, List, Tuple, np
 from obspy.core.event import Pick
+from typing_extensions import Self
 
 from typing import TYPE_CHECKING
 
@@ -25,7 +26,7 @@ class DataMixin:
     _fix_depth: bool
 
     def load_data(
-        self: "LocatorState", inventory: Inventory, events: list[Event] | Catalog
+        self: Self, inventory: Inventory, events: list[Event] | Catalog
     ) -> None:
         """
         Load inventory and events, extract the set of stations present in picks,
@@ -104,9 +105,7 @@ class DataMixin:
         self._allocate_arrays(self.n_events, self.n_stations, self.n_phases)
         self._fill_data()
 
-    def _allocate_arrays(
-        self: "LocatorState", n_events: int, n_stations: int, n_phases: int
-    ) -> None:
+    def _allocate_arrays(self, n_events: int, n_stations: int, n_phases: int) -> None:
         """
         Allocate all working arrays used during event location.
 
@@ -159,7 +158,7 @@ class DataMixin:
         # Marks events excluded from inversion due to insufficient data or bad geometry.
         self.invalid_events = np.zeros(n_events, dtype=bool)
 
-    def _fill_data(self: "LocatorState") -> None:
+    def _fill_data(self) -> None:
         """
         Populate observed arrivals, their uncertainties, and time-based weights
         for each event-station-phase observation. Events with insufficient or

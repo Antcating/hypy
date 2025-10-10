@@ -9,6 +9,7 @@ from obspy.core.inventory import Inventory  # type: ignore[import-untyped]
 from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 
 from ..propagation import PropagationModel
+from .types import SolverLiteral
 
 
 class LocatorState(Protocol):
@@ -31,7 +32,7 @@ class LocatorState(Protocol):
     # velocity model / tracer
     model: TauPyModel
     tracer: PropagationModel
-    solver: str
+    solver: SolverLiteral
 
     # stations / events containers
     inv: Inventory
@@ -56,7 +57,7 @@ class LocatorState(Protocol):
     invalid_events: np.ndarray
 
     # bookkeeping for errors/finalization
-    _A_final: np.ndarray
+    _A_final: np.ndarray | None
     _valid_rows_final: np.ndarray
     _residuals_flat_final: np.ndarray
     _lambda_final: float
@@ -155,7 +156,7 @@ class LocatorState(Protocol):
         max_depth: float = 50.0,
         safe_iteration_limit: int = 20,
         trial_depth: float = 10.0,
-        solver: str = "lsqr",
+        solver: SolverLiteral = "lsqr",
     ) -> Tuple[Any, np.ndarray]:
         """
         Main entry point for event location. Runs initialization, inversion, error analysis, and finalization.

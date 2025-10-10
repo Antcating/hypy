@@ -1,9 +1,13 @@
-class RayTracer:
+from ..propagation_model import PropagationModel
+
+
+class RayTracer(PropagationModel):
     """
     Unified RayTracer interface to select backend ('pyrocko' or 'taup').
     """
 
     def __init__(self, model_path: str, engine: str = "pyrocko"):
+        self.tracer: PropagationModel
         if engine == "pyrocko":
             from .pyrocko import PyrockoRayTracer
 

@@ -7,6 +7,7 @@ from scipy.sparse.linalg import lsqr  # type: ignore[import-untyped]
 from ..logger import logger  # type: ignore[import-not-found]
 from ..utils.damping import update_damping_factor
 from .types import SolverLiteral
+from typing_extensions import Self
 
 if TYPE_CHECKING:
     from .state import LocatorState
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
 
 class InversionMixin:
     def locate(
-        self: "LocatorState",
+        self: Self,
         max_iterations=1000,
         conv_threshold=1e-3,
         solve_airquakes=False,

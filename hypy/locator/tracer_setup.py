@@ -1,5 +1,6 @@
 from typing import Optional, Tuple, Union
 
+from ..propagation import PropagationModel
 from ..propagation.ray_tracers import RayTracer
 from ..propagation.tables import TravelTimeTables
 from .types import EngineLiteral, ModeLiteral
@@ -19,7 +20,7 @@ class TracerSetupMixin:
         depth_step: Optional[float],
         distance_step: Optional[float],
     ):
-        tracer: Union[TravelTimeTables, RayTracer]
+        tracer: PropagationModel
         if mode == "table":
             missing = [
                 name

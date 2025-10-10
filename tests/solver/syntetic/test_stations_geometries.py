@@ -6,12 +6,12 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from obspy import UTCDateTime # type: ignore[import-untyped]
-from obspy.core.event import Catalog, Event, Pick, WaveformStreamID # type: ignore[import-untyped]
-from obspy.core.event.base import QuantityError # type: ignore[import-untyped]
-from obspy.core.inventory import Inventory, Network, Site, Station # type: ignore[import-untyped]
-from obspy.geodetics import gps2dist_azimuth # type: ignore[import-untyped]
-from obspy.taup import TauPyModel # type: ignore[import-untyped]
+from obspy import UTCDateTime  # type: ignore[import-untyped]
+from obspy.core.event import Catalog, Event, Pick, WaveformStreamID  # type: ignore[import-untyped]
+from obspy.core.event.base import QuantityError  # type: ignore[import-untyped]
+from obspy.core.inventory import Inventory, Network, Site, Station  # type: ignore[import-untyped]
+from obspy.geodetics import gps2dist_azimuth  # type: ignore[import-untyped]
+from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 
 # --- NEW: plotting imports (non-interactive backend) ---
 import matplotlib
@@ -740,7 +740,7 @@ def test_event_location_vs_geometry(
 
     # run
     locator.load_data(inventory, catalog)
-    out = locator.locate(max_iterations=1000, trial_depth=5.0, solver="lsqr")
+    out, _ = locator.locate(max_iterations=1000, trial_depth=5.0, solver="lsqr")
 
     # extract final origin
     e = out[0]
