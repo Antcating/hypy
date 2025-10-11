@@ -11,11 +11,15 @@ from typing_extensions import Self
 
 if TYPE_CHECKING:
     from .state import LocatorState
+else:
+
+    class LocatorState:
+        pass
 
 
 class InversionMixin:
     def locate(
-        self: Self,
+        self: LocatorState,
         max_iterations=1000,
         conv_threshold=1e-3,
         solve_airquakes=False,
@@ -24,6 +28,10 @@ class InversionMixin:
         trial_depth=10.0,
         solver: SolverLiteral = "lsqr",
     ):
+        """
+        Main entry point for event location. Runs initialization, inversion, error analysis, and finalization.
+        Returns (finalized origins, invalid event indices).
+        """
         if solver not in ["lsqr", "svd"]:
             raise ValueError("Unsupported solver: {solver}. Supported: 'lsqr', 'svd'.")
         self.solver = solver

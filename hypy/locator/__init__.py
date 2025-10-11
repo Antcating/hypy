@@ -5,7 +5,7 @@ Exposes EventLocator composed from internal mixins.
 """
 
 from pathlib import Path
-from typing import List, Literal, Optional, Sequence, Tuple, Union
+from typing import List, Literal, Optional, Sequence, Tuple, Union, TYPE_CHECKING
 
 import numpy as np
 
@@ -24,6 +24,14 @@ from .inversion import InversionMixin
 from .model import ModelMixin
 from .tracer_setup import TracerSetupMixin
 from .types import Catalog, Event, Inventory, SolverLiteral  # noqa: F401
+
+
+if TYPE_CHECKING:
+    from .state import LocatorState
+else:
+
+    class LocatorState:
+        pass
 
 
 class EventLocator(
@@ -94,7 +102,7 @@ class EventLocator(
     """
 
     def __init__(
-        self,
+        self: LocatorState,
         model_tvel: str,
         phases: Sequence[str] = ("P",),
         min_picks_per_event: int = 4,
