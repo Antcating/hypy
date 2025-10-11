@@ -158,90 +158,59 @@ class DataMixin:
         # Marks events excluded from inversion due to insufficient data or bad geometry.
         self.invalid_events = np.zeros(n_events, dtype=bool)
 
-    def _fill_data(self) -> None:
-        """
-        Populate observed arrivals, their uncertainties, and time-based weights
-        for each event-station-phase observation. Events with insufficient or
-        poorly distributed picks are marked invalid early.
-        """
-        for event_index, event in enumerate(self.events):
-            # ---- Early exclusion: too few picks overall ----
-            # Avoids underdetermined inversions even if geometry is fine.
-            num_event_picks = len(event.picks)
-            if num_event_picks < self.min_picks_per_event:
+    def _fill_data(self: "LocatorState") -> None:
+        for event_idx, event in enumerate(self.events):
+            if len(event.picks) < self.min_picks_per_event:
                 logger.warning(
-                    "Event %s has only %d picks; marking invalid.",
-                    getattr(event, "resource_id", "<no-id>"),
-                    num_event_picks,
+                    f"Event {event.resource_id} has only {len(event.picks)} picks, skipping."
                 )
-                self.invalid_events[event_index] = True
+                self.invalid_events[event_idx] = True
                 continue
 
-            # ---- Quick coverage check: unique stations represented for this event ----
-            # Prevents unstable solutions (many picks from few stations).
-            station_keys_for_event = {
+            picked_stations = {
                 (pk.waveform_id.network_code, pk.waveform_id.station_code)
                 for pk in event.picks
             }
-            if len(station_keys_for_event) * self.n_phases < self.min_picks_per_event:
+            if len(picked_stations) * self.n_phases < self.min_picks_per_event:
                 logger.warning(
-                    "Event %s has picks at only %d stations; marking invalid.",
-                    getattr(event, "resource_id", "<no-id>"),
-                    len(station_keys_for_event),
+                    f"Event {event.resource_id} has picks at only {len(picked_stations)} stations, skipping."
                 )
-                self.invalid_events[event_index] = True
+                self.invalid_events[event_idx] = True
                 continue
 
-            # ---- Build a lookup: (net, sta, phase_lower) -> pick ----
-            pick_lookup: dict[tuple[str, str, str], Pick] = {}
-            for pk in event.picks:
-                if pk is None or pk.waveform_id is None:
-                    continue  # Skip invalid picks
-                net = pk.waveform_id.network_code
-                sta = pk.waveform_id.station_code
-                ph = (pk.phase_hint or "").lower()
-                if net and sta and ph:
-                    pick_lookup[(net, sta, ph)] = pk
-
-            # ---- Fill arrivals, uncertainties, and per-observation weights ----
-            for station_index, (network_code, station_code) in enumerate(self.stations):
-                for phase_index, phase_name in enumerate(self.phases):
-                    key = (network_code, station_code, phase_name.lower())
-                    pick = pick_lookup.get(key)
-                    if pick is None:
-                        continue  # No pick for this station/phase → leave NaN, no weight
-
-                    # Observed arrival time
-                    observed_time = pick.time
-
-                    # Uncertainty (sigma): use floor if missing/invalid (<= 0)
-                    if (
-                        pick.time_errors is None
-                        or pick.time_errors.uncertainty is None
-                        or pick.time_errors.uncertainty <= 0.0
-                    ):
-                        sigma = self.time_error_floor
-                        logger.warning(
-                            "Pick %s.%s %s: invalid/undefined time error → using floor %.3fs.",
-                            network_code,
-                            station_code,
-                            phase_name,
-                            self.time_error_floor,
-                        )
-                    else:
-                        sigma = pick.time_errors.uncertainty
-
-                    # Column index within event's (station×phase) axis
-                    obs_col = self.n_phases * station_index + phase_index
-
-                    # Write observed time & its uncertainty
-                    self.arrivals[event_index, obs_col] = observed_time
-                    self.arrival_time_errors[event_index, obs_col] = sigma
-
-                    # Global flattened index for weight vectors (event-major)
-                    obs_flat_index = (
-                        event_index * (self.n_phases * self.n_stations) + obs_col
+            for station_idx, (network, station) in enumerate(self.stations):
+                for phase_idx, phase in enumerate(self.phases):
+                    pick = next(
+                        (
+                            pk
+                            for pk in event.picks
+                            if pk.waveform_id.station_code == station
+                            and pk.waveform_id.network_code == network
+                            and pk.phase_hint.lower() == phase.lower()
+                        ),
+                        None,
                     )
+                    if pick is None:
+                        continue
 
-                    # Time-based weight derived from uncertainty (your mapping)
-                    self.time_error_W[obs_flat_index] = time_error_weight(sigma)
+                    arrival_time = pick.time
+                    arrival_time_error = (
+                        self.time_error_floor
+                        if (
+                            pick.time_errors is None
+                            or pick.time_errors.uncertainty is None
+                            or pick.time_errors.uncertainty <= 0.0
+                        )
+                        else pick.time_errors.uncertainty
+                    )
+                    if arrival_time_error == self.time_error_floor:
+                        logger.warning(
+                            f"Pick {network}.{station} {phase}: invalid error → using floor {self.time_error_floor}s."
+                        )
+
+                    j = self.n_phases * station_idx + phase_idx
+                    self.arrivals[event_idx, j] = arrival_time
+                    self.arrival_time_errors[event_idx, j] = arrival_time_error
+                    self.time_error_W[
+                        event_idx * self.n_phases * self.n_stations + j
+                    ] = time_error_weight(arrival_time_error)
