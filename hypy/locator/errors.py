@@ -1,12 +1,14 @@
-from typing import TYPE_CHECKING, List
-
 import numpy as np
+from .types import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     from .state import LocatorState
 
+
 class ErrorAnalysisMixin:
-    def _compute_event_errors(self: "LocatorState", A_e, r_e, pick_errs_e, damping: float):
+    def _compute_event_errors(
+        self: "LocatorState", A_e, r_e, pick_errs_e, damping: float
+    ):
         if A_e is None or A_e.size == 0:
             return None
 
@@ -49,7 +51,9 @@ class ErrorAnalysisMixin:
 
     def _compute_error_ellipsoids(self: "LocatorState"):
         self._covariances = np.zeros((self.n_events, self.dim, self.dim))
-        self._spatial_covariances = np.zeros((self.n_events, self.dim - 1, self.dim - 1))
+        self._spatial_covariances = np.zeros(
+            (self.n_events, self.dim - 1, self.dim - 1)
+        )
         self._principal_std = np.zeros((self.n_events, self.dim - 1))
         self._principal_axes = np.zeros((self.n_events, self.dim - 1, self.dim - 1))
         self._erz_erh = np.zeros((self.n_events, 2))

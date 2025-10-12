@@ -1,9 +1,9 @@
-from .types import np
+import numpy as np
+
+from ..logger import logger  # type: ignore[import-not-found]
 from ..utils.geo import get_spatial_slowness_1d, gps2dist_azimuth_nb
 from ..utils.weighting import distance_weight
-from ..logger import logger  # type: ignore[import-not-found]
-
-from typing import TYPE_CHECKING
+from .types import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .state import LocatorState

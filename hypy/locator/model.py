@@ -1,6 +1,8 @@
-from obspy.taup import TauPyModel
+import numpy as np
 from obspy.taup.taup_create import build_taup_model
-from .types import Optional, np
+
+from .types import TauPyModel
+
 
 class ModelMixin:
     model: TauPyModel

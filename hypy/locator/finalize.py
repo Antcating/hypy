@@ -1,11 +1,17 @@
-from typing import TYPE_CHECKING
-
 import numpy as np
-from obspy.core.event import Arrival, Origin
-from obspy.core.event.base import QuantityError
-from obspy.core.event.origin import ConfidenceEllipsoid, OriginUncertainty
 
-from .types import Union, List, Event, Catalog
+from .types import (
+    TYPE_CHECKING,
+    Arrival,
+    Catalog,
+    ConfidenceEllipsoid,
+    Event,
+    List,
+    Origin,
+    OriginUncertainty,
+    QuantityError,
+    Union,
+)  # type: ignore[import-untyped]
 
 if TYPE_CHECKING:
     from .state import LocatorState

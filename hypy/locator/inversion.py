@@ -7,7 +7,6 @@ from scipy.sparse.linalg import lsqr  # type: ignore[import-untyped]
 from ..logger import logger  # type: ignore[import-not-found]
 from ..utils.damping import update_damping_factor
 from .types import SolverLiteral
-from typing_extensions import Self
 
 if TYPE_CHECKING:
     from .state import LocatorState

@@ -1,11 +1,31 @@
 from pathlib import Path
-from typing import List, Optional, Tuple, Union, Literal, Sequence
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import numpy as np
-from obspy.core.event import Arrival, Catalog, Event, Origin  # type: ignore[import-untyped]
+from obspy.core.event import (  # type: ignore[import-untyped]
+    Arrival,
+    Catalog,
+    Event,
+    Origin,
+)
 from obspy.core.event.base import QuantityError  # type: ignore[import-untyped]
-from obspy.core.event.origin import ConfidenceEllipsoid, OriginUncertainty  # type: ignore[import-untyped]
+from obspy.core.event.origin import (  # type: ignore[import-untyped]
+    ConfidenceEllipsoid,
+    OriginUncertainty,
+)
 from obspy.core.inventory import Inventory  # type: ignore[import-untyped]
+from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 
 DimLiteral = Literal[4]
 ModeLiteral = Literal["table", "ray"]

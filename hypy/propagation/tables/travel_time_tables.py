@@ -6,7 +6,7 @@ Handles travel-time, ray-parameter, and takeoff angle table creation, saving, lo
 
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import numpy as np
 from obspy.taup import TauPyModel  # type: ignore[import-untyped]

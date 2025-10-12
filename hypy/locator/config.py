@@ -1,5 +1,6 @@
-from .types import Optional, Literal
 import numpy as np
+
+from .types import Literal, Optional
 
 ModeLiteral = Literal["table", "ray"]
 EngineLiteral = Literal["taup", "pyrocko"]

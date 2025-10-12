@@ -23,7 +23,7 @@ from .init_locations import InitLocationsMixin
 from .inversion import InversionMixin
 from .model import ModelMixin
 from .tracer_setup import TracerSetupMixin
-from .types import Catalog, Event, Inventory, SolverLiteral  # noqa: F401
+from .types import Catalog, Event, Inventory, SolverLiteral, EngineLiteral, ModeLiteral
 
 
 if TYPE_CHECKING:
@@ -102,7 +102,7 @@ class EventLocator(
     """
 
     def __init__(
-        self: LocatorState,
+        self: "LocatorState",
         model_tvel: str,
         phases: Sequence[str] = ("P",),
         min_picks_per_event: int = 4,
@@ -132,8 +132,8 @@ class EventLocator(
         self.min_picks_per_event: int = int(min_picks_per_event)
         self.time_error_floor: float = float(time_error_floor)
 
-        self.mode = validate_mode(mode)
-        self.engine = validate_engine(engine)
+        self.mode: ModeLiteral = validate_mode(mode)
+        self.engine: EngineLiteral = validate_engine(engine)
         self.solver: SolverLiteral = "lsqr"
 
         # --- Velocity model & tracer setup

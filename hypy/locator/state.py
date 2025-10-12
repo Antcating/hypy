@@ -1,15 +1,26 @@
 # hypy/locator/state.py
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Protocol, Tuple, Union
-
 import numpy as np
-from obspy.core.event import Catalog, Event  # type: ignore[import-untyped]
-from obspy.core.inventory import Inventory  # type: ignore[import-untyped]
-from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 
 from ..propagation import PropagationModel
-from .types import SolverLiteral
+from .types import (
+    Any,
+    Catalog,
+    Dict,
+    Event,
+    Inventory,
+    List,
+    Optional,
+    Protocol,
+    SolverLiteral,
+    TauPyModel,
+    Tuple,
+    Union,
+    Path,
+    ModeLiteral,
+    EngineLiteral,
+)
 
 
 class LocatorState(Protocol):
@@ -28,11 +39,14 @@ class LocatorState(Protocol):
     _distance_weighting: bool
     k: Optional[float]
     x0: Optional[float]
+    tvel_file_path: Path
+    model_name: str
 
     # velocity model / tracer
     model: TauPyModel
     tracer: PropagationModel
     solver: SolverLiteral
+    velocity_profile_dimensionality: int
 
     # stations / events containers
     inv: Inventory
@@ -57,7 +71,7 @@ class LocatorState(Protocol):
     invalid_events: np.ndarray
 
     # bookkeeping for errors/finalization
-    _A_final: np.ndarray | None
+    _A_final: np.ndarray
     _valid_rows_final: np.ndarray
     _residuals_flat_final: np.ndarray
     _lambda_final: float
@@ -110,6 +124,31 @@ class LocatorState(Protocol):
     ) -> None:
         """
         Precompute and store velocity as a function of depth for each phase.
+        """
+        ...
+
+    def _init_velocity_model(self, model_name: str, tvel_file_path: Path) -> TauPyModel:
+        """
+        Initialize and return the velocity model (TauPyModel).
+        """
+        ...
+
+    # --- TracerMixin ---
+    def _init_tracer(
+        self,
+        *,
+        mode: ModeLiteral,
+        engine: EngineLiteral,
+        phases: tuple[str, ...],
+        tvel_path,
+        model_name: str,
+        max_depth: Optional[float],
+        max_distance: Optional[float],
+        depth_step: Optional[float],
+        distance_step: Optional[float],
+    ) -> Tuple[PropagationModel, Optional[float]]:
+        """
+        Initialize and return the propagation model (tracer) and its max depth.
         """
         ...
 
