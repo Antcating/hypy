@@ -1,13 +1,13 @@
 from typing import List
 
 try:
-    from pyrocko import cake
-    from pyrocko.cake import Ray
+    from pyrocko import cake  # type: ignore[import-untyped]
+    from pyrocko.cake import Ray  # type: ignore[import-untyped]
 except ImportError:
     raise ImportError(
         "Pyrocko is not installed or not available. Please install Pyrocko to use the pyrocko engine."
     )
-from obspy.geodetics import kilometer2degrees
+from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
 
 from hypy.propagation import PropagationModel
 
