@@ -4,7 +4,6 @@ from typing import (
     Any,
     Dict,
     List,
-    Literal,
     Optional,
     Protocol,
     Sequence,
@@ -26,6 +25,7 @@ from obspy.core.event.origin import (  # type: ignore[import-untyped]
 )
 from obspy.core.inventory import Inventory  # type: ignore[import-untyped]
 from obspy.taup import TauPyModel  # type: ignore[import-untyped]
+from typing_extensions import Literal
 
 DimLiteral = Literal[4]
 ModeLiteral = Literal["table", "ray"]

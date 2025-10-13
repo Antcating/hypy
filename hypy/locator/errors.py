@@ -14,8 +14,6 @@ class ErrorAnalysisMixin:
         self._principal_axes = np.empty((0, 0, 0), dtype=float)
         self._erz_erh = np.empty((0, 0), dtype=float)
 
-        self._A_final = np.empty((0, 0), dtype=float)
-        self._valid_rows_final: List[int] = []
         self._residuals_flat_final = np.empty((0,), dtype=float)
 
         super().__init__(*args, **kwargs)  # cooperative MRO

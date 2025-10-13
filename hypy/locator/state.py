@@ -47,6 +47,9 @@ class LocatorState(Protocol):
     tracer: PropagationModel
     solver: SolverLiteral
     velocity_profile_dimensionality: int
+    velocity_profiles: Dict[
+        str, Tuple[np.ndarray, np.ndarray]
+    ]  # phase → (depths, velocities)
 
     # stations / events containers
     inv: Inventory
@@ -140,7 +143,7 @@ class LocatorState(Protocol):
         mode: ModeLiteral,
         engine: EngineLiteral,
         phases: tuple[str, ...],
-        tvel_path,
+        tvel_file_path,
         model_name: str,
         max_depth: Optional[float],
         max_distance: Optional[float],
