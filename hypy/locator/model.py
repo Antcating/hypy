@@ -1,25 +1,31 @@
 import numpy as np
-from obspy.taup.taup_create import build_taup_model
+from obspy.taup.taup_create import build_taup_model  # type: ignore[import-untyped]
 
-from .types import TauPyModel
+from .types import TauPyModel, Path, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .state import LocatorState
+else:
+
+    class LocatorState:
+        pass
 
 
 class ModelMixin:
-    model: TauPyModel
-    _precalculate_velocities: bool
-    phases: tuple[str, ...]
-    velocity_profiles: dict
+    def __init__(self, *args, **kwargs) -> None:
+        self.velocity_profiles: dict = {}  # per-instance
+        super().__init__(*args, **kwargs)
 
     @staticmethod
-    def _init_velocity_model(model_name: str, tvel_path):
+    def _init_velocity_model(model_name: str, tvel_file_path: Path):
         try:
             return TauPyModel(model_name)
         except FileNotFoundError:
             # Build TauP model from .tvel if missing, then load
-            build_taup_model(tvel_path.as_posix())
+            build_taup_model(tvel_file_path.as_posix())
             return TauPyModel(model_name)
 
-    def _precompute_velocity_profiles_1d(self, max_depth, depth_step):
+    def _precompute_velocity_profiles_1d(self: "LocatorState", max_depth, depth_step):
         """Precompute and store velocity as a function of depth for each phase."""
         self.velocity_profiles = {}
         depths = np.arange(0, max_depth + depth_step, depth_step)
@@ -33,7 +39,7 @@ class ModelMixin:
                 v_profile.append(v)
             self.velocity_profiles[phase_lower] = (depths, np.array(v_profile))
 
-    def _get_velocity_1d(self, depth, phase):
+    def _get_velocity_1d(self: "LocatorState", depth, phase):
         """Get velocity at a given depth for a specific phase."""
         phase_lower = phase.lower()
         if not self._precalculate_velocities:

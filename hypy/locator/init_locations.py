@@ -8,6 +8,9 @@ if TYPE_CHECKING:
 
 
 class InitLocationsMixin:
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)  # cooperative MRO
+
     def init_locations(
         self: "LocatorState", trial_depth: float = 10.0, trial_time: float = 2.0
     ):

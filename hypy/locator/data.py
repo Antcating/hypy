@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 
 from ..logger import logger  # type: ignore[import-not-found]
@@ -13,19 +15,35 @@ else:
 
 
 class DataMixin:
-    inv: Inventory
-    stations: List[Tuple[str, str]]
-    stations_locations: np.ndarray
-    n_stations: int
-    phases: tuple[str, ...]
-    n_phases: int
-    min_picks_per_event: int
-    time_error_floor: float
+    def __init__(self, *args, **kwargs) -> None:
+        # per-instance defaults
+        self.inv = None
 
-    events: Catalog | list[Event]
-    n_events: int
+        self.stations: list = []  # list[tuple[str, str]]
+        self.stations_locations = np.empty((0, 3), dtype=float)
+        self.n_stations = 0
 
-    _fix_depth: bool
+        self.phases: tuple = tuple()
+        self.n_phases = 0
+        self.min_picks_per_event = 0
+        self.time_error_floor = 0.0
+
+        self.events: list = []  # Catalog | list[Event]
+        self.n_events = 0
+
+        self.fixed_depth_mask: list = []
+        self.invalid_events = np.zeros(0, dtype=bool)
+
+        self.arrivals = np.empty((0, 0))
+        self.arrival_time_errors = np.empty((0, 0))
+        self.theoretical_travel_times = np.empty((0, 0))
+        self.derivative_matrix = np.empty((0, 0))
+        self.time_error_W = np.empty((0,), dtype=float)
+        self.distance_W = np.empty((0,), dtype=float)
+        self.locations = np.empty((0, 3), dtype=float)
+        self.origin_times = np.empty((0,), dtype=float)
+
+        super().__init__(*args, **kwargs)  # cooperative MRO
 
     def load_data(
         self: "LocatorState", inventory: Inventory, events: list[Event] | Catalog
@@ -48,7 +66,7 @@ class DataMixin:
         """
         # -------------------- 1) Basic assignments --------------------
         self.inv = inventory
-        self.events = events
+        self.events = copy.deepcopy(list(events))
         self.n_events = len(events)
 
         # -------------------- 2) Build a fast lookup for all inventory stations --------------------

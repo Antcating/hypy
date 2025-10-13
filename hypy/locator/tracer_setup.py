@@ -5,13 +5,17 @@ from .types import EngineLiteral, ModeLiteral, Optional
 
 
 class TracerSetupMixin:
+    def __init__(self, *args, **kwargs) -> None:
+        self.tracer = None  # per-instance PropagationModel
+        super().__init__(*args, **kwargs)
+
     def _init_tracer(
         self,
         *,
         mode: ModeLiteral,
         engine: EngineLiteral,
         phases: tuple[str, ...],
-        tvel_path,
+        tvel_file_path,
         model_name: str,
         max_depth: Optional[float],
         max_distance: Optional[float],
@@ -37,7 +41,7 @@ class TracerSetupMixin:
                     f"(missing: {', '.join(missing)})"
                 )
             tracer = TravelTimeTables(
-                tvel_path.as_posix(),
+                tvel_file_path.as_posix(),
                 model_name,
                 list(phases),
                 float(max_depth),
@@ -48,5 +52,5 @@ class TracerSetupMixin:
             )
             return tracer, float(max_depth)
         else:
-            tracer = RayTracer(model_path=tvel_path.as_posix(), engine=engine)
+            tracer = RayTracer(model_path=tvel_file_path.as_posix(), engine=engine)
             return tracer, max_depth  # max_depth unused in ray mode

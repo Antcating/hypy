@@ -10,6 +10,20 @@ if TYPE_CHECKING:
 
 
 class DerivativesMixin:
+    def __init__(self, *args, **kwargs) -> None:
+        # per-instance defaults
+        self.derivative_matrix = np.empty((0, 0), dtype=float)
+        self.theoretical_travel_times = np.empty((0, 0), dtype=float)
+        self.time_error_W = np.empty((0,), dtype=float)
+        self.distance_W = np.empty((0,), dtype=float)
+
+        self.max_distance: float | None = None  # in km
+        self._distance_weighting: bool = False
+        self.k: float = 1.0  # distance weighting parameter
+        self.x0: float = 1.0  # distance weighting parameter
+
+        super().__init__(*args, **kwargs)  # cooperative MRO
+
     def _derive_travel_time_param(
         self: "LocatorState",
         event_location: tuple[float, float, float],  # (lat, lon, depth_km)

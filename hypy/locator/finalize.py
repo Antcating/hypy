@@ -18,6 +18,13 @@ if TYPE_CHECKING:
 
 
 class FinalizeMixin:
+    def __init__(self, *args, **kwargs) -> None:
+        # per-instance defaults
+        self._principal_std = np.empty((0, 3), dtype=float)
+        self._principal_axes = np.empty((0, 3, 3), dtype=float)
+        self._erz_erh = np.empty((0, 2), dtype=float)
+        super().__init__(*args, **kwargs)  # cooperative MRO
+
     def _finalize_origins(self: "LocatorState") -> Union[List[Event], Catalog]:
         scale95 = 2.4
         for event_idx, event in enumerate(self.events):

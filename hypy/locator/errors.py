@@ -6,6 +6,20 @@ if TYPE_CHECKING:
 
 
 class ErrorAnalysisMixin:
+    def __init__(self, *args, **kwargs) -> None:
+        # per-instance defaults
+        self._covariances = np.empty((0, 0, 0), dtype=float)
+        self._spatial_covariances = np.empty((0, 0, 0), dtype=float)
+        self._principal_std = np.empty((0, 0), dtype=float)
+        self._principal_axes = np.empty((0, 0, 0), dtype=float)
+        self._erz_erh = np.empty((0, 0), dtype=float)
+
+        self._A_final = np.empty((0, 0), dtype=float)
+        self._valid_rows_final: List[int] = []
+        self._residuals_flat_final = np.empty((0,), dtype=float)
+
+        super().__init__(*args, **kwargs)  # cooperative MRO
+
     def _compute_event_errors(
         self: "LocatorState", A_e, r_e, pick_errs_e, damping: float
     ):
@@ -76,8 +90,18 @@ class ErrorAnalysisMixin:
             rows = np.array(rows_per_event[ev], dtype=int)
             if rows.size == 0:
                 continue
-            # Following original logic: use the full A_all (not sub-block) with event rows
-            A_e = A_all
+
+            id_event = np.sum(self.invalid_events[:ev])
+            id_start = (self.n_stations * self.n_phases) * id_event
+            id_end = (self.n_stations * self.n_phases) * (id_event + 1)
+            rows = id_start + range(
+                len(
+                    valid_rows_all[
+                        (valid_rows_all >= id_start) & (valid_rows_all < id_end)
+                    ]
+                )
+            )  # map to global row indices
+            A_e = A_all[rows, ev * self.dim : (ev + 1) * self.dim]
             r_e = residuals_flat[rows]
             pick_errs_e = np.array(errs_per_event[ev], dtype=float)
             errinfo = self._compute_event_errors(A_e, r_e, pick_errs_e, damping=0.1)

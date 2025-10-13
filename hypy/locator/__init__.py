@@ -5,7 +5,8 @@ Exposes EventLocator composed from internal mixins.
 """
 
 from pathlib import Path
-from typing import List, Literal, Optional, Sequence, Tuple, Union, TYPE_CHECKING
+from typing import List, Optional, Sequence, Tuple, Union, TYPE_CHECKING
+from typing_extensions import Literal
 
 import numpy as np
 
@@ -23,7 +24,15 @@ from .init_locations import InitLocationsMixin
 from .inversion import InversionMixin
 from .model import ModelMixin
 from .tracer_setup import TracerSetupMixin
-from .types import Catalog, Event, Inventory, SolverLiteral, EngineLiteral, ModeLiteral
+from .types import (
+    Catalog,
+    Event,
+    Inventory,
+    SolverLiteral,
+    EngineLiteral,
+    ModeLiteral,
+    TauPyModel,
+)
 
 
 if TYPE_CHECKING:
@@ -107,8 +116,8 @@ class EventLocator(
         phases: Sequence[str] = ("P",),
         min_picks_per_event: int = 4,
         time_error_floor: float = 0.1,
-        mode: Literal["table", "ray"] = "table",
-        engine: Literal["taup", "pyrocko"] = "taup",
+        mode: str = "table",
+        engine: str = "pyrocko",
         max_depth: Optional[float] = None,
         max_distance: Optional[float] = None,
         depth_step: Optional[float] = None,
@@ -120,6 +129,7 @@ class EventLocator(
         _fix_depth: bool = False,
         _precalculate_velocities: bool = False,
     ):
+        super().__init__()
         # --- Basic config / validation
         self.dim: int = 4  # Solve for (x, y, z, t0); hardcoded invariant.
         self._fix_depth: bool = _fix_depth
@@ -132,17 +142,19 @@ class EventLocator(
         self.min_picks_per_event: int = int(min_picks_per_event)
         self.time_error_floor: float = float(time_error_floor)
 
-        self.mode: ModeLiteral = validate_mode(mode)
-        self.engine: EngineLiteral = validate_engine(engine)
+        self.mode: str = validate_mode(mode)
+        self.engine: str = validate_engine(engine)
         self.solver: SolverLiteral = "lsqr"
 
         # --- Velocity model & tracer setup
-        self.model = self._init_velocity_model(self.model_name, self.tvel_file_path)
+        self.model: TauPyModel = self._init_velocity_model(
+            self.model_name, self.tvel_file_path
+        )
         self.tracer, self.max_depth = self._init_tracer(
             mode=self.mode,
             engine=self.engine,
             phases=self.phases,
-            tvel_path=self.tvel_file_path,
+            tvel_file_path=self.tvel_file_path,
             model_name=self.model_name,
             max_depth=max_depth,
             max_distance=max_distance,

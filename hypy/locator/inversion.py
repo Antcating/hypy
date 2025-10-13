@@ -17,6 +17,10 @@ else:
 
 
 class InversionMixin:
+    def __init__(self, *args, **kwargs) -> None:
+        self.solver: SolverLiteral = "lsqr"  # per-instance default
+        super().__init__(*args, **kwargs)  # cooperative MRO
+
     def locate(
         self: LocatorState,
         max_iterations=1000,
@@ -67,9 +71,10 @@ class InversionMixin:
                 np.abs(dx[:, :2]) > max_horizontal_km, axis=1
             )
 
-            if (
-                it < init_phase_iteration_max and np.any(is_horiz_exceeds_depth)
-            ) or np.any(is_horiz_exceeds_limit):
+            # if (
+            #     it < init_phase_iteration_max and np.any(is_horiz_exceeds_depth)
+            # ) or np.any(is_horiz_exceeds_limit):
+            if np.any(is_horiz_exceeds_limit):
                 logger.warning(
                     f"Iteration {it}: Preventing large horizontal shifts from causing large depth changes "
                     f"for {np.sum(is_horiz_exceeds_depth)} events."
