@@ -2,6 +2,14 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.pyrefly]
+project-includes = ["**/*"]
+project-excludes = [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/*venv/**/*",
+]
+
 [project]
 name = "hypy"
 version = "1.1.0"
