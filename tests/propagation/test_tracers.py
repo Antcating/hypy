@@ -5,6 +5,7 @@ from hypy.propagation.ray_tracers.taup import TauPRayTracer
 from hypy.propagation.ray_tracers.pyrocko import PyrockoRayTracer
 from hypy.propagation.tables import TravelTimeTables
 
+
 @pytest.fixture(params=["taup", "pyrocko"])
 def tracer_pair(request):
     model = "iasp91"
@@ -29,9 +30,10 @@ def tracer_pair(request):
     )
     return ray_tracer, table_tracer
 
+
 @pytest.mark.parametrize("phase", ["P", "S"])
 @pytest.mark.parametrize("depth,distance", [(50.0, 500.0), (10.0, 100.0)])
-def test_tracer_result_consistenct(tracer_pair, phase, depth, distance):
+def test_tracer_result_consistency(tracer_pair, phase, depth, distance):
     ray_tracer, table_tracer = tracer_pair
     # Ray tracer
     time_ray, angle_ray = ray_tracer.get_arrival(depth, distance, phase)
