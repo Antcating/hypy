@@ -22,7 +22,7 @@ class InversionMixin:
         super().__init__(*args, **kwargs)  # cooperative MRO
 
     def locate(
-        self: LocatorState,
+        self: "LocatorState",
         max_iterations=1000,
         conv_threshold=1e-3,
         solve_airquakes=False,
@@ -98,11 +98,16 @@ class InversionMixin:
         residuals_flat = np.array([])
         valid_rows = np.array([], dtype=int)
 
+        prev_res = None
+
         for it in range(max_iterations):
             valid_rows = self._populate_derivative_matrix()
 
-            travel_times_obs = self.arrivals - self.origin_times[:, np.newaxis]
-            residuals = travel_times_obs - self.theoretical_travel_times
+            # Observed travel times = arrival times - origin times (calculated on previous iteration)
+            observed_travel_times = self.arrivals - self.origin_times[:, np.newaxis]
+
+            # Residuals = observed - theoretical travel times per event-station-phase
+            residuals = observed_travel_times - self.theoretical_travel_times
             residuals_flat = residuals.flatten()
 
             b = (
@@ -130,6 +135,7 @@ class InversionMixin:
             residual_vector = A @ dx_solution - b
             res_norm = np.linalg.norm(residual_vector)
             residual_norms.append(res_norm)
+            rms = np.sqrt(np.mean(residual_vector**2))
 
             for event_idx in range(self.n_events):
                 if self.invalid_events[event_idx]:
@@ -155,8 +161,21 @@ class InversionMixin:
             self.origin_times[valid_mask] += dx[valid_mask, 3]
 
             damping = np.clip(update_damping_factor(damping), 0, max_damping)
-            if res_norm < conv_threshold:
-                break
+            if prev_res is not None:
+                rel_impr = np.abs((prev_res - rms) / max(prev_res, 1e-12))
+                if rms < conv_threshold or rel_impr < 1e-8:
+                    logger.info(
+                        f"conv_threshold={conv_threshold}, rms={rms:.6f} s, rel_impr={rel_impr:.6e}"
+                    )
+                    logger.info(
+                        f"Convergence reached at iteration {it + 1}: RMS={rms:.6f} s, "
+                        f"Relative improvement={rel_impr:.6e}"
+                    )
+                    break
+            else:
+                if rms < conv_threshold:
+                    break
+            prev_res = rms
 
         self._A_final = A
         self._valid_rows_final = valid_rows
