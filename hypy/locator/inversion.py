@@ -176,8 +176,11 @@ class InversionMixin:
                 if rms < conv_threshold:
                     break
             prev_res = rms
-
-        self._A_final = A
+        self._A_final = (
+            self.derivative_matrix
+            * self.time_error_W[:, np.newaxis]
+            * self.distance_W[:, np.newaxis]
+        )
         self._valid_rows_final = valid_rows
         self._residuals_flat_final = residuals_flat
         self._lambda_final = damping

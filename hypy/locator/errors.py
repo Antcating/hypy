@@ -89,10 +89,10 @@ class ErrorAnalysisMixin:
             if rows.size == 0:
                 continue
 
-            id_event = np.sum(self.invalid_events[:ev])
-            id_start = (self.n_stations * self.n_phases) * id_event
-            id_end = (self.n_stations * self.n_phases) * (id_event + 1)
-            rows = id_start + range(
+            # id_event = np.sum(self.invalid_events[:ev])
+            id_start = (self.n_stations * self.n_phases) * ev
+            id_end = (self.n_stations * self.n_phases) * (ev + 1)
+            rows = id_start + np.arange(
                 len(
                     valid_rows_all[
                         (valid_rows_all >= id_start) & (valid_rows_all < id_end)
