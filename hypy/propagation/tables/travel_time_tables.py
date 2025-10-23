@@ -11,11 +11,9 @@ from typing import Dict, List
 import numpy as np
 from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 
-from hypy.logger import get_logger
+from hypy.logger import logger
 from hypy.propagation import PropagationModel
 from hypy.utils.interp import interp_quant
-
-logger = get_logger(__name__)
 
 
 class TravelTimeTables(PropagationModel):
