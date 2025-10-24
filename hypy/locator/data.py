@@ -42,6 +42,7 @@ class DataMixin:
         self.distance_W = np.empty((0,), dtype=float)
         self.locations = np.empty((0, 3), dtype=float)
         self.origin_times = np.empty((0,), dtype=float)
+        self.time_refs = np.empty((0,), dtype=float)
 
         super().__init__(*args, **kwargs)  # cooperative MRO
 
@@ -173,8 +174,10 @@ class DataMixin:
         # --- Event locations and origin times ---
         # Shape: (n_events, 3) → (latitude, longitude, depth_km)
         self.locations = np.zeros((n_events, self.dim - 1), dtype=float)
-        # Origin times t0 per event (seconds since reference epoch)
+        # Origin times t0 per event **relative** to per-event reference time
         self.origin_times = np.zeros(n_events)
+        # Per-event absolute reference time (mean observed arrival), seconds
+        self.time_refs = np.zeros(n_events)
 
         # --- Event validity mask ---
         # Marks events excluded from inversion due to insufficient data or bad geometry.
@@ -200,6 +203,27 @@ class DataMixin:
                 self.invalid_events[event_idx] = True
                 continue
 
+            # --- Build the set of picks that match active stations & configured phases
+            matching_pick_times: list[float] = []
+            phase_set = {p.lower() for p in self.phases}
+            active_station_set = set(self.stations)
+
+            for pk in event.picks:
+                key = (pk.waveform_id.network_code, pk.waveform_id.station_code)
+                if (
+                    key in active_station_set
+                    and (pk.phase_hint or "").lower() in phase_set
+                ):
+                    matching_pick_times.append(float(pk.time))
+
+            if not matching_pick_times:
+                self.invalid_events[event_idx] = True
+                continue
+
+            # Per-event absolute reference time (mean of usable picks)
+            t_ref = float(np.mean(matching_pick_times))
+            self.time_refs[event_idx] = t_ref
+
             for station_idx, (network, station) in enumerate(self.stations):
                 for phase_idx, phase in enumerate(self.phases):
                     pick = next(
@@ -208,14 +232,15 @@ class DataMixin:
                             for pk in event.picks
                             if pk.waveform_id.station_code == station
                             and pk.waveform_id.network_code == network
-                            and pk.phase_hint.lower() == phase.lower()
+                            and (pk.phase_hint or "").lower() == phase.lower()
                         ),
                         None,
                     )
                     if pick is None:
                         continue
 
-                    arrival_time = pick.time
+                    # Store arrival time RELATIVE to t_ref
+                    arrival_time = float(pick.time) - self.time_refs[event_idx]
                     arrival_time_error = (
                         self.time_error_floor
                         if (

@@ -29,7 +29,7 @@ class InitLocationsMixin:
                                 (
                                     station_id,
                                     phase_id,
-                                    float(arrival_time),
+                                    float(arrival_time),  # RELATIVE arrival time
                                     float(sigma),
                                 )
                             )
@@ -39,36 +39,26 @@ class InitLocationsMixin:
             ev_idx: int, lat: float, lon: float, depth_km: float
         ):
             """
-            Estimate origin time (t0) and evaluate solution quality for a candidate hypocenter.
-
-            Parameters
-            ----------
-            ev_idx : int
-                Index of the event being tested.
-            lat, lon : float
-                Candidate epicenter coordinates (degrees).
-            depth_km : float
-                Candidate depth (kilometers).
-
-            Returns
-            -------
-            tuple or None
-                (t0, wrms, n_obs) if a valid solution is computed, otherwise None.
+            Estimate origin time (t0, RELATIVE to time_refs) and WRMS for a candidate hypocenter.
+            Returns (t0_rel, wrms, n_obs) or None.
             """
 
-            # Collect all usable picks for the event — each item is (station_idx, phase_idx, t_obs, sigma)
+            # Collect all usable picks for the event — each item is (station_idx, phase_idx, t_obs_rel, sigma)
             picks = _usable_arrivals_for_event(ev_idx)
 
             # Require at least a minimal number of picks to compute a stable origin time
             if len(picks) < max(3, self.min_picks_per_event // 2):
                 return None
 
-            # Prepare arrays for observed minus theoretical times and their weights
             residual_arrival_times: list[float] = []
             weights: list[float] = []
 
-            # Iterate over all usable station–phase picks
-            for station_id, phase_id, observed_arrival_time, measurement_error in picks:
+            for (
+                station_id,
+                phase_id,
+                observed_arrival_time_rel,
+                measurement_error,
+            ) in picks:
                 # Get the station’s geographic position
                 sta_lat, sta_lon, sta_elev = self.stations_locations[station_id]
                 phase = self.phases[phase_id]
@@ -84,47 +74,39 @@ class InitLocationsMixin:
                 ):
                     continue
 
-                # Residual: observed arrival time minus theoretical travel time
+                # Residual in RELATIVE frame: (t_obs_rel - t_theory)
                 residual_arrival_times.append(
-                    observed_arrival_time - float(theoretical_arrival_time)
+                    observed_arrival_time_rel - float(theoretical_arrival_time)
                 )
 
                 # Weight: inverse of variance (1/σ²)
                 weights.append(1.0 / (measurement_error * measurement_error))
 
-            # Check again that we have enough usable picks after filtering invalid ones
             if len(residual_arrival_times) < max(3, self.min_picks_per_event // 2):
                 return None
 
-            # Convert to NumPy arrays for vectorized operations
             residual_arrival_times = np.asarray(residual_arrival_times, dtype=float)
             weights = np.asarray(weights, dtype=float)
 
-            # Weighted average of (t_obs - t_theory) gives the best-fit origin time t0
-            t0 = float(np.sum(weights * residual_arrival_times) / np.sum(weights))
+            # Weighted average of (t_obs_rel - t_theory) gives t0_rel
+            t0_rel = round(
+                float(np.sum(weights * residual_arrival_times) / np.sum(weights)), 4
+            )
 
-            # Weighted root-mean-square (WRMS) residual measures fit quality
+            # Weighted RMS (WRMS)
             wrms = float(
                 np.sqrt(
-                    np.sum(weights * (residual_arrival_times - t0) ** 2)
+                    np.sum(weights * (residual_arrival_times - t0_rel) ** 2)
                     / np.sum(weights)
                 )
             )
 
-            # Return estimated origin time, residual RMS, and number of contributing picks
-            return t0, wrms, len(residual_arrival_times)
+            return t0_rel, wrms, len(residual_arrival_times)
 
         def _seed_candidates_for_event(event_index: int, trial_depth_km: float):
             """
             Build candidate epicenter seeds and a small depth grid for a given event.
-
-            Seeds are drawn from:
-            1) Centroid of stations that have picks for the event.
-            2) Component-wise median of those station coordinates.
-            3) Station of the earliest pick determined by a full scan over picked stations.
-            Depth candidates are formed around `trial_depth_km` and clipped by `self.max_depth` if set.
             """
-            # ---- Gather stations that have picks for this event; track a fast "earliest" station as we go ----
             seeds = []
             selected_station_indices: list[int] = []
 
@@ -137,29 +119,26 @@ class InitLocationsMixin:
                     station_index = self.stations.index(net_sta_key)
                     selected_station_indices.append(station_index)
 
-            # Deduplicate and sort indices of stations with picks
             selected_station_indices = sorted(set(selected_station_indices))
             if not selected_station_indices:
                 return [], []
 
-            # ---- Compute seed epicenters by type ----
-            # Station coordinates (lat, lon) for all picked stations
             station_latlon = np.asarray(
                 [self.stations_locations[i][:2] for i in selected_station_indices],
                 dtype=float,
             )
 
-            # 1) Geometric centroid (mean latitude and longitude)
+            # 1) centroid
             lat_centroid = float(np.mean(station_latlon[:, 0]))
             lon_centroid = float(np.mean(station_latlon[:, 1]))
-            seeds.append((lat_centroid, lon_centroid))  # centroid seed
+            seeds.append((lat_centroid, lon_centroid))
 
-            # 2) Component-wise median (robust to outliers)
+            # 2) component-wise median
             lat_median = float(np.median(station_latlon[:, 0]))
             lon_median = float(np.median(station_latlon[:, 1]))
-            seeds.append((lat_median, lon_median))  # median seed
+            seeds.append((lat_median, lon_median))
 
-            # 3) Earliest-pick station via full scan over the picked stations
+            # 3) earliest-pick station (by full scan)
             earliest_station_index = min(
                 selected_station_indices,
                 key=lambda idx: min(
@@ -172,23 +151,18 @@ class InitLocationsMixin:
             earliest_full_lat, earliest_full_lon = self.stations_locations[
                 earliest_station_index
             ][:2]
-            seeds.append(
-                (float(earliest_full_lat), float(earliest_full_lon))
-            )  # earliest-by-full-scan seed
+            seeds.append((float(earliest_full_lat), float(earliest_full_lon)))
 
-            # Deduplicate seeds numerically (to avoid nearly-identical duplicates)
+            # Deduplicate numerically
             unique_seeds: list[tuple[float, float]] = []
             seen_keys: set[tuple[float, float]] = set()
             for lat, lon in seeds:
-                key = (
-                    round(lat, 4),
-                    round(lon, 4),
-                )  # 1e-4 deg ≈ 10 m; good enough to merge near-duplicates
+                key = (round(lat, 4), round(lon, 4))
                 if key not in seen_keys:
                     unique_seeds.append((lat, lon))
                     seen_keys.add(key)
 
-            # ---- Build a small depth candidate grid around the trial depth ----
+            # Depth grid around trial depth
             initial_depth_km = max(0.0, float(trial_depth_km))
             max_depth_km = (
                 float(self.max_depth)
@@ -226,11 +200,10 @@ class InitLocationsMixin:
             seeds, candidate_depths = _seed_candidates_for_event(
                 event_index, trial_depth
             )
-            best_solution: tuple[float, float, float, float, float] | None = (
-                None  # (wrms, lat, lon, depth_km, t0)
-            )
+            best_solution: tuple[float, float, float, float, float] | None = None
+            # (wrms, lat, lon, depth_km, t0_rel)
 
-            # Evaluate all seed/ depth pairs, keep the one with the lowest WRMS
+            # Evaluate all seed/depth pairs, keep the one with the lowest WRMS
             for lat_seed, lon_seed in seeds:
                 for depth_candidate_km in candidate_depths:
                     scored = _estimate_t0_and_score(
@@ -238,7 +211,7 @@ class InitLocationsMixin:
                     )
                     if scored is None:
                         continue
-                    t0_estimate, wrms, _ = scored
+                    t0_estimate_rel, wrms, _ = scored
                     if np.isfinite(wrms) and (
                         best_solution is None or wrms < best_solution[0]
                     ):
@@ -247,16 +220,17 @@ class InitLocationsMixin:
                             lat_seed,
                             lon_seed,
                             depth_candidate_km,
-                            t0_estimate,
+                            t0_estimate_rel,
                         )
 
             if best_solution is not None:
-                _, lat_best, lon_best, depth_best_km, t0_best = best_solution
+                _, lat_best, lon_best, depth_best_km, t0_best_rel = best_solution
                 self.locations[event_index] = (lat_best, lon_best, depth_best_km)
-                self.origin_times[event_index] = t0_best
+                self.origin_times[event_index] = t0_best_rel
+                t0_abs = t0_best_rel + self.time_refs[event_index]
                 logger.debug(
                     f"[init] ev#{event_index}: lat={lat_best:.4f} lon={lon_best:.4f} "
-                    f"z={depth_best_km:.2f} km, t0={t0_best:.3f}"
+                    f"z={depth_best_km:.2f} km, t0_rel={t0_best_rel:.3f}s, t0_abs={t0_abs:.3f}s"
                 )
             else:
                 # Fallback: use the station of the earliest pick and back off origin time by trial_time
@@ -269,11 +243,15 @@ class InitLocationsMixin:
                     station_meta.longitude,
                     trial_depth,
                 )
-                self.origin_times[event_index] = first_pick.time - trial_time
+                # store t0 **relative** to per-event reference
+                self.origin_times[event_index] = (
+                    float(first_pick.time) - self.time_refs[event_index]
+                ) - trial_time
+                t0_abs = self.origin_times[event_index] + self.time_refs[event_index]
                 logger.debug(
                     f"[init:fallback] ev#{event_index}: lat={station_meta.latitude:.4f} "
                     f"lon={station_meta.longitude:.4f} z={trial_depth:.2f} km, "
-                    f"t0≈first_pick-{trial_time:.2f}s"
+                    f"t0_rel≈first_pick-{trial_time:.2f}s, t0_abs={t0_abs:.3f}s"
                 )
 
         return self.locations

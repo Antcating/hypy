@@ -26,16 +26,31 @@ class FinalizeMixin:
         super().__init__(*args, **kwargs)  # cooperative MRO
 
     def _finalize_origins(self: "LocatorState") -> Union[List[Event], Catalog]:
+        """
+        Attach final Origin objects to events:
+        - Convert stored relative origin times (t0_rel) back to absolute by adding time_refs.
+        - Locations/depths are left as-is (km for depth, converted to meters for ObsPy).
+        - Arrival residuals are computed in the same sign convention used in inversion:
+          residual = (observed_travel_time - theoretical_travel_time).
+        """
         scale95 = 2.4
         for event_idx, event in enumerate(self.events):
             # If invalid - no origins are added
             if self.invalid_events[event_idx]:
                 continue
+
             origin = Origin()
             origin.latitude = self.locations[event_idx, 0]
             origin.longitude = self.locations[event_idx, 1]
-            origin.depth = self.locations[event_idx, 2] * 1000.0
-            origin.time = self.origin_times[event_idx]
+            origin.depth = self.locations[event_idx, 2] * 1000.0  # km -> m
+
+            # Convert RELATIVE t0 back to ABSOLUTE for output
+            t0_abs = float(self.origin_times[event_idx]) + float(
+                self.time_refs[event_idx]
+            )
+            origin.time = t0_abs
+
+            # Uncertainties / ellipsoid
             s1, s2, s3 = self._principal_std[event_idx]
             evecs = self._principal_axes[event_idx]
             ERZ_1s, ERH_1s = self._erz_erh[event_idx]
@@ -76,31 +91,47 @@ class FinalizeMixin:
                 else "from location"
             )
 
+            # Populate arrival residuals
             for station_idx, (network, station) in enumerate(self.stations):
                 for phase_idx, phase in enumerate(self.phases):
                     arr_index = self.n_phases * station_idx + phase_idx
-                    observed_time = self.arrivals[event_idx, arr_index]
-                    if np.isnan(observed_time):
+                    observed_time_rel = self.arrivals[event_idx, arr_index]
+                    if np.isnan(observed_time_rel):
                         continue
+
+                    # Find the corresponding pick in the event
                     pick = next(
                         (
                             pk
                             for pk in event.picks
                             if pk.waveform_id.station_code == station
                             and pk.waveform_id.network_code == network
-                            and pk.phase_hint.lower() == phase.lower()
+                            and (pk.phase_hint or "").lower() == phase.lower()
                         ),
                         None,
                     )
+
+                    # Theoretical travel time (seconds)
                     travel_time = self.theoretical_travel_times[event_idx, arr_index]
-                    residual = travel_time - (
-                        observed_time - self.origin_times[event_idx]
+
+                    # Observed travel time = observed arrival (REL) - t0_rel
+                    observed_travel_time = (
+                        observed_time_rel - self.origin_times[event_idx]
                     )
+
+                    # Residual with the same sign convention as inversion:
+                    # residual = observed - theoretical
+                    residual = observed_travel_time - travel_time
+
                     arrival = Arrival(
-                        pick_id=pick.resource_id, phase=phase, time_residual=residual
+                        pick_id=pick.resource_id if pick is not None else None,
+                        phase=phase,
+                        time_residual=float(residual),
                     )
                     origin.arrivals.append(arrival)
+
             event.origins.append(origin)
+
         return self.events
 
     def report_invalid_events(self: "LocatorState") -> np.ndarray:

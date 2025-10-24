@@ -61,8 +61,11 @@ class LocatorState(Protocol):
     fixed_depth_mask: List[bool]
 
     # data & matrices
-    origin_times: np.ndarray
-    arrivals: np.ndarray
+    origin_times: np.ndarray  # per-event t0 in RELATIVE seconds (to time_refs)
+    time_refs: (
+        np.ndarray
+    )  # per-event absolute reference time (mean observed pick), seconds
+    arrivals: np.ndarray  # arrival times RELATIVE to time_refs
     theoretical_travel_times: np.ndarray
     derivative_matrix: np.ndarray
     locations: np.ndarray
