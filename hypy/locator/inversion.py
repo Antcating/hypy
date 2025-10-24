@@ -40,6 +40,9 @@ class InversionMixin:
         if solver not in ["lsqr", "svd"]:
             raise ValueError("Unsupported solver: {solver}. Supported: 'lsqr', 'svd'.")
         self.solver = solver
+        logger.info(f"Using {self.solver} solver")
+        logger.debug(f"Iteration limit: {max_iterations}")
+        logger.debug(f"Solve airquakes: {solve_airquakes}")
 
         self.init_locations(trial_depth=trial_depth)
         self._run_location_iterations(
@@ -105,7 +108,7 @@ class InversionMixin:
         for it in range(max_iterations):
             valid_rows = self._populate_derivative_matrix()
 
-            # Observed travel times = arrival times - origin times (calculated on previous iteration)
+            # Observed travel times = arrival times (RELATIVE) - origin times (RELATIVE)
             observed_travel_times = self.arrivals - self.origin_times[:, np.newaxis]
 
             # Residuals = observed - theoretical travel times per event-station-phase
@@ -161,6 +164,17 @@ class InversionMixin:
             valid_mask = ~self.invalid_events
             self.locations[valid_mask, :3] -= dx[valid_mask, :3]
             self.origin_times[valid_mask] += dx[valid_mask, 3]
+
+            logger.debug(
+                f"Iteration {it + 1}: Residual norm={res_norm:.6f}, RMS={rms:.6f} s, Damping={damping:.6f}"
+            )
+            logger.debug(
+                f"Iteration {it + 1}: Origin for first event: "
+                f"Lat={self.locations[0, 0]:.4f}, Lon={self.locations[0, 1]:.4f}, "
+                f"Depth={self.locations[0, 2]:.2f} km, "
+                f"t0_rel={self.origin_times[0]:.2f}s, "
+                f"t0_abs={(self.origin_times[0] + self.time_refs[0]):.2f}s"
+            )
 
             damping = np.clip(update_damping_factor(damping), 0, max_damping)
             if prev_res is not None:
