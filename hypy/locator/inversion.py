@@ -76,9 +76,6 @@ class InversionMixin:
                 np.abs(dx[:, :2]) > max_horizontal_km, axis=1
             )
 
-            # if (
-            #     it < init_phase_iteration_max and np.any(is_horiz_exceeds_depth)
-            # ) or np.any(is_horiz_exceeds_limit):
             if np.any(is_horiz_exceeds_limit):
                 logger.warning(
                     f"Iteration {it}: Preventing large horizontal shifts from causing large depth changes "
@@ -107,6 +104,9 @@ class InversionMixin:
 
         for it in range(max_iterations):
             valid_rows = self._populate_derivative_matrix()
+            if len(valid_rows) == 0:
+                logger.error("No valid observations available for inversion. Aborting.")
+                break
 
             # Observed travel times = arrival times (RELATIVE) - origin times (RELATIVE)
             observed_travel_times = self.arrivals - self.origin_times[:, np.newaxis]
