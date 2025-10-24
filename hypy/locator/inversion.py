@@ -1,3 +1,4 @@
+from scipy.sparse.linalg._isolve.lsmr import lsmr
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -19,6 +20,7 @@ else:
 class InversionMixin:
     def __init__(self, *args, **kwargs) -> None:
         self.solver: SolverLiteral = "lsqr"  # per-instance default
+
         super().__init__(*args, **kwargs)  # cooperative MRO
 
     def locate(
@@ -122,7 +124,7 @@ class InversionMixin:
             )
 
             if self.solver == "lsqr":
-                dx_solution = lsqr(A, b, damp=0)[0]
+                dx_solution = lsmr(A, b, damp=damping)[0]
             else:  # SVD with Tikhonov-style filtering
                 U, s, Vt = np.linalg.svd(A, full_matrices=False)
                 s_inv = np.zeros_like(s)
