@@ -94,7 +94,7 @@ class InversionMixin:
         logger.info(f"Precalculate velocities: {self._precalculate_velocities}")
 
         damping = 1.0
-        max_damping = 10
+        max_damping = 10.0
         A = None
         residual_norms = []
         residuals_flat = np.array([])
@@ -126,6 +126,7 @@ class InversionMixin:
                 * self.distance_W[valid_rows][:, np.newaxis]
             )
 
+            # Solve for the increment
             if self.solver == "lsqr":
                 dx_solution = lsmr(A, b, damp=damping)[0]
             else:  # SVD with Tikhonov-style filtering
@@ -134,14 +135,17 @@ class InversionMixin:
                 s_inv[s > 1e-12] = s[s > 1e-12] / (s[s > 1e-12] ** 2 + damping**2)
                 dx_solution = Vt.T @ (s_inv * (U.T @ b))
 
+            # Reshape to event blocks and clip
             dx = dx_solution.reshape((self.n_events, self.dim))
             dx = _clip_updates(it, dx)
 
-            residual_vector = A @ dx_solution - b
+            # Residual AFTER step for the linearized subproblem
+            residual_vector = A @ dx_solution - b  # r_new
             res_norm = np.linalg.norm(residual_vector)
             residual_norms.append(res_norm)
             rms = np.sqrt(np.mean(residual_vector**2))
 
+            # Depth sanity / constraints
             for event_idx in range(self.n_events):
                 if self.invalid_events[event_idx]:
                     continue
@@ -159,6 +163,7 @@ class InversionMixin:
                     self.invalid_events[event_idx] = True
                     dx[event_idx, :] = 0.0
 
+            # Convert km -> deg for lat/lon updates; apply updates
             dx[:, 0] = kilometer2degrees(dx[:, 0], self.model.model.radius_of_planet)
             dx[:, 1] = kilometer2degrees(dx[:, 1], self.model.model.radius_of_planet)
             valid_mask = ~self.invalid_events
@@ -176,7 +181,18 @@ class InversionMixin:
                 f"t0_abs={(self.origin_times[0] + self.time_refs[0]):.2f}s"
             )
 
-            damping = np.clip(update_damping_factor(damping), 0, max_damping)
+            # --- Adaptive damping update
+            damping = np.clip(
+                update_damping_factor(
+                    current_factor=float(damping),
+                    rms_prev=float(prev_res) if prev_res is not None else float(rms),
+                    rms_new=float(rms),
+                ),
+                0.0,
+                max_damping,
+            )
+
+            # Convergence check
             if prev_res is not None:
                 rel_impr = np.abs((prev_res - rms) / max(prev_res, 1e-12))
                 if rms < conv_threshold or rel_impr < 1e-8:
@@ -192,6 +208,7 @@ class InversionMixin:
                 if rms < conv_threshold:
                     break
             prev_res = rms
+
         self._A_final = (
             self.derivative_matrix
             * self.time_error_W[:, np.newaxis]

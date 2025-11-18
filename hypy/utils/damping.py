@@ -5,17 +5,21 @@ import numpy as np
 
 def update_damping_factor(
     current_factor: float,
-    iteration: Optional[int] = None,
-    dx: Optional[np.ndarray] = None,
+    rms_prev: float,
+    rms_new: float,
+    accepted: Optional[bool] = None,
+    dec: float = 1 / 3,  # how much to decrease when things go well (λ ← λ * dec)
+    inc: float = 2.0,  # how much to increase when things go badly (λ ← λ * inc)
+    min_factor: float = 1e-6,
+    max_factor: float = 1e6,
 ) -> float:
     """
-    Simplest damping function that reduces the damping factor by 10% each iteration.
-    This function can be replaced with a more sophisticated damping strategy if needed.
-    Args:
-        current_factor (float): Current damping factor.
-        iteration (int): Current iteration number.
-        dx (np.ndarray): Update in (lat, lon, depth, time) [degree, degree, km, second] format.
-    Returns:
-        float: Updated damping factor.
+    Adaptive damping:
+      - If the step reduced RMS (or was accepted), decrease damping (toward Gauss-Newton).
+      - If the step didn't help, increase damping (toward gradient descent).
     """
-    return 0.9 * current_factor
+    if accepted is None:
+        accepted = rms_new < rms_prev * (1 - 1e-4)  # small improvement threshold
+
+    new_lambda = current_factor * (dec if accepted else inc)
+    return float(min(max(new_lambda, min_factor), max_factor))
