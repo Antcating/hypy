@@ -204,9 +204,6 @@ class InversionMixin:
                         f"Relative improvement={rel_impr:.6e}"
                     )
                     break
-            else:
-                if rms < conv_threshold:
-                    break
             prev_res = rms
 
         self._A_final = (
