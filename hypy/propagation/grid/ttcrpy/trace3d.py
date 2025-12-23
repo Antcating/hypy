@@ -1,0 +1,151 @@
+"""
+travel_time_tables.py
+--------------------
+Handles travel-time, ray-parameter, and takeoff angle table creation, saving, loading, and interpolation.
+"""
+
+import os
+from pathlib import Path
+from typing import Dict, List
+
+import numpy as np
+from obspy.taup import TauPyModel  # type: ignore[import-untyped]
+import ttcrpy.rgrid as rg
+
+from hypy.logger import logger
+from hypy.propagation import PropagationModel
+from hypy.utils.interp import interp_quant
+
+
+class Trace3D(PropagationModel):
+    """
+    Manages travel-time, ray-parameter, and takeoff angle tables for seismic phases.
+    """
+
+    def __init__(
+        self,
+        model_tvel: str,
+        model_name: str,
+        phases: List[str],
+        max_depth: float,
+        max_distance: float,
+        depth_step: float,
+        distance_step: float,
+    ):
+        self.model = TauPyModel(model_name)
+        self.model_name = model_name
+        self.phases = [phase.lower() for phase in phases]
+        self.max_depth = max_depth
+        self.max_distance = max_distance
+        self.depth_step = depth_step
+        self.distance_step = distance_step
+
+        assert (
+            self.distance_step == self.depth_step
+        ), "Distance step must equal depth step for 3D grid."
+
+        self.x_grid = np.arange(
+            0,
+            self.max_distance + self.distance_step,
+            self.distance_step,
+        )
+        self.y_grid = np.arange(
+            0,
+            self.max_distance + self.distance_step,
+            self.distance_step,
+        )
+
+        self.z_grid = np.arange(0, self.max_depth + self.depth_step, self.depth_step)
+        self.V = {
+            phase.lower(): np.empty(
+                (self.x_grid.size, self.y_grid.size, self.z_grid.size)
+            )
+            for phase in self.phases
+        }
+
+        print(self.x_grid.size, self.y_grid.size, self.z_grid.size)
+
+        self.grid = rg.Grid3d(
+            self.x_grid,
+            self.y_grid,
+            self.z_grid,
+            cell_slowness=False,
+            method="FSM",
+            n_threads=4,
+            eps=1e-3,
+            maxit=3,
+        )
+
+        self._build_grid()
+
+    def _build_grid(self) -> None:
+        """
+        Build (or load) the travel-time, ray-parameter, and takeoff angle tables for the given phases.
+        """
+        for phase in self.phases:
+            phase = phase.lower()
+            # Temporary generator for 1D velocity
+            for depth_idx, depth in enumerate(
+                np.arange(0, self.max_depth + self.depth_step, self.depth_step)
+            ):
+                v = self.model.model.s_mod.v_mod.evaluate_below(depth, phase)
+                self.V[phase][:, :, depth_idx] = v
+        self.slowness = {phase: 1.0 / self.V[phase] for phase in self.phases}
+
+    def dT_dsource_from_trace(self, path_xyz, v_source, nseg=3):
+        """
+        path_xyz: (N,3) points from SOURCE -> RECEIVER.
+        v_source: km/s at the source (grid value).
+        Returns (dT/dx_s, dT/dy_s, dT/dz_s) in s/km.
+        """
+        if path_xyz.shape[0] < 2:
+            raise ValueError("Ray path too short")
+
+        nseg = max(1, min(nseg, path_xyz.shape[0] - 1))
+
+        d = np.zeros(3, dtype=np.float64)
+        for i in range(nseg):
+            seg = path_xyz[i + 1] - path_xyz[i]
+            n = np.linalg.norm(seg)
+            if n > 0:
+                d += seg / n
+
+        nd = np.linalg.norm(d)
+        if nd == 0:
+            raise ValueError("Degenerate ray direction near source")
+
+        u_sr = d / nd  # unit direction: source -> receiver
+        p = u_sr / v_source  # slowness vector at source (s/km)
+        return (-p[0], -p[1], -p[2])  # derivative wrt SOURCE location
+
+    def compute_derivatives_3d(
+        self, phase: str, depth: float, distance: float
+    ) -> float:
+        src = np.array([[0.5, 0.5, depth]])
+        rcv = np.array([[distance / np.sqrt(2), distance / np.sqrt(2), 0.0]])
+
+        print(src, rcv)
+
+        tt, rays = self.grid.raytrace(
+            src, rcv, self.slowness[phase.lower()], return_rays=True
+        )
+        print(tt, rays)
+        # Calculate takeoff angle from the ray path
+        if rays:
+            ray_path = rays[0][::-1]
+            dt_dx, dt_dy, dt_dz = self.dT_dsource_from_trace(
+                ray_path, self.V[phase.lower()][0, 0, int(depth / self.depth_step)]
+            )
+        return 
+
+    def get_arrival(self, source_depth, distance, phase):
+        if phase not in self.phases:
+            raise ValueError(f"Phase {phase} not in available phases: {self.phases}")
+        time = self.compute_derivatives_3d(phase, source_depth, distance)
+
+        takeoff_angle = self.compute_takeoff_angle(phase, source_depth, distance)
+        if np.isnan(time) or np.isnan(takeoff_angle):
+            raise ValueError(
+                f"No travel time or takeoff angle found for phase {phase} at depth {source_depth} and distance {distance}."
+            )
+        return time, takeoff_angle
