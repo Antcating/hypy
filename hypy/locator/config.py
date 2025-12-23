@@ -1,5 +1,6 @@
 import numpy as np
 
+
 from .types import Literal, Optional
 
 ModeLiteral = Literal["table", "ray"]
@@ -23,7 +24,7 @@ def configure_distance_weighting(
     distance_weight_end: Optional[float],
     weight_start: Optional[float],
     weight_end: Optional[float],
-) -> tuple[bool, Optional[float], Optional[float]]:
+) -> "tuple[bool, Optional[float], Optional[float]]":
     """
     Compute logistic weighting parameters (k, x0) if all inputs are provided.
     Returns: (enabled, k, x0).

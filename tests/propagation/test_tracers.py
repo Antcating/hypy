@@ -3,7 +3,7 @@ import obspy
 import pytest
 from hypy.propagation.ray_tracers.taup import TauPRayTracer
 from hypy.propagation.ray_tracers.pyrocko import PyrockoRayTracer
-from hypy.propagation.tables import TravelTimeTables
+from hypy.propagation.grid.tau import TauTimeTables
 
 
 @pytest.fixture(params=["taup", "pyrocko"])
@@ -17,9 +17,9 @@ def tracer_pair(request):
     else:
         ray_tracer = PyrockoRayTracer(model_path=model_path)
     # Table tracer
-    table_tracer = TravelTimeTables(
+    table_tracer = TauTimeTables(
         model_tvel=model_path,
-        model=model,
+        model_name=model,
         phases=["P", "S"],
         max_depth=100.0,
         max_distance=1000.0,

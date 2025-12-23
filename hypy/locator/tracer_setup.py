@@ -1,6 +1,6 @@
 from ..propagation import PropagationModel
 from ..propagation.ray_tracers import RayTracer
-from ..propagation.tables import TravelTimeTables
+from ..propagation.grid.tau import TauTimeTables
 from .types import EngineLiteral, ModeLiteral, Optional
 
 
@@ -14,14 +14,14 @@ class TracerSetupMixin:
         *,
         mode: ModeLiteral,
         engine: EngineLiteral,
-        phases: tuple[str, ...],
+        phases: "tuple[str, ...]",
         tvel_file_path,
         model_name: str,
         max_depth: Optional[float],
         max_distance: Optional[float],
         depth_step: Optional[float],
         distance_step: Optional[float],
-    ) -> tuple[PropagationModel, Optional[float]]:
+    ) -> "tuple[PropagationModel, Optional[float]]":
         tracer: PropagationModel
         if mode == "table":
             missing = [
@@ -40,7 +40,7 @@ class TracerSetupMixin:
                     "max_depth, max_distance, depth_step, distance_step "
                     f"(missing: {', '.join(missing)})"
                 )
-            tracer = TravelTimeTables(
+            tracer = TauTimeTables(
                 tvel_file_path.as_posix(),
                 model_name,
                 list(phases),

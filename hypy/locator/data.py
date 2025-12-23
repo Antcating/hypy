@@ -1,10 +1,11 @@
 import copy
+from typing import List, Union
 
 import numpy as np
 
 from ..logger import logger  # type: ignore[import-not-found]
 from ..utils.weighting import time_error_weight
-from .types import TYPE_CHECKING, Catalog, Event, Inventory, List, Tuple
+from .types import TYPE_CHECKING, Catalog, Event, Inventory
 
 if TYPE_CHECKING:
     from .state import LocatorState
@@ -47,7 +48,7 @@ class DataMixin:
         super().__init__(*args, **kwargs)  # cooperative MRO
 
     def load_data(
-        self: "LocatorState", inventory: Inventory, events: list[Event] | Catalog
+        self: "LocatorState", inventory: Inventory, events: Union[List[Event], Catalog]
     ) -> None:
         """
         Load inventory and events, extract the set of stations present in picks,

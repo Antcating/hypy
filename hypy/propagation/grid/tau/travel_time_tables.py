@@ -16,7 +16,7 @@ from hypy.propagation import PropagationModel
 from hypy.utils.interp import interp_quant
 
 
-class TravelTimeTables(PropagationModel):
+class TauTimeTables(PropagationModel):
     """
     Manages travel-time, ray-parameter, and takeoff angle tables for seismic phases.
     """
@@ -24,7 +24,7 @@ class TravelTimeTables(PropagationModel):
     def __init__(
         self,
         model_tvel: str,
-        model: str,
+        model_name: str,
         phases: List[str],
         max_depth: float,
         max_distance: float,
@@ -33,7 +33,7 @@ class TravelTimeTables(PropagationModel):
         engine: str = "pyrocko",
         overwrite: bool = False,
     ):
-        self.model = TauPyModel(model)
+        self.model = TauPyModel(model_name)
         self.engine = engine
         self.tracer: PropagationModel
         if engine == "taup":
@@ -46,7 +46,7 @@ class TravelTimeTables(PropagationModel):
             self.tracer = PyrockoRayTracer(model_tvel)
         else:
             raise ValueError(f"Unsupported engine: {engine}")
-        self.model_name = model
+        self.model_name = model_name
         self.phases = phases
         self.max_depth = max_depth
         self.max_distance = max_distance

@@ -91,15 +91,15 @@ class LocatorState(Protocol):
 
     # --- DerivativesMixin ---
     def _derive_travel_time_param(
-        self,
-        event_location: Tuple[float, float, float],
-        station_location: Tuple[float, float, float],
+        self: "LocatorState",
+        event_location: tuple[float, float, float],  # (lat, lon, depth_km)
+        station_location: tuple[float, float, float],  # (lat, lon, elev_m)
         phase: str,
-    ) -> Tuple[
+    ) -> tuple[
         float,  # distance_km
-        Optional[float],  # travel_time (s) or None
-        Tuple[
-            Optional[float], Optional[float], Optional[float], Optional[float]
+        float | None,  # travel_time (s) or None if out of range
+        tuple[
+            float | None, float | None, float | None, float | None
         ],  # (dt_dr, dt_dx, dt_dy, dt_dz)
     ]:
         """

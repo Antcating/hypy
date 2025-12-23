@@ -1,3 +1,4 @@
+from typing import Union
 import numpy as np
 
 from ..logger import logger  # type: ignore[import-not-found]
@@ -26,16 +27,10 @@ class DerivativesMixin:
 
     def _derive_travel_time_param(
         self: "LocatorState",
-        event_location: tuple[float, float, float],  # (lat, lon, depth_km)
-        station_location: tuple[float, float, float],  # (lat, lon, elev_m)
+        event_location: "tuple[float, float, float]",  # (lat, lon, depth_km)
+        station_location: "tuple[float, float, float]",  # (lat, lon, elev_m)
         phase: str,
-    ) -> tuple[
-        float,  # distance_km
-        float | None,  # travel_time (s) or None if out of range
-        tuple[
-            float | None, float | None, float | None, float | None
-        ],  # (dt_dr, dt_dx, dt_dy, dt_dz)
-    ]:
+    ) -> "tuple[float, Union[float, None], tuple[Union[float, None], Union[float, None], Union[float, None], Union[float, None]]]":
         """
         Compute great-circle distance/azimuth, travel time, and spatial derivatives
         for a given event-station pair and phase.

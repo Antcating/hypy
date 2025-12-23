@@ -1,4 +1,5 @@
-import logging
+from __future__ import annotations
+
 import os
 import random
 from contextlib import contextmanager
@@ -443,6 +444,7 @@ def plot_and_save(
     ax.scatter(st_lons, st_lats, marker="^", s=35, label="Stations", zorder=2)
 
     true_xy, est_xy, est_err = [], [], []
+    est_true_err = []
     for item in to_plot:
         tlat, tlon, _, _, _ = item["true_location"]
         elat, elon, _, dh, _ = item["solved_location"]
@@ -450,6 +452,12 @@ def plot_and_save(
         if np.isfinite(elat) and np.isfinite(elon):
             est_xy.append((elon, elat))
             est_err.append(dh)
+            dist, _, _ = gps2dist_azimuth(tlat, tlon, elat, elon)
+            dist3d = np.sqrt(
+                (dist / 1000.0) ** 2
+                + (item["true_location"][2] - item["solved_location"][2]) ** 2
+            )
+            est_true_err.append(dist3d)
 
     if true_xy:
         tlons, tlats = map(np.array, zip(*true_xy))

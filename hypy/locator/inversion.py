@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
-from scipy.sparse.linalg import lsqr  # type: ignore[import-untyped]
 
 from ..logger import logger  # type: ignore[import-not-found]
 from ..utils.damping import update_damping_factor
@@ -85,6 +84,13 @@ class InversionMixin:
                 dx[:, 3] = np.where(is_horiz_exceeds_depth, 0, dx[:, 3])
             return dx
 
+        # def _taper_depth_updates(current_depth, max_depth, offset=0.1):
+        #     if not max_depth:
+        #         max_depth = 1000
+        #     return offset + (
+        #         0.5 - 0.5 * np.cos(2 * np.pi * current_depth / max_depth)
+        #     ) * (1 - offset)
+
         logger.info(f"Locating {self.n_events} events with {self.n_stations} stations.")
         logger.info(f"Using phases: {self.phases}")
         logger.info(f"Using {self.solver} solver.")
@@ -149,6 +155,9 @@ class InversionMixin:
             for event_idx in range(self.n_events):
                 if self.invalid_events[event_idx]:
                     continue
+                # dx[event_idx, 2] *= _taper_depth_updates(
+                #     self.locations[event_idx, 2], max_depth
+                # )
                 new_depth = self.locations[event_idx, 2] - dx[event_idx, 2]
                 if not solve_airquakes and new_depth < 0.0:
                     logger.warning(

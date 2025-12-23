@@ -4,7 +4,7 @@ from pathlib import Path
 import obspy
 import pytest
 
-from hypy.propagation.tables import TravelTimeTables
+from hypy.propagation.grid.tau import TauTimeTables
 
 
 @pytest.fixture(scope="session", params=["taup", "pyrocko"])
@@ -19,9 +19,9 @@ def travel_time_tables(request):
     engine = request.param
 
     def _create_tables(phases):
-        return TravelTimeTables(
+        return TauTimeTables(
             model_tvel=model_path,
-            model=model,
+            model_name=model,
             phases=phases,
             max_depth=max_depth,
             max_distance=max_distance,
