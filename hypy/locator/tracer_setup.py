@@ -4,53 +4,47 @@ from ..propagation.grid.tau import TauTimeTables
 from .types import EngineLiteral, ModeLiteral, Optional
 
 
-class TracerSetupMixin:
-    def __init__(self, *args, **kwargs) -> None:
-        self.tracer = None  # per-instance PropagationModel
-        super().__init__(*args, **kwargs)
-
-    def _init_tracer(
-        self,
-        *,
-        mode: ModeLiteral,
-        engine: EngineLiteral,
-        phases: "tuple[str, ...]",
-        tvel_file_path,
-        model_name: str,
-        max_depth: Optional[float],
-        max_distance: Optional[float],
-        depth_step: Optional[float],
-        distance_step: Optional[float],
-    ) -> "tuple[PropagationModel, Optional[float]]":
-        tracer: PropagationModel
-        if mode == "table":
-            missing = [
-                name
-                for name, val in dict(
-                    max_depth=max_depth,
-                    max_distance=max_distance,
-                    depth_step=depth_step,
-                    distance_step=distance_step,
-                ).items()
-                if val is None
-            ]
-            if missing:
-                raise ValueError(
-                    "In table mode these variables are required: "
-                    "max_depth, max_distance, depth_step, distance_step "
-                    f"(missing: {', '.join(missing)})"
-                )
-            tracer = TauTimeTables(
-                tvel_file_path.as_posix(),
-                model_name,
-                list(phases),
-                float(max_depth),
-                float(max_distance),
-                float(depth_step),
-                float(distance_step),
-                engine,
+def _init_tracer(
+    *,
+    mode: ModeLiteral,
+    engine: EngineLiteral,
+    phases: "tuple[str, ...]",
+    tvel_file_path,
+    model_name: str,
+    max_depth: Optional[float],
+    max_distance: Optional[float],
+    depth_step: Optional[float],
+    distance_step: Optional[float],
+) -> "tuple[PropagationModel, Optional[float]]":
+    tracer: PropagationModel
+    if mode == "table":
+        missing = [
+            name
+            for name, val in dict(
+                max_depth=max_depth,
+                max_distance=max_distance,
+                depth_step=depth_step,
+                distance_step=distance_step,
+            ).items()
+            if val is None
+        ]
+        if missing:
+            raise ValueError(
+                "In table mode these variables are required: "
+                "max_depth, max_distance, depth_step, distance_step "
+                f"(missing: {', '.join(missing)})"
             )
-            return tracer, float(max_depth)
-        else:
-            tracer = RayTracer(model_path=tvel_file_path.as_posix(), engine=engine)
-            return tracer, max_depth  # max_depth unused in ray mode
+        tracer = TauTimeTables(
+            tvel_file_path.as_posix(),
+            model_name,
+            list(phases),
+            float(max_depth),
+            float(max_distance),
+            float(depth_step),
+            float(distance_step),
+            engine,
+        )
+        return tracer, float(max_depth)
+    else:
+        tracer = RayTracer(model_path=tvel_file_path.as_posix(), engine=engine)
+        return tracer, max_depth  # max_depth unused in ray mode

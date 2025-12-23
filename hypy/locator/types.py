@@ -1,15 +1,5 @@
 from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    List,
-    Optional,
-    Protocol,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from obspy.core.event import (  # type: ignore[import-untyped]
@@ -50,6 +40,7 @@ __all__ = [
     "ConfidenceEllipsoid",
     "OriginUncertainty",
     "Inventory",
+    "TauPyModel",
     "DimLiteral",
     "ModeLiteral",
     "EngineLiteral",

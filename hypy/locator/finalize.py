@@ -1,7 +1,6 @@
 import numpy as np
 
 from .types import (
-    TYPE_CHECKING,
     Arrival,
     Catalog,
     ConfidenceEllipsoid,
@@ -13,128 +12,110 @@ from .types import (
     Union,
 )  # type: ignore[import-untyped]
 
-if TYPE_CHECKING:
-    from .state import LocatorState
+
+def finalize_origins(
+    *,
+    events: Union[List[Event], Catalog],
+    invalid_events: np.ndarray,
+    locations: np.ndarray,
+    origin_times: np.ndarray,
+    time_refs: np.ndarray,
+    principal_std: np.ndarray,
+    principal_axes: np.ndarray,
+    erz_erh: np.ndarray,
+    fixed_depth_mask: List[bool],
+    stations,
+    phases,
+    n_phases: int,
+    arrivals: np.ndarray,
+    theoretical_travel_times: np.ndarray,
+) -> Union[List[Event], Catalog]:
+    """Attach final Origin objects (with uncertainties) to each event."""
+    scale95 = 2.4
+    events_list = list(events)
+    for event_idx, event in enumerate(events_list):
+        if invalid_events[event_idx]:
+            continue
+
+        origin = Origin()
+        origin.latitude = locations[event_idx, 0]
+        origin.longitude = locations[event_idx, 1]
+        origin.depth = locations[event_idx, 2] * 1000.0  # km -> m
+
+        t0_abs = float(origin_times[event_idx]) + float(time_refs[event_idx])
+        origin.time = t0_abs
+
+        s1, s2, s3 = principal_std[event_idx]
+        evecs = principal_axes[event_idx]
+        ERZ_1s, ERH_1s = erz_erh[event_idx]
+
+        v = evecs[:, 0]
+        v = v / np.linalg.norm(v)
+        if not np.isfinite(v[2]):
+            plunge = 0.0
+            azimuth = 0.0
+        else:
+            plunge = float(np.rad2deg(np.arcsin(np.clip(v[2], -1.0, 1.0))))
+            azimuth = float((np.rad2deg(np.arctan2(v[0], v[1])) + 360) % 360)
+
+        confidence_ellipsoid = ConfidenceEllipsoid(
+            semi_major_axis_length=s1 * 1000.0,
+            semi_minor_axis_length=s3 * 1000.0,
+            semi_intermediate_axis_length=s2 * 1000.0,
+            major_axis_plunge=plunge,
+            major_axis_azimuth=azimuth,
+        )
+
+        origin_uncertainty = OriginUncertainty(
+            confidence_ellipsoid=confidence_ellipsoid,
+            horizontal_uncertainty=ERH_1s * scale95 * 1000.0,
+            preferred_description="confidence ellipsoid",
+            confidence_level=95.0,
+        )
+        origin.origin_uncertainty = origin_uncertainty
+
+        depth_errors = QuantityError(
+            uncertainty=ERZ_1s * scale95 * 1000.0,
+            confidence_level=95.0,
+        )
+        origin.depth_errors = depth_errors
+        origin.depth_type = (
+            "operator assigned" if fixed_depth_mask[event_idx] else "from location"
+        )
+
+        for station_idx, (network, station) in enumerate(stations):
+            for phase_idx, phase in enumerate(phases):
+                arr_index = n_phases * station_idx + phase_idx
+                observed_time_rel = arrivals[event_idx, arr_index]
+                if np.isnan(observed_time_rel):
+                    continue
+
+                pick = next(
+                    (
+                        pk
+                        for pk in event.picks
+                        if pk.waveform_id.station_code == station
+                        and pk.waveform_id.network_code == network
+                        and (pk.phase_hint or "").lower() == phase.lower()
+                    ),
+                    None,
+                )
+
+                travel_time = theoretical_travel_times[event_idx, arr_index]
+                observed_travel_time = observed_time_rel - origin_times[event_idx]
+                residual = observed_travel_time - travel_time
+
+                arrival = Arrival(
+                    pick_id=pick.resource_id if pick is not None else None,
+                    phase=phase,
+                    time_residual=float(residual),
+                )
+                origin.arrivals.append(arrival)
+
+        event.origins.append(origin)
+
+    return events_list
 
 
-class FinalizeMixin:
-    def __init__(self, *args, **kwargs) -> None:
-        # per-instance defaults
-        self._principal_std = np.empty((0, 3), dtype=float)
-        self._principal_axes = np.empty((0, 3, 3), dtype=float)
-        self._erz_erh = np.empty((0, 2), dtype=float)
-        super().__init__(*args, **kwargs)  # cooperative MRO
-
-    def _finalize_origins(self: "LocatorState") -> Union[List[Event], Catalog]:
-        """
-        Attach final Origin objects to events:
-        - Convert stored relative origin times (t0_rel) back to absolute by adding time_refs.
-        - Locations/depths are left as-is (km for depth, converted to meters for ObsPy).
-        - Arrival residuals are computed in the same sign convention used in inversion:
-          residual = (observed_travel_time - theoretical_travel_time).
-        """
-        scale95 = 2.4
-        for event_idx, event in enumerate(self.events):
-            # If invalid - no origins are added
-            if self.invalid_events[event_idx]:
-                continue
-
-            origin = Origin()
-            origin.latitude = self.locations[event_idx, 0]
-            origin.longitude = self.locations[event_idx, 1]
-            origin.depth = self.locations[event_idx, 2] * 1000.0  # km -> m
-
-            # Convert RELATIVE t0 back to ABSOLUTE for output
-            t0_abs = float(self.origin_times[event_idx]) + float(
-                self.time_refs[event_idx]
-            )
-            origin.time = t0_abs
-
-            # Uncertainties / ellipsoid
-            s1, s2, s3 = self._principal_std[event_idx]
-            evecs = self._principal_axes[event_idx]
-            ERZ_1s, ERH_1s = self._erz_erh[event_idx]
-
-            v = evecs[:, 0]
-            v = v / np.linalg.norm(v)
-            if not np.isfinite(v[2]):
-                plunge = 0.0
-                azimuth = 0.0
-            else:
-                plunge = float(np.rad2deg(np.arcsin(np.clip(v[2], -1.0, 1.0))))
-                azimuth = float((np.rad2deg(np.arctan2(v[0], v[1])) + 360) % 360)
-
-            confidence_ellipsoid = ConfidenceEllipsoid(
-                semi_major_axis_length=s1 * 1000.0,
-                semi_minor_axis_length=s3 * 1000.0,
-                semi_intermediate_axis_length=s2 * 1000.0,
-                major_axis_plunge=plunge,
-                major_axis_azimuth=azimuth,
-            )
-
-            origin_uncertainty = OriginUncertainty(
-                confidence_ellipsoid=confidence_ellipsoid,
-                horizontal_uncertainty=ERH_1s * scale95 * 1000.0,
-                preferred_description="confidence ellipsoid",
-                confidence_level=95.0,
-            )
-            origin.origin_uncertainty = origin_uncertainty
-
-            depth_errors = QuantityError(
-                uncertainty=ERZ_1s * scale95 * 1000.0,
-                confidence_level=95.0,
-            )
-            origin.depth_errors = depth_errors
-            origin.depth_type = (
-                "operator assigned"
-                if self.fixed_depth_mask[event_idx]
-                else "from location"
-            )
-
-            # Populate arrival residuals
-            for station_idx, (network, station) in enumerate(self.stations):
-                for phase_idx, phase in enumerate(self.phases):
-                    arr_index = self.n_phases * station_idx + phase_idx
-                    observed_time_rel = self.arrivals[event_idx, arr_index]
-                    if np.isnan(observed_time_rel):
-                        continue
-
-                    # Find the corresponding pick in the event
-                    pick = next(
-                        (
-                            pk
-                            for pk in event.picks
-                            if pk.waveform_id.station_code == station
-                            and pk.waveform_id.network_code == network
-                            and (pk.phase_hint or "").lower() == phase.lower()
-                        ),
-                        None,
-                    )
-
-                    # Theoretical travel time (seconds)
-                    travel_time = self.theoretical_travel_times[event_idx, arr_index]
-
-                    # Observed travel time = observed arrival (REL) - t0_rel
-                    observed_travel_time = (
-                        observed_time_rel - self.origin_times[event_idx]
-                    )
-
-                    # Residual with the same sign convention as inversion:
-                    # residual = observed - theoretical
-                    residual = observed_travel_time - travel_time
-
-                    arrival = Arrival(
-                        pick_id=pick.resource_id if pick is not None else None,
-                        phase=phase,
-                        time_residual=float(residual),
-                    )
-                    origin.arrivals.append(arrival)
-
-            event.origins.append(origin)
-
-        return self.events
-
-    def report_invalid_events(self: "LocatorState") -> np.ndarray:
-        if hasattr(self, "invalid_events"):
-            return np.where(self.invalid_events)[0]
-        return np.array([])
+def report_invalid_events(*, invalid_events: np.ndarray) -> np.ndarray:
+    return np.where(invalid_events)[0]
