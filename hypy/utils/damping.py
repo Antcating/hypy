@@ -1,7 +1,5 @@
 from typing import Optional
 
-import numpy as np
-
 
 def update_damping_factor(
     current_factor: float,
