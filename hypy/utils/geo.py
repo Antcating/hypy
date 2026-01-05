@@ -74,3 +74,32 @@ def get_spatial_slowness_1d(takeoff_rad: float, az_deg: float, vel: float):
     dt_dy = dt_dr * np.cos(az_rad)  # North
 
     return (dt_dr, dt_dx, dt_dy, dt_dz)
+
+
+# ----- Derivative wrt source from first ray segment -----
+@njit(cache=True)
+def dT_dsource_from_trace(path_xyz, v_source, nseg=3):
+    """
+    path_xyz: (N,3) points from SOURCE -> RECEIVER.
+    v_source: km/s at the source (grid value).
+    Returns (dT/dx_s, dT/dy_s, dT/dz_s) in s/km.
+    """
+    if path_xyz.shape[0] < 2:
+        raise ValueError("Ray path too short")
+
+    nseg = max(1, min(nseg, path_xyz.shape[0] - 1))
+
+    d = np.zeros(3, dtype=np.float64)
+    for i in range(nseg):
+        seg = path_xyz[i + 1] - path_xyz[i]
+        n = np.linalg.norm(seg)
+        if n > 0:
+            d += seg / n
+
+    nd = np.linalg.norm(d)
+    if nd == 0:
+        raise ValueError("Degenerate ray direction near source")
+
+    u_sr = d / nd  # unit direction: source -> receiver
+    p = u_sr / v_source  # slowness vector at source (s/km)
+    return (-p[0], -p[1], -p[2])  # derivative wrt SOURCE location
