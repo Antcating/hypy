@@ -93,6 +93,9 @@ def fill_data(
 
         if not matching_pick_times:
             invalid_events[event_idx] = True
+            logger.warning(
+                f"Event {event.resource_id} has no picks matching selected phases ({', '.join(phases)}) to solve for, skipping."
+            )
             continue
 
         time_refs[event_idx] = float(np.mean(matching_pick_times))
