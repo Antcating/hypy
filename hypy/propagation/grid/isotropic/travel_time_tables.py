@@ -164,7 +164,7 @@ class TauTimeTables(PropagationModel):
             )
         return time, takeoff_angle
 
-    def calculate_arrival_parameters(
+    def compute_travel_parameters(
         self,
         source_lon: float,
         source_lat: float,
@@ -204,7 +204,7 @@ class TauTimeTables(PropagationModel):
 
         return distance_km, travel_time, (dt_dx, dt_dy, dt_dz)
 
-    def calculate_arrival_parameters_bulk(
+    def compute_bulk_arrival_parameters(
         self,
         source_lon: float,
         source_lat: float,
@@ -221,7 +221,7 @@ class TauTimeTables(PropagationModel):
         for receiver_lon, receiver_lat, receiver_elev_m in zip(
             receiver_lons, receiver_lats, receiver_elevs_m
         ):
-            result = self.calculate_arrival_parameters(
+            result = self.compute_travel_parameters(
                 source_lon,
                 source_lat,
                 source_depth_km,
