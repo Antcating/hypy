@@ -23,13 +23,10 @@ from .types import (
     Event,
     Inventory,
     SolverLiteral,
-    EngineLiteral,
-    ModeLiteral,
     TauPyModel,
 )
 
 from . import data as _data
-from . import derivatives as _derivatives
 from . import errors as _errors
 from . import finalize as _finalize
 from . import init_locations as _init_locations
@@ -230,10 +227,10 @@ class EventLocator:
         self.solver: SolverLiteral = "lsqr"
 
         # --- Velocity model & tracer setup
-        self.model: TauPyModel = self._init_velocity_model(
+        self.model: TauPyModel = _model._init_velocity_model(
             self.model_name, self.tvel_file_path
         )
-        self.tracer, self.max_depth = self._init_tracer(
+        self.tracer, self.max_depth = _tracer_setup._init_tracer(
             mode=self.mode,
             engine=self.engine,
             phases=self.phases,
@@ -256,32 +253,12 @@ class EventLocator:
             validate_precompute_args(max_depth, depth_step)
             assert max_depth is not None
             assert depth_step is not None
-            self._precompute_velocity_profiles_1d(float(max_depth), float(depth_step))
-
-    def _compute_event_errors(self, A_e, r_e, pick_errs_e, damping: float):
-        return _errors.compute_event_errors(
-            dim=self.dim,
-            A_e=A_e,
-            r_e=r_e,
-            pick_errs_e=pick_errs_e,
-            damping=damping,
-        )
-
-    def _derive_travel_time_param(self, event_location, station_location, phase: str):
-        ev_lat, ev_lon, ev_depth_km = event_location
-        st_lat, st_lon, st_elev_m = station_location
-        distance_km, travel_time, (dt_dx, dt_dy, dt_dz) = (
-            self.tracer.calculate_arrival_parameters(
-                ev_lon,
-                ev_lat,
-                ev_depth_km,
-                st_lon,
-                st_lat,
-                st_elev_m,
-                phase,
+            self.velocity_profiles = _model.precompute_velocity_profiles_1d(
+                model=self.model,
+                phases=self.phases,
+                max_depth=float(max_depth),
+                depth_step=float(depth_step),
             )
-        )
-        return distance_km, travel_time, (None, dt_dx, dt_dy, dt_dz)
 
     # ---- public API methods (delegating to implementation functions)
 
@@ -372,33 +349,6 @@ class EventLocator:
 
     # ---- internal methods required by the locator pipeline
 
-    def _populate_derivative_matrix(self) -> np.ndarray:
-        result = _derivatives.populate_derivative_matrix(
-            tracer=self.tracer,
-            locations=self.locations,
-            stations_locations=self.stations_locations,
-            stations=self.stations,
-            phases=self.phases,
-            n_events=self.n_events,
-            n_stations=self.n_stations,
-            n_phases=self.n_phases,
-            dim=self.dim,
-            arrivals=self.arrivals,
-            theoretical_travel_times=self.theoretical_travel_times,
-            derivative_matrix=self.derivative_matrix,
-            distance_W=self.distance_W,
-            time_error_W=self.time_error_W,
-            invalid_events=self.invalid_events,
-            fixed_depth_mask=self.fixed_depth_mask,
-            distance_weighting=self._distance_weighting,
-            k=self.k,
-            x0=self.x0,
-        )
-        self.theoretical_travel_times = result["theoretical_travel_times"]
-        self.derivative_matrix = result["derivative_matrix"]
-        self.distance_W = result["distance_W"]
-        return result["valid_rows"]
-
     def _run_location_iterations(
         self,
         max_iterations,
@@ -407,7 +357,7 @@ class EventLocator:
         max_depth,
         init_phase_iteration_max,
     ):
-        result = _inversion.run_location_iterations(
+        solution = _inversion.run_location_iterations(
             solver=self.solver,
             max_iterations=int(max_iterations),
             conv_threshold=float(conv_threshold),
@@ -441,16 +391,16 @@ class EventLocator:
             invalid_events=self.invalid_events,
         )
 
-        self.locations = result["locations"]
-        self.origin_times = result["origin_times"]
-        self.invalid_events = result["invalid_events"]
-        self.theoretical_travel_times = result["theoretical_travel_times"]
-        self.derivative_matrix = result["derivative_matrix"]
-        self.distance_W = result["distance_W"]
-        self._A_final = result["A_final"]
-        self._valid_rows_final = result["valid_rows_final"]
-        self._residuals_flat_final = result["residuals_flat_final"]
-        self._lambda_final = float(result["lambda_final"])
+        self.locations = solution["locations"]
+        self.origin_times = solution["origin_times"]
+        self.invalid_events = solution["invalid_events"]
+        self.theoretical_travel_times = solution["theoretical_travel_times"]
+        self.derivative_matrix = solution["derivative_matrix"]
+        self.distance_W = solution["distance_W"]
+        self._A_final = solution["A_final"]
+        self._valid_rows_final = solution["valid_rows_final"]
+        self._residuals_flat_final = solution["residuals_flat_final"]
+        self._lambda_final = float(solution["lambda_final"])
         return None
 
     def _compute_error_ellipsoids(self):
@@ -494,52 +444,3 @@ class EventLocator:
 
     def report_invalid_events(self) -> np.ndarray:
         return _finalize.report_invalid_events(invalid_events=self.invalid_events)
-
-    # ---- tracer/model helpers
-
-    @staticmethod
-    def _init_velocity_model(model_name: str, tvel_file_path: Path) -> TauPyModel:
-        return _model._init_velocity_model(model_name, tvel_file_path)
-
-    def _precompute_velocity_profiles_1d(self, max_depth, depth_step):
-        self.velocity_profiles = _model.precompute_velocity_profiles_1d(
-            model=self.model,
-            phases=self.phases,
-            max_depth=float(max_depth),
-            depth_step=float(depth_step),
-        )
-        return None
-
-    def _get_velocity_1d(self, depth, phase):
-        return _model.get_velocity_1d(
-            model=self.model,
-            precalculated=bool(self._precalculate_velocities),
-            velocity_profiles=self.velocity_profiles,
-            depth_km=float(depth),
-            phase=str(phase),
-        )
-
-    def _init_tracer(
-        self,
-        *,
-        mode: ModeLiteral,
-        engine: EngineLiteral,
-        phases: tuple[str, ...],
-        tvel_file_path,
-        model_name: str,
-        max_depth: Optional[float],
-        max_distance: Optional[float],
-        depth_step: Optional[float],
-        distance_step: Optional[float],
-    ):
-        return _tracer_setup._init_tracer(
-            mode=mode,
-            engine=engine,
-            phases=phases,
-            tvel_file_path=tvel_file_path,
-            model_name=model_name,
-            max_depth=max_depth,
-            max_distance=max_distance,
-            depth_step=depth_step,
-            distance_step=distance_step,
-        )

@@ -51,7 +51,7 @@ def populate_derivative_matrix(
                     continue
 
                 distance_km, phase_travel_time, (dt_dx, dt_dy, dt_dz) = (
-                    tracer.calculate_arrival_parameters(
+                    tracer.compute_travel_parameters(
                         ev_lon,
                         ev_lat,
                         ev_depth_km,

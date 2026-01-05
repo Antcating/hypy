@@ -1,6 +1,8 @@
 import copy
 from typing import List, Optional, Sequence, Tuple
 
+from hypy.propagation.propagation_model import PropagationModel
+
 from ..logger import logger  # type: ignore[import-not-found]
 from .types import Event, Inventory, np
 
@@ -16,7 +18,7 @@ def init_locations(
     n_phases: int,
     min_picks_per_event: int,
     max_depth: Optional[float],
-    tracer,
+    tracer: PropagationModel,
     trial_depth: float = 10.0,
     trial_time: float = 2.0,
     arrivals: np.ndarray,
@@ -60,7 +62,7 @@ def init_locations(
             sta_lat, sta_lon, sta_elev = stations_locations[station_id]
             phase = phases[phase_id]
 
-            _, theoretical_arrival_time, _ = tracer.calculate_arrival_parameters(
+            _, theoretical_arrival_time, _ = tracer.compute_travel_parameters(
                 lon, lat, depth_km, sta_lon, sta_lat, sta_elev, phase
             )
             if theoretical_arrival_time is None or not np.isfinite(
