@@ -3,7 +3,7 @@ import obspy
 import pytest
 from hypy.propagation.ray_tracers.taup import TauPRayTracer
 from hypy.propagation.ray_tracers.pyrocko import PyrockoRayTracer
-from hypy.propagation.grid.tau import TauTimeTables
+from hypy.propagation.grid.isotropic import TauTimeTables
 
 
 @pytest.fixture(params=["taup", "pyrocko"])
