@@ -4,7 +4,7 @@ from pathlib import Path
 import obspy
 import pytest
 
-from hypy.propagation.grid.tau import TauTimeTables
+from hypy.propagation.grid.isotropic import TauTimeTables
 
 
 @pytest.fixture(scope="session", params=["taup", "pyrocko"])
