@@ -26,6 +26,12 @@ dependencies = [
     "setuptools==80.9.0"
 ]
 
+[project.optional-dependencies]
+# Extra for development and testing
+dev = ["pytest", "pyrocko"]
+# Extra that only installs pyrocko
+pyrocko = ["pyrocko"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["hypy"]
 exclude = [
