@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union, Literal
 
 import numpy as np
 from obspy.core.event import (  # type: ignore[import-untyped]
@@ -16,7 +16,8 @@ from obspy.core.event.origin import (  # type: ignore[import-untyped]
 )
 from obspy.core.inventory import Inventory  # type: ignore[import-untyped]
 from obspy.taup import TauPyModel  # type: ignore[import-untyped]
-from typing_extensions import Literal
+
+from hypy.propagation import PropagationModel
 
 DimLiteral = Literal[4]
 ModeLiteral = Literal["table", "ray"]
@@ -67,7 +68,7 @@ class DerivativeContext:
     function signatures short.
     """
 
-    tracer: object
+    tracer: "PropagationModel"
     stations: list
     stations_locations: np.ndarray
     phases: Sequence[str]
