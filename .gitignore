@@ -1,6 +1,9 @@
 # --- Travel Time Tables Data ---
 # Ignore automatically generated cache files
-hypy/propagation/tables/data/*.npz
+hypy/propagation/grid/isotropic/data/*.npz
+
+# Temporary ingore example files
+examples/*
 
 
 # --- Build and Distribution ---
