@@ -422,7 +422,7 @@ def test_event_location_vs_geometry(
         )
 
     # run
-    locator.load_data(inventory, catalog)
+    locator.load(inventory, catalog)
     out, _ = locator.locate(max_iterations=1000, trial_depth=5.0, solver="lsqr")
 
     # extract final origin

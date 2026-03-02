@@ -26,6 +26,8 @@ from .types import (
     TauPyModel,
 )
 
+from . import types as _types
+
 from . import data as _data
 from . import errors as _errors
 from . import finalize as _finalize
@@ -262,12 +264,10 @@ class EventLocator:
                 depth_step=float(depth_step),
             )
 
-    # ---- public API methods (delegating to implementation functions)
+    # ---- public API methods
 
-    def load_data(
-        self, inventory: Inventory, events: Union[List[Event], Catalog]
-    ) -> None:
-        result = _data.parse_data(
+    def load(self, inventory: Inventory, events: Union[List[Event], Catalog]) -> None:
+        parsed_data = _data.parse_data(
             inventory=inventory,
             events=events,
             phases=self.phases,
@@ -276,33 +276,33 @@ class EventLocator:
             fix_depth=self._fix_depth,
             dim=self.dim,
         )
+        # parse_data returns a typed tuple: (inv, event_meta, stations_info, matrices, weights)
+        inv, event_meta, stations_info, matrices, weights = parsed_data
 
-        self.inv = inventory
-        self.events = events
-        self.n_events = int(result["n_events"])
-        self.stations = result["stations"]
-        self.stations_locations = result["stations_locations"]
-        self.n_stations = int(result["n_stations"])
-        self.fixed_depth_mask = result["fixed_depth_mask"]
+        self.inv = inv
+        self.events = event_meta.events
+        self.n_events = int(event_meta.n_events)
+        self.stations = stations_info.stations
+        self.stations_locations = stations_info.stations_locations
+        self.n_stations = int(stations_info.n_stations)
+        self.fixed_depth_mask = event_meta.fixed_depth_mask
 
-        self.arrivals = result["arrivals"]
-        self.arrival_time_errors = result["arrival_time_errors"]
-        self.theoretical_travel_times = result["theoretical_travel_times"]
-        self.derivative_matrix = result["derivative_matrix"]
-        self.time_error_W = result["time_error_W"]
-        self.distance_W = result["distance_W"]
-        self.locations = result["locations"]
-        self.origin_times = result["origin_times"]
-        self.time_refs = result["time_refs"]
-        self.invalid_events = result["invalid_events"]
+        self.arrivals = matrices.arrivals
+        self.arrival_time_errors = matrices.arrival_time_errors
+        self.theoretical_travel_times = matrices.theoretical_travel_times
+        self.derivative_matrix = matrices.derivative_matrix
+        self.time_error_W = weights.time_error_W
+        self.distance_W = weights.distance_W
+        self.locations = matrices.locations
+        self.origin_times = matrices.origin_times
+        self.time_refs = matrices.time_refs
+        self.invalid_events = matrices.invalid_events
 
         return None
 
     def init_locations(self, trial_depth: float = 10.0, trial_time: float = 2.0):
         assert self.inv is not None
-        result = _init_locations.init_locations(
-            inventory=self.inv,
-            events=list(self.events),
+        cfg = _types.InitConfig(
             stations=self.stations,
             stations_locations=self.stations_locations,
             phases=self.phases,
@@ -310,14 +310,26 @@ class EventLocator:
             n_phases=self.n_phases,
             min_picks_per_event=self.min_picks_per_event,
             max_depth=self.max_depth,
-            tracer=self.tracer,
-            trial_depth=trial_depth,
-            trial_time=trial_time,
+            trial_depth=float(trial_depth),
+            trial_time=float(trial_time),
+        )
+
+        matrices = _types.Matrices(
             arrivals=self.arrivals,
             arrival_time_errors=self.arrival_time_errors,
+            theoretical_travel_times=self.theoretical_travel_times,
+            derivative_matrix=self.derivative_matrix,
             locations=self.locations,
             origin_times=self.origin_times,
             time_refs=self.time_refs,
+            invalid_events=self.invalid_events,
+        )
+        result = _init_locations.init_locations(
+            inventory=self.inv,
+            events=list(self.events),
+            tracer=self.tracer,
+            cfg=cfg,
+            matrices=matrices,
         )
         self.events = result["events"]
         self.locations = result["locations"]
@@ -359,38 +371,54 @@ class EventLocator:
         max_depth,
         init_phase_iteration_max,
     ):
-        solution = _inversion.run_location_iterations(
+        cfg = _types.IterationConfig(
             solver=self.solver,
             max_iterations=int(max_iterations),
             conv_threshold=float(conv_threshold),
             solve_airquakes=bool(solve_airquakes),
             max_depth=float(max_depth),
             init_phase_iteration_max=int(init_phase_iteration_max),
-            n_events=self.n_events,
-            n_stations=self.n_stations,
-            n_phases=self.n_phases,
-            dim=self.dim,
-            mode=self.mode,
+            mode=str(self.mode),
+            fix_depth=bool(self._fix_depth),
+            precalculate_velocities=bool(self._precalculate_velocities),
+            model_radius_of_planet_km=float(self.model.model.radius_of_planet),
+        )
+
+        ctx = _types.DerivativeContext(
             tracer=self.tracer,
             stations=self.stations,
             stations_locations=self.stations_locations,
             phases=self.phases,
+            n_events=self.n_events,
+            n_stations=self.n_stations,
+            n_phases=self.n_phases,
+            dim=self.dim,
             fixed_depth_mask=self.fixed_depth_mask,
             distance_weighting=bool(self._distance_weighting),
-            k=self.k,
-            x0=self.x0,
-            fix_depth=bool(self._fix_depth),
-            precalculate_velocities=bool(self._precalculate_velocities),
-            model_radius_of_planet_km=float(self.model.model.radius_of_planet),
+            k=float(self.k) if self.k is not None else None,
+            x0=float(self.x0) if self.x0 is not None else None,
+        )
+
+        matrices = _types.Matrices(
             arrivals=self.arrivals,
+            arrival_time_errors=self.arrival_time_errors,
+            theoretical_travel_times=self.theoretical_travel_times,
+            derivative_matrix=self.derivative_matrix,
             locations=self.locations,
             origin_times=self.origin_times,
             time_refs=self.time_refs,
-            theoretical_travel_times=self.theoretical_travel_times,
-            derivative_matrix=self.derivative_matrix,
+            invalid_events=self.invalid_events,
+        )
+        weights = _types.Weights(
             time_error_W=self.time_error_W,
             distance_W=self.distance_W,
-            invalid_events=self.invalid_events,
+        )
+
+        solution = _inversion.run_location_iterations(
+            cfg=cfg,
+            ctx=ctx,
+            matrices=matrices,
+            weights=weights,
         )
 
         self.locations = solution["locations"]
@@ -426,21 +454,33 @@ class EventLocator:
         return None
 
     def _finalize_origins(self):
-        self.events = _finalize.finalize_origins(
-            events=self.events,
-            invalid_events=self.invalid_events,
+        matrices = _types.Matrices(
+            arrivals=self.arrivals,
+            arrival_time_errors=self.arrival_time_errors,
+            theoretical_travel_times=self.theoretical_travel_times,
+            derivative_matrix=self.derivative_matrix,
             locations=self.locations,
             origin_times=self.origin_times,
             time_refs=self.time_refs,
-            principal_std=self._principal_std,
-            principal_axes=self._principal_axes,
-            erz_erh=self._erz_erh,
-            fixed_depth_mask=self.fixed_depth_mask,
+            invalid_events=self.invalid_events,
+        )
+        ctx = _types.FinalizeContext(
             stations=self.stations,
             phases=self.phases,
             n_phases=self.n_phases,
-            arrivals=self.arrivals,
-            theoretical_travel_times=self.theoretical_travel_times,
+            fixed_depth_mask=self.fixed_depth_mask,
+        )
+        unc = _types.FinalizeUncertainty(
+            principal_std=self._principal_std,
+            principal_axes=self._principal_axes,
+            erz_erh=self._erz_erh,
+        )
+
+        self.events = _finalize.finalize_origins(
+            events=self.events,
+            matrices=matrices,
+            ctx=ctx,
+            unc=unc,
         )
         return self.events
 

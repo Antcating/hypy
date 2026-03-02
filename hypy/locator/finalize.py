@@ -5,7 +5,10 @@ from .types import (
     Catalog,
     ConfidenceEllipsoid,
     Event,
+    FinalizeContext,
+    FinalizeUncertainty,
     List,
+    Matrices,
     Origin,
     OriginUncertainty,
     QuantityError,
@@ -16,38 +19,30 @@ from .types import (
 def finalize_origins(
     *,
     events: Union[List[Event], Catalog],
-    invalid_events: np.ndarray,
-    locations: np.ndarray,
-    origin_times: np.ndarray,
-    time_refs: np.ndarray,
-    principal_std: np.ndarray,
-    principal_axes: np.ndarray,
-    erz_erh: np.ndarray,
-    fixed_depth_mask: List[bool],
-    stations,
-    phases,
-    n_phases: int,
-    arrivals: np.ndarray,
-    theoretical_travel_times: np.ndarray,
+    matrices: Matrices,
+    ctx: FinalizeContext,
+    unc: FinalizeUncertainty,
 ) -> Union[List[Event], Catalog]:
     """Attach final Origin objects (with uncertainties) to each event."""
     scale95 = 2.4
     events_list = list(events)
     for event_idx, event in enumerate(events_list):
-        if invalid_events[event_idx]:
+        if matrices.invalid_events[event_idx]:
             continue
 
         origin = Origin()
-        origin.latitude = locations[event_idx, 0]
-        origin.longitude = locations[event_idx, 1]
-        origin.depth = locations[event_idx, 2] * 1000.0  # km -> m
+        origin.latitude = matrices.locations[event_idx, 0]
+        origin.longitude = matrices.locations[event_idx, 1]
+        origin.depth = matrices.locations[event_idx, 2] * 1000.0  # km -> m
 
-        t0_abs = float(origin_times[event_idx]) + float(time_refs[event_idx])
+        t0_abs = float(matrices.origin_times[event_idx]) + float(
+            matrices.time_refs[event_idx]
+        )
         origin.time = t0_abs
 
-        s1, s2, s3 = principal_std[event_idx]
-        evecs = principal_axes[event_idx]
-        ERZ_1s, ERH_1s = erz_erh[event_idx]
+        s1, s2, s3 = unc.principal_std[event_idx]
+        evecs = unc.principal_axes[event_idx]
+        ERZ_1s, ERH_1s = unc.erz_erh[event_idx]
 
         v = evecs[:, 0]
         v = v / np.linalg.norm(v)
@@ -80,13 +75,13 @@ def finalize_origins(
         )
         origin.depth_errors = depth_errors
         origin.depth_type = (
-            "operator assigned" if fixed_depth_mask[event_idx] else "from location"
+            "operator assigned" if ctx.fixed_depth_mask[event_idx] else "from location"
         )
 
-        for station_idx, (network, station) in enumerate(stations):
-            for phase_idx, phase in enumerate(phases):
-                arr_index = n_phases * station_idx + phase_idx
-                observed_time_rel = arrivals[event_idx, arr_index]
+        for station_idx, (network, station) in enumerate(ctx.stations):
+            for phase_idx, phase in enumerate(ctx.phases):
+                arr_index = ctx.n_phases * station_idx + phase_idx
+                observed_time_rel = matrices.arrivals[event_idx, arr_index]
                 if np.isnan(observed_time_rel):
                     continue
 
@@ -101,8 +96,10 @@ def finalize_origins(
                     None,
                 )
 
-                travel_time = theoretical_travel_times[event_idx, arr_index]
-                observed_travel_time = observed_time_rel - origin_times[event_idx]
+                travel_time = matrices.theoretical_travel_times[event_idx, arr_index]
+                observed_travel_time = (
+                    observed_time_rel - matrices.origin_times[event_idx]
+                )
                 residual = observed_travel_time - travel_time
 
                 arrival = Arrival(

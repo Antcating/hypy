@@ -669,7 +669,7 @@ def run_scenario(scn: Scenario, taup_model, relocation_summary):
     # Locate (batch or single)
     if scn.solve_mode == "batch":
         locator = _make_locator()
-        locator.load_data(data.inventory, data.cached_catalog)
+        locator.load(data.inventory, data.cached_catalog)
         est_events, invalids = locator.locate(
             max_iterations=1000, trial_depth=5.0, solver=scn.solver
         )
@@ -693,7 +693,7 @@ def run_scenario(scn: Scenario, taup_model, relocation_summary):
                 # deep-copy to avoid cross-run mutation
                 single_cat = Catalog(events=[deepcopy(data.cached_catalog[i])])
                 locator = _make_locator()
-                locator.load_data(data.inventory, single_cat)
+                locator.load(data.inventory, single_cat)
                 out, inv = locator.locate(
                     max_iterations=1000, trial_depth=5.0, solver=scn.solver
                 )
