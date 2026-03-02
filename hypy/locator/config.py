@@ -1,6 +1,5 @@
 import numpy as np
 
-
 from .types import Literal, Optional
 
 ModeLiteral = Literal["table", "ray"]
@@ -19,7 +18,14 @@ def validate_engine(engine: str) -> EngineLiteral:
     return engine  # type: ignore[return-value]
 
 
-def configure_distance_weighting(
+def validate_precompute_args(max_depth, depth_step) -> None:
+    if max_depth is None or depth_step is None:
+        raise ValueError(
+            "When using precalculated velocities, 'max_depth' and 'depth_step' must be provided."
+        )
+
+
+def calculate_distance_weighting_params(
     distance_weight_start: Optional[float],
     distance_weight_end: Optional[float],
     weight_start: Optional[float],
@@ -49,10 +55,3 @@ def configure_distance_weighting(
     k = (np.log((1.0 / w1) - 1.0) - np.log((1.0 / w0) - 1.0)) / (d1 - d0)
     x0 = d0 - (np.log((1.0 / w0) - 1.0) / k)
     return True, float(k), float(x0)
-
-
-def validate_precompute_args(max_depth, depth_step) -> None:
-    if max_depth is None or depth_step is None:
-        raise ValueError(
-            "When using precalculated velocities, 'max_depth' and 'depth_step' must be provided."
-        )
