@@ -17,7 +17,7 @@ description = "A Python package for locating seismic events based on seismic arr
 authors = [{ name = "Yevhenii Antcating"}]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.11"
 dependencies = [
     "numpy==1.26.4",
     "obspy>=1.2",
@@ -25,14 +25,16 @@ dependencies = [
     "numba>=0.61"
 ]
 
-# Wheel content (what pip installs)
-[tool.hatch.build.targets.wheel.force-include]
-"hypy/propagation/tables/data/travel_time_tables_iasp91_taup_P_d20.0_r100.0_dz1.0_dr1.0.npz"="hypy/propagation/tables/data/travel_time_tables_iasp91_taup_P_d20.0_r100.0_dz1.0_dr1.0.npz"
-"hypy/propagation/tables/data/travel_time_tables_iasp91_taup_S_d20.0_r100.0_dz1.0_dr1.0.npz"="hypy/propagation/tables/data/travel_time_tables_iasp91_taup_S_d20.0_r100.0_dz1.0_dr1.0.npz"
-
-[tool.hatch.build.targets.sdist.force-include]
-"hypy/propagation/tables/data/travel_time_tables_iasp91_taup_P_d20.0_r100.0_dz1.0_dr1.0.npz"="hypy/propagation/tables/data/travel_time_tables_iasp91_taup_P_d20.0_r100.0_dz1.0_dr1.0.npz"
-"hypy/propagation/tables/data/travel_time_tables_iasp91_taup_S_d20.0_r100.0_dz1.0_dr1.0.npz"="hypy/propagation/tables/data/travel_time_tables_iasp91_taup_S_d20.0_r100.0_dz1.0_dr1.0.npz"
+[project.optional-dependencies]
+# Extra for development and testing
+dev = [
+    "pytest",
+    "pyrocko",
+    "ruff",
+    "hypy",
+]
+# Extra that only installs pyrocko
+pyrocko = ["pyrocko"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["hypy"]
@@ -44,3 +46,6 @@ packages = ["hypy"]
 exclude = [
     "test_artifacts/**"
 ]
+
+[tool.uv.sources]
+hypy = { workspace = true }
