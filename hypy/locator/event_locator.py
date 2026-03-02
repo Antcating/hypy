@@ -13,7 +13,7 @@ import numpy as np
 
 from ..propagation import PropagationModel
 from .config import (
-    configure_distance_weighting,
+    calculate_distance_weighting_params,
     validate_engine,
     validate_mode,
     validate_precompute_args,
@@ -243,8 +243,10 @@ class EventLocator:
         )
         self.max_distance: Optional[float] = max_distance
 
-        (self._distance_weighting, self.k, self.x0) = configure_distance_weighting(
-            distance_weight_start, distance_weight_end, weight_start, weight_end
+        (self._distance_weighting, self.k, self.x0) = (
+            calculate_distance_weighting_params(
+                distance_weight_start, distance_weight_end, weight_start, weight_end
+            )
         )
 
         # --- Optional velocity precomputation
