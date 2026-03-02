@@ -66,7 +66,7 @@ def taup_model():
 @pytest.fixture(scope="session")
 def true_event_params():
     # (lat, lon, depth[km]), origin time
-    return (10.0, 10.0, 10.0), UTCDateTime("2023-01-01T00:00:00.000Z")
+    return (9.85, 9.85, 10.0), UTCDateTime("2023-01-01T00:00:00.000Z")
 
 
 def _iasp91_tvel_path():
