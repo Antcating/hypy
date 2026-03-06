@@ -1,9 +1,9 @@
-from typing import Optional, Union
+from typing import Optional
 
 from ..logger import logger  # type: ignore[import-not-found]
 from .data import DataHandler
 from .derivatives import DerivativeEngine
-from .types import Catalog, Event, np
+from .types import Event, np
 
 
 def init_locations(

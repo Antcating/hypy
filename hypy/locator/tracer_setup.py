@@ -1,6 +1,7 @@
 from ..propagation import PropagationModel
-from ..propagation.ray_tracers import RayTracer
 from ..propagation.grid.tau import TauTimeTables
+from ..propagation.ray_tracers import RayTracer
+
 from .types import EngineLiteral, ModeLiteral, Optional, Path
 
 

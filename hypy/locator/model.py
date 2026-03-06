@@ -1,7 +1,8 @@
-import numpy as np
-from obspy.taup.taup_create import build_taup_model  # type: ignore[import-untyped]
+from pathlib import Path
 
-from .types import TauPyModel, Path
+import numpy as np
+from obspy.taup import TauPyModel  # type: ignore[import-untyped]
+from obspy.taup.taup_create import build_taup_model  # type: ignore[import-untyped]
 
 
 class VelocityModelHandler:
@@ -33,9 +34,6 @@ class VelocityModelHandler:
                 v_profile.append(v)
             self.velocity_profiles[phase_lower] = (depths, np.array(v_profile))
 
-    # TODO: Write a comparison function to evaluate the accuracy of
-    # precomputed velocities against direct TauP calls,
-    # especially for ray-tracing mode where accuracy is critical.
     def _get_velocity_1d(self, depth, phase):
         """Get velocity at a given depth for a specific phase."""
         phase_lower = phase.lower()[-1]
