@@ -24,7 +24,6 @@ class TauTimeTables(PropagationModel):
     def __init__(
         self,
         model_tvel: str,
-        model_name: str,
         phases: List[str],
         max_depth: float,
         max_distance: float,
@@ -33,7 +32,7 @@ class TauTimeTables(PropagationModel):
         engine: str = "pyrocko",
         overwrite: bool = False,
     ):
-        self.model = TauPyModel(model_name)
+        model_name = Path(model_tvel).stem
         self.engine = engine
         self.tracer: PropagationModel
         if engine == "taup":
