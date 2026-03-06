@@ -16,7 +16,6 @@ class TracerSetupMixin:
         engine: EngineLiteral,
         phases: "tuple[str, ...]",
         tvel_file_path,
-        model_name: str,
         max_depth: Optional[float],
         max_distance: Optional[float],
         depth_step: Optional[float],
@@ -42,7 +41,6 @@ class TracerSetupMixin:
                 )
             tracer = TauTimeTables(
                 tvel_file_path.as_posix(),
-                model_name,
                 list(phases),
                 float(max_depth),
                 float(max_distance),
