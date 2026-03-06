@@ -332,10 +332,10 @@ def locator_factory(mode, engine, phases, model_path):
         phases=phases,
         mode="table",
         engine=engine,
-        max_distance=250.0,
-        distance_step=1.0,
-        max_depth=50.0,
-        depth_step=2.0,
+        max_distance_km=250.0,
+        distance_step_km=1.0,
+        max_depth_km=50.0,
+        depth_step_km=2.0,
     )
 
 
@@ -671,7 +671,7 @@ def run_scenario(scn: Scenario, taup_model, relocation_summary):
         locator = _make_locator()
         locator.load_data(data.inventory, data.cached_catalog)
         est_events, invalids = locator.locate(
-            max_iterations=1000, trial_depth=5.0, solver=scn.solver
+            max_iterations=1000, trial_depth_km=5.0, solver=scn.solver
         )
         invalids = _normalize_invalids(invalids)
         assert len(est_events) == len(data.true_events)
@@ -695,7 +695,7 @@ def run_scenario(scn: Scenario, taup_model, relocation_summary):
                 locator = _make_locator()
                 locator.load_data(data.inventory, single_cat)
                 out, inv = locator.locate(
-                    max_iterations=1000, trial_depth=5.0, solver=scn.solver
+                    max_iterations=1000, trial_depth_km=5.0, solver=scn.solver
                 )
             assert len(out) == 1
             est_events.append(out[0])

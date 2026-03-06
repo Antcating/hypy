@@ -115,10 +115,10 @@ class EventLocator(
         default_time_error: float = 0.1,
         mode: ModeLiteral = "table",
         engine: EngineLiteral = "taup",
-        max_depth: Optional[float] = None,
-        max_distance: Optional[float] = None,
-        depth_step: Optional[float] = None,
-        distance_step: Optional[float] = None,
+        max_depth_km: Optional[float] = None,
+        max_distance_km: Optional[float] = None,
+        depth_step_km: Optional[float] = None,
+        distance_step_km: Optional[float] = None,
         distance_weight_start: Optional[float] = None,
         distance_weight_end: Optional[float] = None,
         weight_start: Optional[float] = 0.99,
@@ -189,11 +189,10 @@ class EventLocator(
         # Also, it introduces resolution to velocity values no matter
         # what travel-time calculation engine is used,
         # which can impact the accuracy of the solution in ray-tracing mode.
-        self._precalculate_velocities: bool = bool(_precalculate_velocities)
-        if self._precalculate_velocities:
-            validate_precompute_args(max_depth, depth_step)
+        if self.config.precalculate_velocities:
+            validate_precompute_args(max_depth_km, depth_step_km)
             self.model_handler._precompute_velocity_profiles_1d(
-                self.dh.phases, max_depth, depth_step
+                self.config.phases, max_depth_km, depth_step_km
             )  # type: ignore[arg-type]
 
     def load_data(self, inv: Inventory, catalog: Union[List[Event], Catalog]) -> None:

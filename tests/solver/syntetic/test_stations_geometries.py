@@ -415,15 +415,15 @@ def test_event_location_vs_geometry(
             phases=phases,
             mode="table",
             engine=engine,
-            max_distance=250.0,
-            distance_step=1.0,
-            max_depth=50.0,
-            depth_step=2.0,
+            max_distance_km=250.0,
+            distance_step_km=1.0,
+            max_depth_km=50.0,
+            depth_step_km=2.0,
         )
 
     # run
     locator.load_data(inventory, catalog)
-    out, _ = locator.locate(max_iterations=1000, trial_depth=5.0, solver="lsqr")
+    out, _ = locator.locate(max_iterations=1000, trial_depth_km=5.0, solver="lsqr")
 
     # extract final origin
     e = out[0]
