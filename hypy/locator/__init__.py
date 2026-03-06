@@ -114,7 +114,7 @@ class EventLocator(
     def __init__(
         self,
         model_tvel_path: str,
-        phases: Sequence[str] = ("P", "S"),
+        phases: Tuple[str, ...] = ("P", "S"),
         min_picks_per_event: int = 4,
         default_time_error: float = 0.1,
         mode: ModeLiteral = "table",
