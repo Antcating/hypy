@@ -6,7 +6,8 @@ Exposes EventLocator composed from internal mixins.
 
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple, Union, TYPE_CHECKING
-from typing_extensions import Literal
+
+from hypy.locator.config import ModeLiteral, EngineLiteral
 
 import numpy as np
 
@@ -111,13 +112,13 @@ class EventLocator(
     """
 
     def __init__(
-        self: "LocatorState",
-        model_tvel: str,
-        phases: Sequence[str] = ("P",),
+        self,
+        model_tvel_path: str,
+        phases: Sequence[str] = ("P", "S"),
         min_picks_per_event: int = 4,
-        time_error_floor: float = 0.1,
-        mode: str = "table",
-        engine: str = "pyrocko",
+        default_time_error: float = 0.1,
+        mode: ModeLiteral = "table",
+        engine: EngineLiteral = "taup",
         max_depth: Optional[float] = None,
         max_distance: Optional[float] = None,
         depth_step: Optional[float] = None,
@@ -126,30 +127,86 @@ class EventLocator(
         distance_weight_end: Optional[float] = None,
         weight_start: Optional[float] = 0.99,
         weight_end: Optional[float] = 0.01,
-        _fix_depth: bool = False,
+        fix_depth: bool = False,
         _precalculate_velocities: bool = False,
     ):
         super().__init__()
         # --- Basic config / validation
-        self.dim: int = 4  # Solve for (x, y, z, t0); hardcoded invariant.
-        self._fix_depth: bool = _fix_depth
 
-        self.tvel_file_path: Path = Path(model_tvel).expanduser().resolve()
+        # Dimensionality of the inversion problem (x, y, z, t0)
+        # Note: for now, only 4D is supported, but this could be made flexible in the future if needed.
+        self.dim: int = 4
+
+        # Whether to fix event depths during inversion.
+        # This is a common practice when the problem is severely underconstrained,
+        # e.g. due to sparse station coverage or lack of depth-sensitive phases.
+        # Note: this is a global setting that applies to all events. If you want
+        # to fix depth for some events but not others, individual events
+        # with operator-assigned depths in the input catalog will also be depth-fixed,
+        # regardless of this setting.
+        # Note: the solver will still compute depth updates, but they will be ignored
+        # when applying the update to the event locations. This means that fixing depth
+        # will not reduce the computational cost of the inversion,
+        # but it can help stabilize the solution when depth is poorly constrained.
+        self.fix_depth: bool = fix_depth
+
+        # Path to the velocity model file as there is no way to infer if the model is
+        # already loaded in obspy's TauP or not.
+        # The model will be loaded during the first call to locate().
+        self.tvel_file_path: Path = Path(model_tvel_path).expanduser().resolve()
         self.model_name: str = self.tvel_file_path.stem
 
-        self.phases: Tuple[str, ...] = tuple(phases or ("P",))
+        # Phases to use for travel-time calculations.
+        # This can be used to limit the inversion to a subset of phases,
+        # even if the input catalog contains picks for more phases.
+        self.phases: Tuple[str, ...] = tuple(phases or ("P", "S"))
         self.n_phases: int = len(self.phases)
+
+        # Minimum number of picks required per event to attempt location.
+        # Events with fewer picks will be marked as invalid and skipped during inversion.
+        # The lowest reasonable value is equal to the dimensionality of the problem.
+        # For example, if the depth is fixed for all events, the effective dimensionality
+        # is reduced by one, so the minimum number of picks can also be reduced by one.
         self.min_picks_per_event: int = int(min_picks_per_event)
-        self.time_error_floor: float = float(time_error_floor)
 
-        self.mode: str = validate_mode(mode)
-        self.engine: str = validate_engine(engine)
-        self.solver: SolverLiteral = "lsqr"
+        # If a pick does not have an associated time error,
+        # this default error (in seconds) will be used.
+        self.default_time_error: float = float(default_time_error)
 
-        # --- Velocity model & tracer setup
+        # Validate mode and engine
+        self.mode: ModeLiteral = validate_mode(mode)
+        self.engine: EngineLiteral = validate_engine(engine)
+
+        # Initiate TauPyModel for the given velocity model file.
+        # TODO: Evaluate if this can be engine specific in the future
+        # to remove hard dependency on obspy's TauPyModel when using other engines.
         self.model: TauPyModel = self._init_velocity_model(
             self.model_name, self.tvel_file_path
         )
+
+        # Boundaries and sampling for travel-time tables (if using table mode)
+        # TODO: Evaluate if these can be moved to the solver as they are
+        # solution-specific parameters rather than locator-specific.
+        self.max_depth = max_depth
+        self.max_distance = max_distance
+        self.depth_step = depth_step
+        self.distance_step = distance_step
+
+        # Distance-based weighting parameters
+        # for optional distance weighting of residuals during inversion
+        self.distance_weight_start = distance_weight_start
+        self.distance_weight_end = distance_weight_end
+        self.weight_start = weight_start
+        self.weight_end = weight_end
+
+        # Whether to precompute velocity profiles for all events.
+        # This can speed up travel-time calculations,
+        # but introduces additional overhead during initialization.
+        # Also, it introduces resolution to velocity values no matter
+        # what travel-time calculation engine is used,
+        # which can impact the accuracy of the solution in ray-tracing mode.
+        self._precalculate_velocities: bool = (False,)
+
         self.tracer, self.max_depth = self._init_tracer(
             mode=self.mode,
             engine=self.engine,

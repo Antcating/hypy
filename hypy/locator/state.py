@@ -26,11 +26,11 @@ from .types import (
 class LocatorState(Protocol):
     # core config
     dim: int
-    _fix_depth: bool
+    fix_depth: bool
     phases: Tuple[str, ...]
     n_phases: int
     min_picks_per_event: int
-    time_error_floor: float
+    default_time_error: float
     mode: str
     engine: str
     max_depth: Optional[float]

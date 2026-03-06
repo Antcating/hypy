@@ -116,7 +116,7 @@ class DataMixin:
         # -------------------- 4) Build fixed-depth mask --------------------
         # An event is depth-fixed if global `_fix_depth` is set OR its last origin has operator-assigned depth.
         self.fixed_depth_mask = [
-            self._fix_depth
+            self.fix_depth
             or (
                 len(ev.origins) > 0 and ev.origins[-1].depth_type == "operator assigned"
             )
@@ -243,7 +243,7 @@ class DataMixin:
                     # Store arrival time RELATIVE to t_ref
                     arrival_time = float(pick.time) - self.time_refs[event_idx]
                     arrival_time_error = (
-                        self.time_error_floor
+                        self.default_time_error
                         if (
                             pick.time_errors is None
                             or pick.time_errors.uncertainty is None
@@ -251,9 +251,9 @@ class DataMixin:
                         )
                         else pick.time_errors.uncertainty
                     )
-                    if arrival_time_error == self.time_error_floor:
+                    if arrival_time_error == self.default_time_error:
                         logger.warning(
-                            f"Pick {network}.{station} {phase}: invalid error → using floor {self.time_error_floor}s."
+                            f"Pick {network}.{station} {phase}: invalid error → using floor {self.default_time_error}s."
                         )
 
                     j = self.n_phases * station_idx + phase_idx

@@ -96,7 +96,7 @@ class InversionMixin:
         logger.info(f"Using {self.solver} solver.")
         logger.info(f"Using {self.mode} mode for travel-time calculations.")
         logger.info(f"Distance weighting: {self._distance_weighting}")
-        logger.info(f"Fix depth: {self._fix_depth}")
+        logger.info(f"Fix depth: {self.fix_depth}")
         logger.info(f"Precalculate velocities: {self._precalculate_velocities}")
 
         damping = 1.0
