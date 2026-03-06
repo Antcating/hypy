@@ -10,6 +10,38 @@ from . import derivatives as _derivatives
 from .types import DerivativeContext, IterationConfig, Matrices, Weights
 
 
+def _compute_true_rms(
+    *,
+    ctx: DerivativeContext,
+    matrices: Matrices,
+    weights: Weights,
+):
+    """
+    Recompute travel times for the CURRENT model state and return:
+    - true RMS in seconds over valid rows
+    - pop dictionary from populate_derivative_matrix
+    - residuals_flat
+    """
+    pop = _derivatives.populate_derivative_matrix(
+        ctx=ctx,
+        matrices=matrices,
+        weights=weights,
+    )
+
+    valid_rows = pop["valid_rows"]
+    theoretical_travel_times = pop["theoretical_travel_times"]
+
+    if len(valid_rows) == 0:
+        return np.inf, pop, np.array([], dtype=float)
+
+    observed_travel_times = matrices.arrivals - matrices.origin_times[:, np.newaxis]
+    residuals = observed_travel_times - theoretical_travel_times
+    residuals_flat = residuals.flatten()
+
+    true_rms = np.sqrt(np.mean(residuals_flat[valid_rows] ** 2))
+    return true_rms, pop, residuals_flat
+
+
 def run_location_iterations(
     *,
     cfg: IterationConfig,
@@ -20,20 +52,22 @@ def run_location_iterations(
     def _clip_updates(
         it, dx, max_horizontal_km=3.0, max_vertical_km=1.0, max_time_s=1.0
     ):
+        raw_dx = dx.copy()
+
+        horiz_exceeds = np.any(np.abs(raw_dx[:, :2]) > max_horizontal_km, axis=1)
+
         dx[:, 0:2] = np.clip(dx[:, 0:2], -max_horizontal_km, max_horizontal_km)
         dx[:, 2] = np.clip(dx[:, 2], -max_vertical_km, max_vertical_km)
         dx[:, 3] = np.clip(dx[:, 3], -max_time_s, max_time_s)
 
-        is_horiz_exceeds_depth = np.any(np.abs(dx[:, :2]) > max_vertical_km, axis=1)
-        is_horiz_exceeds_limit = np.any(np.abs(dx[:, :2]) > max_horizontal_km, axis=1)
-
-        if np.any(is_horiz_exceeds_limit):
+        if np.any(horiz_exceeds):
             logger.warning(
-                f"Iteration {it}: Preventing large horizontal shifts from causing large depth changes "
-                f"for {np.sum(is_horiz_exceeds_depth)} events."
+                f"Iteration {it}: large horizontal updates for {np.sum(horiz_exceeds)} events; "
+                "zeroing coupled depth/time updates for those events."
             )
-            dx[:, 2] = np.where(is_horiz_exceeds_depth, 0, dx[:, 2])
-            dx[:, 3] = np.where(is_horiz_exceeds_depth, 0, dx[:, 3])
+            dx[horiz_exceeds, 2] = 0.0
+            dx[horiz_exceeds, 3] = 0.0
+
         return dx
 
     # def _taper_depth_updates(current_depth, max_depth, offset=0.1):
@@ -53,11 +87,10 @@ def run_location_iterations(
     damping = 1.0
     max_damping = 10.0
     A = None
-    residual_norms = []
     residuals_flat = np.array([])
     valid_rows = np.array([], dtype=int)
 
-    prev_res = None
+    previous_rms = None
 
     it = -1
 
@@ -106,12 +139,6 @@ def run_location_iterations(
         dx = dx_solution.reshape((ctx.n_events, ctx.dim))
         dx = _clip_updates(it, dx)
 
-        # Residual AFTER step for the linearized subproblem
-        residual_vector = A @ dx_solution - b  # r_new
-        res_norm = np.linalg.norm(residual_vector)
-        residual_norms.append(res_norm)
-        rms = np.sqrt(np.mean(residual_vector**2))
-
         # Depth sanity / constraints
         for event_idx in range(ctx.n_events):
             if matrices.invalid_events[event_idx]:
@@ -126,7 +153,7 @@ def run_location_iterations(
                 dx[event_idx, :] = 0.0
             elif it > cfg.init_phase_iteration_max and new_depth > cfg.max_depth:
                 logger.warning(
-                    f"Event {event_idx} depth exceeds max depth ({new_depth} km > {max_depth} km). Mark invalid."
+                    f"Event {event_idx} depth exceeds max depth ({new_depth} km > {cfg.max_depth} km). Mark invalid."
                 )
                 matrices.invalid_events[event_idx] = True
                 dx[event_idx, :] = 0.0
@@ -138,15 +165,18 @@ def run_location_iterations(
         matrices.locations[valid_mask, :3] -= dx[valid_mask, :3]
         matrices.origin_times[valid_mask] += dx[valid_mask, 3]
 
-        logger.debug(
-            f"Iteration {it + 1}: Residual norm={res_norm:.6f}, RMS={rms:.6f} s, Damping={damping:.6f}"
-        )
+        # Calculate RMS
+        rms = _compute_true_rms(ctx=ctx, matrices=matrices, weights=weights)[0]
+
+        logger.debug(f"Iteration {it + 1}, RMS={rms:.6f} s, Damping={damping:.6f}")
 
         # --- Adaptive damping update
         damping = np.clip(
             update_damping_factor(
                 current_factor=float(damping),
-                rms_prev=float(prev_res) if prev_res is not None else float(rms),
+                rms_prev=float(previous_rms)
+                if previous_rms is not None
+                else float(rms),
                 rms_new=float(rms),
             ),
             0.0,
@@ -154,8 +184,8 @@ def run_location_iterations(
         )
 
         # Convergence check
-        if prev_res is not None:
-            rel_impr = np.abs((prev_res - rms) / max(prev_res, 1e-12))
+        if previous_rms is not None:
+            rel_impr = np.abs((previous_rms - rms) / max(previous_rms, 1e-12))
             if rms < cfg.conv_threshold or rel_impr < 1e-8:
                 logger.info(
                     f"conv_threshold={cfg.conv_threshold}, rms={rms:.6f} s, rel_impr={rel_impr:.6e}"
@@ -165,7 +195,7 @@ def run_location_iterations(
                     f"Relative improvement={rel_impr:.6e}"
                 )
                 break
-        prev_res = rms
+        previous_rms = rms
 
     logger.info(f"Location iterations completed in {it + 1} iterations.")
     logger.info(
