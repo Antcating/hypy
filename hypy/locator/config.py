@@ -64,3 +64,35 @@ def validate_precompute_args(
         raise ValueError(
             "When using precalculated velocities, 'max_depth' and 'depth_step' must be provided."
         )
+
+
+@dataclass(frozen=True)
+class LocatorConfig:
+    """
+    Immutable configuration for the event locator.
+
+    Holds all settings that do not change during a locate() run.
+    Created once in EventLocator.__init__ and shared (read-only) with all components.
+    """
+
+    tvel_file_path: Path
+    model_name: str
+    phases: tuple
+    min_picks_per_event: int
+    default_time_error: float
+    mode: ModeLiteral
+    engine: EngineLiteral
+    max_depth_km: Optional[float]
+    max_distance_km: Optional[float]
+    depth_step_km: Optional[float]
+    distance_step_km: Optional[float]
+    fix_depth: bool
+    precalculate_velocities: bool
+    distance_weighting_enabled: bool
+    k: Optional[float]
+    x0: Optional[float]
+    dim: int = 4
+
+    @property
+    def n_phases(self) -> int:
+        return len(self.phases)
