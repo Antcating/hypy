@@ -5,34 +5,66 @@ import numpy as np
 
 from ..logger import logger  # type: ignore[import-not-found]
 from ..utils.weighting import time_error_weight
-from .types import TYPE_CHECKING, Catalog, Event, Inventory
-
-if TYPE_CHECKING:
-    from .state import LocatorState
-else:
-
-    class LocatorState:
-        pass
+from .types import Catalog, Event, Inventory
 
 
-class DataMixin:
-    def __init__(self, *args, **kwargs) -> None:
-        # per-instance defaults
-        self.inv = None
+class DataHandler:
+    def __init__(
+        self,
+        phases: tuple,
+        min_picks_per_event: int,
+        default_time_error: float,
+        dim: int,
+        fix_depth: bool = False,
+    ) -> None:
+        # Per-solve data containers
+
+        # Phases to use for travel-time calculations.
+        # This can be used to limit the inversion to a subset of phases,
+        # even if the input catalog contains picks for more phases.
+        self.phases: tuple = phases
+        self.n_phases = len(phases)
+
+        # Minimum number of picks required per event to attempt location.
+        # Events with fewer picks will be marked as invalid and skipped during inversion.
+        # The lowest reasonable value is equal to the dimensionality of the problem.
+        # For example, if the depth is fixed for all events, the effective dimensionality
+        # is reduced by one, so the minimum number of picks can also be reduced by one.
+        self.min_picks_per_event = min_picks_per_event
+
+        # If a pick does not have an associated time error,
+        # this default error (in seconds) will be used.
+        self.default_time_error = default_time_error
+
+        # Whether to fix event depths during inversion.
+        # This is a common practice when the problem is severely underconstrained,
+        # e.g. due to sparse station coverage or lack of depth-sensitive phases.
+        # Note: this is a global setting that applies to all events. If you want
+        # to fix depth for some events but not others, individual events
+        # with operator-assigned depths in the input catalog will also be depth-fixed,
+        # regardless of this setting.
+        # Note: the solver will still compute depth updates, but they will be ignored
+        # when applying the update to the event locations. This means that fixing depth
+        # will not reduce the computational cost of the inversion,
+        # but it can help stabilize the solution when depth is poorly constrained.
+        self.fix_depth = fix_depth
+        self.fixed_depth_mask: list = []
+
+        # Dimensionality of the inversion problem (x, y, z, t0)
+        # Note: for now, only 4D is supported, but this could be made flexible in the future if needed.
+        self.dim = dim
+
+        # Inventory
+        self.inv: Inventory
+
+        # Catalog
+        self.events: Union[List[Event], Catalog]
+        self.n_events: int
 
         self.stations: list = []  # list[tuple[str, str]]
         self.stations_locations = np.empty((0, 3), dtype=float)
         self.n_stations = 0
 
-        self.phases: tuple = tuple()
-        self.n_phases = 0
-        self.min_picks_per_event = 0
-        self.time_error_floor = 0.0
-
-        self.events: list = []  # Catalog | list[Event]
-        self.n_events = 0
-
-        self.fixed_depth_mask: list = []
         self.invalid_events = np.zeros(0, dtype=bool)
 
         self.arrivals = np.empty((0, 0))
@@ -45,10 +77,8 @@ class DataMixin:
         self.origin_times = np.empty((0,), dtype=float)
         self.time_refs = np.empty((0,), dtype=float)
 
-        super().__init__(*args, **kwargs)  # cooperative MRO
-
     def load_data(
-        self: "LocatorState", inventory: Inventory, events: Union[List[Event], Catalog]
+        self, inventory: Inventory, events: Union[List[Event], Catalog]
     ) -> None:
         """
         Load inventory and events, extract the set of stations present in picks,
@@ -127,9 +157,7 @@ class DataMixin:
         self._allocate_arrays(self.n_events, self.n_stations, self.n_phases)
         self._fill_data()
 
-    def _allocate_arrays(
-        self: "LocatorState", n_events: int, n_stations: int, n_phases: int
-    ) -> None:
+    def _allocate_arrays(self, n_events: int, n_stations: int, n_phases: int) -> None:
         """
         Allocate all working arrays used during event location.
 
@@ -184,7 +212,7 @@ class DataMixin:
         # Marks events excluded from inversion due to insufficient data or bad geometry.
         self.invalid_events = np.zeros(n_events, dtype=bool)
 
-    def _fill_data(self: "LocatorState") -> None:
+    def _fill_data(self) -> None:
         for event_idx, event in enumerate(self.events):
             if len(event.picks) < self.min_picks_per_event:
                 logger.warning(
