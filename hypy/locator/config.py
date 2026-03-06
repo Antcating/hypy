@@ -1,10 +1,10 @@
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
 import numpy as np
 
-
-from .types import Literal, Optional
-
-ModeLiteral = Literal["table", "ray"]
-EngineLiteral = Literal["taup", "pyrocko"]
+from .types import EngineLiteral, ModeLiteral, SolverLiteral
 
 
 def validate_mode(mode: str) -> ModeLiteral:
@@ -17,6 +17,12 @@ def validate_engine(engine: str) -> EngineLiteral:
     if engine not in ("taup", "pyrocko"):
         raise ValueError(f"Unsupported engine: {engine!r}. Use 'taup' or 'pyrocko'.")
     return engine  # type: ignore[return-value]
+
+
+def validate_solver(solver: str) -> SolverLiteral:
+    if solver not in ("lsqr", "svd"):
+        raise ValueError(f"Unsupported solver: {solver!r}. Use 'lsqr' or 'svd'.")
+    return solver  # type: ignore[return-value]
 
 
 def configure_distance_weighting(
@@ -51,7 +57,9 @@ def configure_distance_weighting(
     return True, float(k), float(x0)
 
 
-def validate_precompute_args(max_depth, depth_step) -> None:
+def validate_precompute_args(
+    max_depth: Optional[float], depth_step: Optional[float]
+) -> None:
     if max_depth is None or depth_step is None:
         raise ValueError(
             "When using precalculated velocities, 'max_depth' and 'depth_step' must be provided."
