@@ -5,36 +5,36 @@ Exposes EventLocator composed from internal mixins.
 """
 
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple, Union, TYPE_CHECKING
-
-from hypy.locator.config import ModeLiteral, EngineLiteral
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import numpy as np
 
+from hypy.locator.config import EngineLiteral, ModeLiteral
+
+from ..propagation import PropagationModel
 from .config import (
     configure_distance_weighting,
     validate_engine,
     validate_mode,
     validate_precompute_args,
 )
-from .data import DataMixin
+from .data import DataHandler
 from .derivatives import DerivativesMixin
 from .errors import ErrorAnalysisMixin
 from .finalize import FinalizeMixin
 from .init_locations import InitLocationsMixin
 from .inversion import InversionMixin
 from .model import ModelMixin
-from .tracer_setup import TracerSetupMixin
+from .tracer_setup import init_tracer
 from .types import (
     Catalog,
+    EngineLiteral,
     Event,
     Inventory,
-    SolverLiteral,
-    EngineLiteral,
     ModeLiteral,
+    SolverLiteral,
     TauPyModel,
 )
-
 
 if TYPE_CHECKING:
     from .state import LocatorState
@@ -46,9 +46,6 @@ else:
 
 class EventLocator(
     ModelMixin,
-    TracerSetupMixin,
-    DataMixin,
-    DerivativesMixin,
     InitLocationsMixin,
     InversionMixin,
     ErrorAnalysisMixin,
@@ -131,47 +128,12 @@ class EventLocator(
         _precalculate_velocities: bool = False,
     ):
         super().__init__()
-        # --- Basic config / validation
-
-        # Dimensionality of the inversion problem (x, y, z, t0)
-        # Note: for now, only 4D is supported, but this could be made flexible in the future if needed.
-        self.dim: int = 4
-
-        # Whether to fix event depths during inversion.
-        # This is a common practice when the problem is severely underconstrained,
-        # e.g. due to sparse station coverage or lack of depth-sensitive phases.
-        # Note: this is a global setting that applies to all events. If you want
-        # to fix depth for some events but not others, individual events
-        # with operator-assigned depths in the input catalog will also be depth-fixed,
-        # regardless of this setting.
-        # Note: the solver will still compute depth updates, but they will be ignored
-        # when applying the update to the event locations. This means that fixing depth
-        # will not reduce the computational cost of the inversion,
-        # but it can help stabilize the solution when depth is poorly constrained.
-        self.fix_depth: bool = fix_depth
 
         # Path to the velocity model file as there is no way to infer if the model is
         # already loaded in obspy's TauP or not.
         # The model will be loaded during the first call to locate().
         self.tvel_file_path: Path = Path(model_tvel_path).expanduser().resolve()
         self.model_name: str = self.tvel_file_path.stem
-
-        # Phases to use for travel-time calculations.
-        # This can be used to limit the inversion to a subset of phases,
-        # even if the input catalog contains picks for more phases.
-        self.phases: Tuple[str, ...] = tuple(phases or ("P", "S"))
-        self.n_phases: int = len(self.phases)
-
-        # Minimum number of picks required per event to attempt location.
-        # Events with fewer picks will be marked as invalid and skipped during inversion.
-        # The lowest reasonable value is equal to the dimensionality of the problem.
-        # For example, if the depth is fixed for all events, the effective dimensionality
-        # is reduced by one, so the minimum number of picks can also be reduced by one.
-        self.min_picks_per_event: int = int(min_picks_per_event)
-
-        # If a pick does not have an associated time error,
-        # this default error (in seconds) will be used.
-        self.default_time_error: float = float(default_time_error)
 
         # Validate mode and engine
         self.mode: ModeLiteral = validate_mode(mode)
@@ -198,6 +160,10 @@ class EventLocator(
         self.distance_weight_end = distance_weight_end
         self.weight_start = weight_start
         self.weight_end = weight_end
+        # Calculate parameters for distance weighting function based on the provided configuration
+        (self._distance_weighting, self.k, self.x0) = configure_distance_weighting(
+            distance_weight_start, distance_weight_end, weight_start, weight_end
+        )
 
         # Whether to precompute velocity profiles for all events.
         # This can speed up travel-time calculations,
@@ -205,28 +171,28 @@ class EventLocator(
         # Also, it introduces resolution to velocity values no matter
         # what travel-time calculation engine is used,
         # which can impact the accuracy of the solution in ray-tracing mode.
-        self._precalculate_velocities: bool = (False,)
+        self._precalculate_velocities: bool = False
 
-        self.tracer, self.max_depth = self._init_tracer(
+        # Data handling
+        self.dh: DataHandler = DataHandler(
+            phases=phases,
+            min_picks_per_event=min_picks_per_event,
+            default_time_error=default_time_error,
+            dim=4,
+            fix_depth=fix_depth,
+        )
+
+        # Initialize the travel-time calculator (tracer) based on the selected mode and engine.
+        self.tracer: PropagationModel = init_tracer(
             mode=self.mode,
             engine=self.engine,
-            phases=self.phases,
+            phases=self.dh.phases,
             tvel_file_path=self.tvel_file_path,
-            model_name=self.model_name,
             max_depth=max_depth,
             max_distance=max_distance,
             depth_step=depth_step,
             distance_step=distance_step,
         )
-        self.max_distance: Optional[float] = max_distance
-
-        # --- Station / event containers (filled later)
-        self.inv: Inventory
-        self.stations: List[Tuple[str, str]] = []
-        self.stations_locations: np.ndarray
-        self.n_stations: int = 0
-        self.events: Union[List[Event], Catalog]
-        self.n_events: int = 0
 
         # --- Data & model matrices (allocated later)
         self.origin_times: np.ndarray
@@ -239,10 +205,6 @@ class EventLocator(
         self.arrival_time_errors: np.ndarray
         self.time_error_W: np.ndarray
         self.distance_W: np.ndarray
-
-        (self._distance_weighting, self.k, self.x0) = configure_distance_weighting(
-            distance_weight_start, distance_weight_end, weight_start, weight_end
-        )
 
         # --- Uncertainty/covariance products (computed later)
         self._covariances: np.ndarray
@@ -257,6 +219,20 @@ class EventLocator(
             validate_precompute_args(max_depth, depth_step)
             self.velocity_profile_dimensionality: int = 1
             self._precompute_velocity_profiles_1d(max_depth, depth_step)  # type: ignore[arg-type]
+
+    def load_data(self, inv: Inventory, catalog: Union[List[Event], Catalog]) -> None:
+        """
+        Load station and event data from ObsPy Inventory and Catalog objects.
+
+        Parameters
+        ----------
+        inv : Inventory
+            ObsPy Inventory object containing station metadata.
+        catalog : Union[List[Event], Catalog]
+            ObsPy Catalog or list of Event objects containing event and pick data.
+        """
+
+        self.dh.load_data(inv, catalog)
 
 
 __all__ = ["EventLocator"]
