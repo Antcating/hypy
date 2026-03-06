@@ -179,7 +179,7 @@ class EventLocator:
             distance_step=distance_step_km,
         )
 
-        # Derivative engine — bridges config, data, model, and tracer
+        # Derivative engine - bridges config, data, model, and tracer
         self.derivative_engine = DerivativeEngine(
             config=self.config,
             data=self.data,
@@ -212,7 +212,7 @@ class EventLocator:
         """
         self.data.load_data(inv, catalog)
 
-    # Alias for backward compatibility
+    # Dummy alias for better discoverability in the API
     load = load_data
 
     def locate(
@@ -269,7 +269,7 @@ class EventLocator:
             max_iterations=max_iterations,
             conv_threshold=conv_threshold,
             solve_airquakes=solve_airquakes,
-            max_depth=self.config.max_depth_km or 50.0,
+            max_depth=self.config.max_depth_km or 300.0,
             safe_iteration_limit=safe_iteration_limit,
         )
 
