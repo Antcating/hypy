@@ -1,12 +1,9 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
     List,
+    Literal,
     Optional,
-    Protocol,
     Sequence,
     Tuple,
     Union,
@@ -25,8 +22,6 @@ from obspy.core.event.origin import (  # type: ignore[import-untyped]
     OriginUncertainty,
 )
 from obspy.core.inventory import Inventory  # type: ignore[import-untyped]
-from obspy.taup import TauPyModel  # type: ignore[import-untyped]
-from typing_extensions import Literal
 
 DimLiteral = Literal[4]
 ModeLiteral = Literal["table", "ray"]
