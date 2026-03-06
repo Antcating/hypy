@@ -1,31 +1,35 @@
+from typing import List, Union
+
 import numpy as np
 
+from .config import LocatorConfig
+from .data import DataHandler
 from .types import (
-    TYPE_CHECKING,
     Arrival,
     Catalog,
     ConfidenceEllipsoid,
+    ErrorResults,
     Event,
-    List,
     Origin,
     OriginUncertainty,
     QuantityError,
-    Union,
-)  # type: ignore[import-untyped]
-
-if TYPE_CHECKING:
-    from .state import LocatorState
+)
 
 
-class FinalizeMixin:
-    def __init__(self, *args, **kwargs) -> None:
-        # per-instance defaults
-        self._principal_std = np.empty((0, 3), dtype=float)
-        self._principal_axes = np.empty((0, 3, 3), dtype=float)
-        self._erz_erh = np.empty((0, 2), dtype=float)
-        super().__init__(*args, **kwargs)  # cooperative MRO
+class OriginFinalizer:
+    """
+    Converts located event data into ObsPy Origin objects with uncertainty information.
 
-    def _finalize_origins(self: "LocatorState") -> Union[List[Event], Catalog]:
+    All dependencies are passed explicitly. Does not own event/station data.
+    """
+
+    def __init__(self, config: LocatorConfig, data: DataHandler) -> None:
+        self.config = config
+        self.data = data
+
+    def finalize_origins(
+        self, error_results: ErrorResults
+    ) -> Union[List[Event], Catalog]:
         """
         Attach final Origin objects to events:
         - Convert stored relative origin times (t0_rel) back to absolute by adding time_refs.
@@ -33,27 +37,30 @@ class FinalizeMixin:
         - Arrival residuals are computed in the same sign convention used in inversion:
           residual = (observed_travel_time - theoretical_travel_time).
         """
+        config = self.config
+        data = self.data
         scale95 = 2.4
-        for event_idx, event in enumerate(self.events):
+
+        for event_idx, event in enumerate(data.events):
             # If invalid - no origins are added
-            if self.invalid_events[event_idx]:
+            if data.invalid_events[event_idx]:
                 continue
 
             origin = Origin()
-            origin.latitude = self.locations[event_idx, 0]
-            origin.longitude = self.locations[event_idx, 1]
-            origin.depth = self.locations[event_idx, 2] * 1000.0  # km -> m
+            origin.latitude = data.locations[event_idx, 0]
+            origin.longitude = data.locations[event_idx, 1]
+            origin.depth = data.locations[event_idx, 2] * 1000.0  # km -> m
 
             # Convert RELATIVE t0 back to ABSOLUTE for output
-            t0_abs = float(self.origin_times[event_idx]) + float(
-                self.time_refs[event_idx]
+            t0_abs = float(data.origin_times[event_idx]) + float(
+                data.time_refs[event_idx]
             )
             origin.time = t0_abs
 
             # Uncertainties / ellipsoid
-            s1, s2, s3 = self._principal_std[event_idx]
-            evecs = self._principal_axes[event_idx]
-            ERZ_1s, ERH_1s = self._erz_erh[event_idx]
+            s1, s2, s3 = error_results.principal_std[event_idx]
+            evecs = error_results.principal_axes[event_idx]
+            ERZ_1s, ERH_1s = error_results.erz_erh[event_idx]
 
             v = evecs[:, 0]
             v = v / np.linalg.norm(v)
@@ -87,15 +94,15 @@ class FinalizeMixin:
             origin.depth_errors = depth_errors
             origin.depth_type = (
                 "operator assigned"
-                if self.fixed_depth_mask[event_idx]
+                if data.fixed_depth_mask[event_idx]
                 else "from location"
             )
 
             # Populate arrival residuals
-            for station_idx, (network, station) in enumerate(self.stations):
-                for phase_idx, phase in enumerate(self.phases):
-                    arr_index = self.n_phases * station_idx + phase_idx
-                    observed_time_rel = self.arrivals[event_idx, arr_index]
+            for station_idx, (network, station) in enumerate(data.stations):
+                for phase_idx, phase in enumerate(config.phases):
+                    arr_index = config.n_phases * station_idx + phase_idx
+                    observed_time_rel = data.arrivals[event_idx, arr_index]
                     if np.isnan(observed_time_rel):
                         continue
 
@@ -112,11 +119,11 @@ class FinalizeMixin:
                     )
 
                     # Theoretical travel time (seconds)
-                    travel_time = self.theoretical_travel_times[event_idx, arr_index]
+                    travel_time = data.theoretical_travel_times[event_idx, arr_index]
 
                     # Observed travel time = observed arrival (REL) - t0_rel
                     observed_travel_time = (
-                        observed_time_rel - self.origin_times[event_idx]
+                        observed_time_rel - data.origin_times[event_idx]
                     )
 
                     # Residual with the same sign convention as inversion:
@@ -132,9 +139,9 @@ class FinalizeMixin:
 
             event.origins.append(origin)
 
-        return self.events
+        return data.events
 
-    def report_invalid_events(self: "LocatorState") -> np.ndarray:
-        if hasattr(self, "invalid_events"):
-            return np.where(self.invalid_events)[0]
-        return np.array([])
+    @staticmethod
+    def report_invalid_events(data: DataHandler) -> np.ndarray:
+        """Return indices of events that were marked invalid during processing."""
+        return np.where(data.invalid_events)[0]

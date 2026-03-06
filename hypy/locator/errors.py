@@ -1,31 +1,37 @@
+from typing import List, Optional
+
 import numpy as np
-from .types import TYPE_CHECKING, List
 
-if TYPE_CHECKING:
-    from .state import LocatorState
+from .config import LocatorConfig
+from .data import DataHandler
+from .types import ErrorResults, InversionResults
 
 
-class ErrorAnalysisMixin:
-    def __init__(self, *args, **kwargs) -> None:
-        # per-instance defaults
-        self._covariances = np.empty((0, 0, 0), dtype=float)
-        self._spatial_covariances = np.empty((0, 0, 0), dtype=float)
-        self._principal_std = np.empty((0, 0), dtype=float)
-        self._principal_axes = np.empty((0, 0, 0), dtype=float)
-        self._erz_erh = np.empty((0, 0), dtype=float)
+class ErrorAnalyzer:
+    """
+    Computes error ellipsoids and uncertainty estimates for located events.
 
-        self._residuals_flat_final = np.empty((0,), dtype=float)
+    All dependencies are passed explicitly. Does not own event/station data.
+    Returns ErrorResults containing covariance matrices and principal axes.
+    """
 
-        super().__init__(*args, **kwargs)  # cooperative MRO
+    def __init__(self, config: LocatorConfig, data: DataHandler) -> None:
+        self.config = config
+        self.data = data
 
+    @staticmethod
     def _compute_event_errors(
-        self: "LocatorState", A_e, r_e, pick_errs_e, damping: float
-    ):
+        A_e: np.ndarray,
+        r_e: np.ndarray,
+        pick_errs_e: np.ndarray,
+        damping: float,
+        dim: int,
+    ) -> Optional[dict]:
         if A_e is None or A_e.size == 0:
             return None
 
         N = A_e.T @ A_e
-        N_reg = N + (damping**2) * np.eye(self.dim)
+        N_reg = N + (damping**2) * np.eye(dim)
 
         rms = float(np.sqrt(np.mean(r_e**2))) if r_e.size else 0.0
         rderr = float(np.nanmedian(pick_errs_e)) if pick_errs_e.size else 0.0
@@ -61,37 +67,55 @@ class ErrorAnalysisMixin:
             "RDERR_s": rderr,
         }
 
-    def _compute_error_ellipsoids(self: "LocatorState"):
-        self._covariances = np.zeros((self.n_events, self.dim, self.dim))
-        self._spatial_covariances = np.zeros(
-            (self.n_events, self.dim - 1, self.dim - 1)
-        )
-        self._principal_std = np.zeros((self.n_events, self.dim - 1))
-        self._principal_axes = np.zeros((self.n_events, self.dim - 1, self.dim - 1))
-        self._erz_erh = np.zeros((self.n_events, 2))
+    def compute_error_ellipsoids(
+        self, inversion_results: InversionResults
+    ) -> ErrorResults:
+        """
+        Compute per-event error ellipsoids from the final design matrix and residuals.
 
-        A_all = self._A_final
-        valid_rows_all = np.asarray(self._valid_rows_final, dtype=int)
-        residuals_flat = self._residuals_flat_final
-        rows_per_event: List = [[] for _ in range(self.n_events)]
-        errs_per_event: List = [[] for _ in range(self.n_events)]
+        Parameters
+        ----------
+        inversion_results : InversionResults
+            Output of the inversion step containing A_final, valid_rows, residuals.
+
+        Returns
+        -------
+        ErrorResults
+            Covariance matrices, principal axes, and ERZ/ERH for each event.
+        """
+        config = self.config
+        data = self.data
+        dim = config.dim
+        n_obs_per_event = data.n_stations * config.n_phases
+
+        covariances = np.zeros((data.n_events, dim, dim))
+        spatial_covariances = np.zeros((data.n_events, dim - 1, dim - 1))
+        principal_std = np.zeros((data.n_events, dim - 1))
+        principal_axes = np.zeros((data.n_events, dim - 1, dim - 1))
+        erz_erh = np.zeros((data.n_events, 2))
+
+        A_all = inversion_results.A_final
+        valid_rows_all = np.asarray(inversion_results.valid_rows_final, dtype=int)
+        residuals_flat = inversion_results.residuals_flat_final
+
+        rows_per_event: List = [[] for _ in range(data.n_events)]
+        errs_per_event: List = [[] for _ in range(data.n_events)]
 
         for row in valid_rows_all:
-            ev_idx = row // (self.n_stations * self.n_phases)
+            ev_idx = row // n_obs_per_event
             rows_per_event[ev_idx].append(row)
-            local_row = row - ev_idx * (self.n_stations * self.n_phases)
-            errs_per_event[ev_idx].append(self.arrival_time_errors[ev_idx, local_row])
+            local_row = row - ev_idx * n_obs_per_event
+            errs_per_event[ev_idx].append(data.arrival_time_errors[ev_idx, local_row])
 
-        for ev in range(self.n_events):
-            if self.invalid_events[ev]:
+        for ev in range(data.n_events):
+            if data.invalid_events[ev]:
                 continue
             rows = np.array(rows_per_event[ev], dtype=int)
             if rows.size == 0:
                 continue
 
-            # id_event = np.sum(self.invalid_events[:ev])
-            id_start = (self.n_stations * self.n_phases) * ev
-            id_end = (self.n_stations * self.n_phases) * (ev + 1)
+            id_start = n_obs_per_event * ev
+            id_end = n_obs_per_event * (ev + 1)
             rows = id_start + np.arange(
                 len(
                     valid_rows_all[
@@ -99,14 +123,24 @@ class ErrorAnalysisMixin:
                     ]
                 )
             )  # map to global row indices
-            A_e = A_all[rows, ev * self.dim : (ev + 1) * self.dim]
+            A_e = A_all[rows, ev * dim : (ev + 1) * dim]
             r_e = residuals_flat[rows]
             pick_errs_e = np.array(errs_per_event[ev], dtype=float)
-            errinfo = self._compute_event_errors(A_e, r_e, pick_errs_e, damping=0.1)
+            errinfo = self._compute_event_errors(
+                A_e, r_e, pick_errs_e, damping=0.1, dim=dim
+            )
             if errinfo is None:
                 continue
-            self._covariances[ev] = errinfo["C_full"]
-            self._spatial_covariances[ev] = errinfo["C_xyz"]
-            self._principal_std[ev] = errinfo["principal_std_km_1sigma"]
-            self._principal_axes[ev] = errinfo["principal_axes_unit_vectors"].T
-            self._erz_erh[ev] = [errinfo["ERZ_km_1sigma"], errinfo["ERH_km_1sigma"]]
+            covariances[ev] = errinfo["C_full"]
+            spatial_covariances[ev] = errinfo["C_xyz"]
+            principal_std[ev] = errinfo["principal_std_km_1sigma"]
+            principal_axes[ev] = errinfo["principal_axes_unit_vectors"].T
+            erz_erh[ev] = [errinfo["ERZ_km_1sigma"], errinfo["ERH_km_1sigma"]]
+
+        return ErrorResults(
+            covariances=covariances,
+            spatial_covariances=spatial_covariances,
+            principal_std=principal_std,
+            principal_axes=principal_axes,
+            erz_erh=erz_erh,
+        )
