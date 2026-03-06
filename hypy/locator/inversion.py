@@ -1,4 +1,4 @@
-from scipy.sparse.linalg._isolve.lsmr import lsmr
+from scipy.sparse.linalg import lsmr
 
 import numpy as np
 from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
@@ -52,6 +52,8 @@ class InversionEngine:
         def _clip_updates(
             it, dx, max_horizontal_km=3.0, max_vertical_km=1.0, max_time_s=1.0
         ):
+            dx = dx.copy()
+
             dx[:, 0:2] = np.clip(dx[:, 0:2], -max_horizontal_km, max_horizontal_km)
             dx[:, 2] = np.clip(dx[:, 2], -max_vertical_km, max_vertical_km)
             dx[:, 3] = np.clip(dx[:, 3], -max_time_s, max_time_s)
@@ -66,9 +68,29 @@ class InversionEngine:
                     f"Iteration {it}: Preventing large horizontal shifts from causing large depth changes "
                     f"for {np.sum(is_horiz_exceeds_depth)} events."
                 )
-                dx[:, 2] = np.where(is_horiz_exceeds_depth, 0, dx[:, 2])
-                dx[:, 3] = np.where(is_horiz_exceeds_depth, 0, dx[:, 3])
+                dx[:, 2] = np.where(is_horiz_exceeds_depth, 0.0, dx[:, 2])
+                dx[:, 3] = np.where(is_horiz_exceeds_depth, 0.0, dx[:, 3])
+
             return dx
+
+        def _compute_true_residuals_and_rms(valid_rows: np.ndarray):
+            """
+            Compute true residuals for the CURRENT model state:
+                residual = observed_travel_times - theoretical_travel_times
+            and RMS over valid rows only.
+            """
+            observed_travel_times = data.arrivals - data.origin_times[:, np.newaxis]
+            residuals = observed_travel_times - data.theoretical_travel_times
+            residuals_flat_local = residuals.flatten()
+
+            if len(valid_rows) == 0:
+                rms_local = np.inf
+            else:
+                rms_local = float(
+                    np.sqrt(np.mean(residuals_flat_local[valid_rows] ** 2))
+                )
+
+            return residuals_flat_local, rms_local
 
         logger.info(f"Locating {data.n_events} events with {data.n_stations} stations.")
         logger.info(f"Using phases: {config.phases}")
@@ -80,25 +102,22 @@ class InversionEngine:
 
         damping = 1.0
         max_damping = 10.0
-        A = None
-        residual_norms = []
-        residuals_flat = np.array([])
+        residuals_flat = np.array([], dtype=float)
         valid_rows = np.array([], dtype=int)
 
-        prev_res = None
+        prev_true_rms = None
 
         for it in range(max_iterations):
+            # Build derivatives and theoretical travel times for CURRENT model
             valid_rows = self.derivative_engine.populate_derivative_matrix()
             if len(valid_rows) == 0:
                 logger.error("No valid observations available for inversion. Aborting.")
                 break
 
-            # Observed travel times = arrival times (RELATIVE) - origin times (RELATIVE)
-            observed_travel_times = data.arrivals - data.origin_times[:, np.newaxis]
-
-            # Residuals = observed - theoretical travel times per event-station-phase
-            residuals = observed_travel_times - data.theoretical_travel_times
-            residuals_flat = residuals.flatten()
+            # True residuals / true RMS BEFORE update
+            residuals_flat, true_rms_before = _compute_true_residuals_and_rms(
+                valid_rows
+            )
 
             b = (
                 data.distance_W[valid_rows]
@@ -117,23 +136,24 @@ class InversionEngine:
             else:  # SVD with Tikhonov-style filtering
                 U, s, Vt = np.linalg.svd(A, full_matrices=False)
                 s_inv = np.zeros_like(s)
-                s_inv[s > 1e-12] = s[s > 1e-12] / (s[s > 1e-12] ** 2 + damping**2)
+                mask = s > 1e-12
+                s_inv[mask] = s[mask] / (s[mask] ** 2 + damping**2)
                 dx_solution = Vt.T @ (s_inv * (U.T @ b))
 
             # Reshape to event blocks and clip
             dx = dx_solution.reshape((data.n_events, config.dim))
             dx = _clip_updates(it, dx)
 
-            # Residual AFTER step for the linearized subproblem
-            residual_vector = A @ dx_solution - b  # r_new
-            res_norm = np.linalg.norm(residual_vector)
-            residual_norms.append(res_norm)
-            rms = np.sqrt(np.mean(residual_vector**2))
+            # Linearized residual only for diagnostics
+            residual_vector_linear = A @ dx_solution - b
+            linear_res_norm = float(np.linalg.norm(residual_vector_linear))
+            linear_rms = float(np.sqrt(np.mean(residual_vector_linear**2)))
 
             # Depth sanity / constraints
             for event_idx in range(data.n_events):
                 if data.invalid_events[event_idx]:
                     continue
+
                 new_depth = data.locations[event_idx, 2] - dx[event_idx, 2]
                 if not solve_airquakes and new_depth < 0.0:
                     logger.warning(
@@ -141,6 +161,7 @@ class InversionEngine:
                     )
                     data.invalid_events[event_idx] = True
                     dx[event_idx, :] = 0.0
+
                 elif it > safe_iteration_limit and new_depth > max_depth:
                     logger.warning(
                         f"Event {event_idx} depth exceeds max depth ({new_depth} km > {max_depth} km). Mark invalid."
@@ -150,14 +171,29 @@ class InversionEngine:
 
             # Convert km -> deg for lat/lon updates; apply updates
             planet_radius = self.model_handler.model.model.radius_of_planet
-            dx[:, 0] = kilometer2degrees(dx[:, 0], planet_radius)
-            dx[:, 1] = kilometer2degrees(dx[:, 1], planet_radius)
+            dx_apply = dx.copy()
+            dx_apply[:, 0] = kilometer2degrees(dx_apply[:, 0], planet_radius)
+            dx_apply[:, 1] = kilometer2degrees(dx_apply[:, 1], planet_radius)
+
             valid_mask = ~data.invalid_events
-            data.locations[valid_mask, :3] -= dx[valid_mask, :3]
-            data.origin_times[valid_mask] += dx[valid_mask, 3]
+            data.locations[valid_mask, :3] -= dx_apply[valid_mask, :3]
+            data.origin_times[valid_mask] += dx_apply[valid_mask, 3]
+
+            # Rebuild derivatives and recompute TRUE RMS AFTER update
+            valid_rows = self.derivative_engine.populate_derivative_matrix()
+            if len(valid_rows) == 0:
+                logger.error("No valid observations available after update. Aborting.")
+                break
+
+            residuals_flat, true_rms_after = _compute_true_residuals_and_rms(valid_rows)
 
             logger.debug(
-                f"Iteration {it + 1}: Residual norm={res_norm:.6f}, RMS={rms:.6f} s, Damping={damping:.6f}"
+                f"Iteration {it + 1}: "
+                f"linear residual norm={linear_res_norm:.6f}, "
+                f"linear RMS={linear_rms:.6f} s, "
+                f"true RMS before={true_rms_before:.6f} s, "
+                f"true RMS after={true_rms_after:.6f} s, "
+                f"Damping={damping:.6f}"
             )
             logger.debug(
                 f"Iteration {it + 1}: Origin for first event: "
@@ -167,40 +203,55 @@ class InversionEngine:
                 f"t0_abs={(data.origin_times[0] + data.time_refs[0]):.2f}s"
             )
 
-            # --- Adaptive damping update
-            damping = np.clip(
-                update_damping_factor(
-                    current_factor=float(damping),
-                    rms_prev=float(prev_res) if prev_res is not None else float(rms),
-                    rms_new=float(rms),
-                ),
-                0.0,
-                max_damping,
+            # Adaptive damping update RMS
+            damping = float(
+                np.clip(
+                    update_damping_factor(
+                        current_factor=float(damping),
+                        rms_prev=float(prev_true_rms)
+                        if prev_true_rms is not None
+                        else float(true_rms_before),
+                        rms_new=float(true_rms_after),
+                    ),
+                    0.0,
+                    max_damping,
+                )
             )
 
-            # Convergence check
-            if prev_res is not None:
-                rel_impr = np.abs((prev_res - rms) / max(prev_res, 1e-12))
-                if rms < conv_threshold or rel_impr < 1e-8:
+            # Convergence check RMS
+            if prev_true_rms is not None:
+                rel_impr = np.abs(
+                    (prev_true_rms - true_rms_after) / max(prev_true_rms, 1e-12)
+                )
+                if true_rms_after < conv_threshold or rel_impr < 1e-8:
                     logger.info(
-                        f"conv_threshold={conv_threshold}, rms={rms:.6f} s, rel_impr={rel_impr:.6e}"
+                        f"conv_threshold={conv_threshold}, "
+                        f"true_rms={true_rms_after:.6f} s, rel_impr={rel_impr:.6e}"
                     )
                     logger.info(
-                        f"Convergence reached at iteration {it + 1}: RMS={rms:.6f} s, "
+                        f"Convergence reached at iteration {it + 1}: "
+                        f"true RMS={true_rms_after:.6f} s, "
                         f"Relative improvement={rel_impr:.6e}"
                     )
                     break
-            prev_res = rms
+
+            prev_true_rms = true_rms_after
+
+        # Ensure final derivatives / travel times / valid rows correspond to final state
+        valid_rows = self.derivative_engine.populate_derivative_matrix()
+        residuals_flat, final_true_rms = _compute_true_residuals_and_rms(valid_rows)
 
         A_final = (
             data.derivative_matrix
             * data.time_error_W[:, np.newaxis]
             * data.distance_W[:, np.newaxis]
         )
+
         logger.info(f"Location iterations completed in {it + 1} iterations.")
         logger.info(
             f"Located {np.sum(~data.invalid_events)} events, {np.sum(data.invalid_events)} events invalid."
         )
+        logger.info(f"Final true RMS = {final_true_rms:.6f} s")
 
         return InversionResults(
             A_final=A_final,
