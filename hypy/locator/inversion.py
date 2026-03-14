@@ -107,16 +107,16 @@ class InversionEngine:
         LM-style logic:
         - linearize at current model
         - solve a damped least-squares step
-        - trial the step on the true nonlinear objective
-        - accept only if true RMS improves enough
+        - trial the step on the nonlinear objective
+        - accept only if RMS improves enough
         - otherwise increase damping and retry from the same base model
         """
         config = self.config
         data = self.data
 
-        def _compute_true_residuals_and_rms(valid_rows: np.ndarray):
+        def _compute_residuals_and_rms(valid_rows: np.ndarray):
             """
-            Compute true residuals for the CURRENT model state:
+            Compute residuals for the current model state:
                 residual = observed_travel_times - theoretical_travel_times
             and RMS over valid rows only.
             """
@@ -145,7 +145,7 @@ class InversionEngine:
         max_damping = 10.0
         residuals_flat = np.array([], dtype=float)
         valid_rows = np.array([], dtype=int)
-        prev_true_rms = None
+        prev_rms = None
 
         for it in range(max_iterations):
             # Build derivatives and theoretical travel times for CURRENT model
@@ -154,10 +154,8 @@ class InversionEngine:
                 logger.error("No valid observations available for inversion. Aborting.")
                 break
 
-            # True residuals / true RMS BEFORE update
-            residuals_flat, true_rms_before = _compute_true_residuals_and_rms(
-                valid_rows
-            )
+            # Residuals / RMS BEFORE update
+            residuals_flat, rms_before = _compute_residuals_and_rms(valid_rows)
 
             b = (
                 data.distance_W[valid_rows]
@@ -176,9 +174,7 @@ class InversionEngine:
             base_invalid_events = data.invalid_events.copy()
 
             accepted = False
-            trial_linear_res_norm = np.nan
-            trial_linear_rms = np.nan
-            true_rms_after = true_rms_before
+            rms_after = rms_before
 
             for lm_trial in range(max_lm_trials):
                 # Always restart each LM trial from the same base state
@@ -199,12 +195,6 @@ class InversionEngine:
                 # Reshape to event blocks and clip/smooth
                 dx = dx_solution.reshape((data.n_events, config.dim))
                 dx = self._clip_updates(it, dx)
-
-                # Diagnostics based on the ACTUAL step that will be applied
-                dx_used_flat = dx.reshape(-1)
-                residual_vector_linear = A @ dx_used_flat - b
-                trial_linear_res_norm = float(np.linalg.norm(residual_vector_linear))
-                trial_linear_rms = float(np.sqrt(np.mean(residual_vector_linear**2)))
 
                 # Depth sanity / constraints on trial step
                 for event_idx in range(data.n_events):
@@ -238,7 +228,7 @@ class InversionEngine:
                 data.locations[valid_mask, :3] -= dx_apply[valid_mask, :3]
                 data.origin_times[valid_mask] += dx_apply[valid_mask, 3]
 
-                # Rebuild derivatives and recompute TRUE RMS AFTER trial update
+                # Rebuild derivatives and recompute RMS AFTER trial update
                 valid_rows_trial = self.derivative_engine.populate_derivative_matrix()
                 if len(valid_rows_trial) == 0:
                     logger.warning(
@@ -247,32 +237,30 @@ class InversionEngine:
                     )
                     damping = update_damping_factor(
                         current_factor=float(damping),
-                        rms_prev=float(true_rms_before),
+                        rms_prev=float(rms_before),
                         rms_new=float(np.inf),
                         accepted=False,
                         max_factor=max_damping,
                     )
                     continue
 
-                residuals_flat_trial, true_rms_trial = _compute_true_residuals_and_rms(
+                residuals_flat_trial, rms_trial = _compute_residuals_and_rms(
                     valid_rows_trial
                 )
 
-                rel_impr_trial = (true_rms_before - true_rms_trial) / max(
-                    true_rms_before, 1e-12
-                )
+                rel_impr_trial = (rms_before - rms_trial) / max(rms_before, 1e-12)
 
                 if rel_impr_trial > lm_acceptance_tol:
                     # Accept trial step
                     accepted = True
                     valid_rows = valid_rows_trial
                     residuals_flat = residuals_flat_trial
-                    true_rms_after = true_rms_trial
+                    rms_after = rms_trial
 
                     damping = update_damping_factor(
                         current_factor=float(damping),
-                        rms_prev=float(true_rms_before),
-                        rms_new=float(true_rms_after),
+                        rms_prev=float(rms_before),
+                        rms_new=float(rms_after),
                         accepted=True,
                         max_factor=max_damping,
                     )
@@ -281,8 +269,8 @@ class InversionEngine:
                 # Reject trial: do not keep trial state, increase damping and retry
                 damping = update_damping_factor(
                     current_factor=float(damping),
-                    rms_prev=float(true_rms_before),
-                    rms_new=float(true_rms_trial),
+                    rms_prev=float(rms_before),
+                    rms_new=float(rms_trial),
                     accepted=False,
                     max_factor=max_damping,
                 )
@@ -300,9 +288,7 @@ class InversionEngine:
                     )
                     break
 
-                residuals_flat, true_rms_after = _compute_true_residuals_and_rms(
-                    valid_rows
-                )
+                residuals_flat, rms_after = _compute_residuals_and_rms(valid_rows)
 
                 logger.warning(
                     f"Iteration {it + 1}: no acceptable LM step found after "
@@ -311,10 +297,8 @@ class InversionEngine:
 
             logger.debug(
                 f"Iteration {it + 1}: "
-                f"linear residual norm={trial_linear_res_norm:.6f}, "
-                f"linear RMS={trial_linear_rms:.6f} s, "
-                f"true RMS before={true_rms_before:.6f} s, "
-                f"true RMS after={true_rms_after:.6f} s, "
+                f"RMS before={rms_before:.6f} s, "
+                f"RMS after={rms_after:.6f} s, "
                 f"Damping={damping:.6f}, "
                 f"accepted={accepted}"
             )
@@ -327,27 +311,25 @@ class InversionEngine:
             )
 
             # Convergence check
-            if prev_true_rms is not None:
-                rel_impr = np.abs(
-                    (prev_true_rms - true_rms_after) / max(prev_true_rms, 1e-12)
-                )
-                if true_rms_after < conv_threshold or rel_impr < 1e-8:
+            if prev_rms is not None:
+                rel_impr = np.abs((prev_rms - rms_after) / max(prev_rms, 1e-12))
+                if rms_after < conv_threshold or rel_impr < 1e-8:
                     logger.info(
                         f"conv_threshold={conv_threshold}, "
-                        f"true_rms={true_rms_after:.6f} s, rel_impr={rel_impr:.6e}"
+                        f"rms={rms_after:.6f} s, rel_impr={rel_impr:.6e}"
                     )
                     logger.info(
                         f"Convergence reached at iteration {it + 1}: "
-                        f"true RMS={true_rms_after:.6f} s, "
+                        f"RMS={rms_after:.6f} s, "
                         f"Relative improvement={rel_impr:.6e}"
                     )
                     break
 
-            prev_true_rms = true_rms_after
+            prev_rms = rms_after
 
         # Ensure final derivatives / travel times / valid rows correspond to final state
         valid_rows = self.derivative_engine.populate_derivative_matrix()
-        residuals_flat, final_true_rms = _compute_true_residuals_and_rms(valid_rows)
+        residuals_flat, final_rms = _compute_residuals_and_rms(valid_rows)
 
         A_final = (
             data.derivative_matrix
@@ -360,7 +342,7 @@ class InversionEngine:
             f"Located {np.sum(~data.invalid_events)} events, "
             f"{np.sum(data.invalid_events)} events invalid."
         )
-        logger.info(f"Final true RMS = {final_true_rms:.6f} s")
+        logger.info(f"Final RMS = {final_rms:.6f} s")
 
         return InversionResults(
             A_final=A_final,
