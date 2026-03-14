@@ -33,6 +33,63 @@ class InversionEngine:
         self.model_handler = model_handler
         self.derivative_engine = derivative_engine
 
+    def _clip_updates(
+        self,
+        it: int,
+        dx: np.ndarray,
+        max_horizontal_km: float = 3.0,
+        max_vertical_km: float = 1.0,
+        max_time_s: float = 1.0,
+        couple_zt_to_horizontal: bool = True,
+    ) -> np.ndarray:
+        """
+        Smooth safety clipping.
+
+        Columns in dx:
+            0: horizontal update component 1 [km]
+            1: horizontal update component 2 [km]
+            2: depth update [km]
+            3: origin-time update [s]
+
+        Horizontal updates are clipped by vector norm so direction is preserved.
+        Optionally, z/t are shrunk by the same horizontal scale factor before
+        their own scalar safety clipping.
+        """
+        dx_raw = dx.copy()
+        dx_out = dx.copy()
+
+        # Horizontal norm-based scaling
+        hnorm = np.linalg.norm(dx_raw[:, :2], axis=1)
+        hscale = np.minimum(1.0, max_horizontal_km / np.maximum(hnorm, 1e-12))
+
+        dx_out[:, 0] = dx_raw[:, 0] * hscale
+        dx_out[:, 1] = dx_raw[:, 1] * hscale
+
+        if couple_zt_to_horizontal:
+            dx_out[:, 2] = dx_raw[:, 2] * hscale
+            dx_out[:, 3] = dx_raw[:, 3] * hscale
+        else:
+            dx_out[:, 2] = dx_raw[:, 2]
+            dx_out[:, 3] = dx_raw[:, 3]
+
+        # Final scalar safety clipping
+        raw_depth = dx_out[:, 2].copy()
+        raw_time = dx_out[:, 3].copy()
+        dx_out[:, 2] = np.clip(dx_out[:, 2], -max_vertical_km, max_vertical_km)
+        dx_out[:, 3] = np.clip(dx_out[:, 3], -max_time_s, max_time_s)
+
+        n_h = int(np.sum(hnorm > max_horizontal_km))
+        n_z = int(np.sum(np.abs(raw_depth) > max_vertical_km))
+        n_t = int(np.sum(np.abs(raw_time) > max_time_s))
+
+        if n_h or n_z or n_t:
+            logger.warning(
+                f"Iteration {it + 1}: clipped/scaled updates "
+                f"(horizontal={n_h}, depth={n_z}, time={n_t})"
+            )
+
+        return dx_out
+
     def run_iterations(
         self,
         solver: SolverLiteral = "lsqr",
@@ -48,30 +105,6 @@ class InversionEngine:
         """
         config = self.config
         data = self.data
-
-        def _clip_updates(
-            it, dx, max_horizontal_km=3.0, max_vertical_km=1.0, max_time_s=1.0
-        ):
-            dx = dx.copy()
-
-            dx[:, 0:2] = np.clip(dx[:, 0:2], -max_horizontal_km, max_horizontal_km)
-            dx[:, 2] = np.clip(dx[:, 2], -max_vertical_km, max_vertical_km)
-            dx[:, 3] = np.clip(dx[:, 3], -max_time_s, max_time_s)
-
-            is_horiz_exceeds_depth = np.any(np.abs(dx[:, :2]) > max_vertical_km, axis=1)
-            is_horiz_exceeds_limit = np.any(
-                np.abs(dx[:, :2]) > max_horizontal_km, axis=1
-            )
-
-            if np.any(is_horiz_exceeds_limit):
-                logger.warning(
-                    f"Iteration {it}: Preventing large horizontal shifts from causing large depth changes "
-                    f"for {np.sum(is_horiz_exceeds_depth)} events."
-                )
-                dx[:, 2] = np.where(is_horiz_exceeds_depth, 0.0, dx[:, 2])
-                dx[:, 3] = np.where(is_horiz_exceeds_depth, 0.0, dx[:, 3])
-
-            return dx
 
         def _compute_true_residuals_and_rms(valid_rows: np.ndarray):
             """
