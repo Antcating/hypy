@@ -32,6 +32,7 @@ dev = [
     "pyrocko",
     "ruff",
     "hypy",
+    "hatchling"
 ]
 # Extra that only installs pyrocko
 pyrocko = ["pyrocko"]
