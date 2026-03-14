@@ -114,8 +114,8 @@ class EventLocator:
         max_distance_km: Optional[float] = None,
         depth_step_km: Optional[float] = None,
         distance_step_km: Optional[float] = None,
-        distance_weight_start: Optional[float] = None,
-        distance_weight_end: Optional[float] = None,
+        distance_weight_start_km: Optional[float] = None,
+        distance_weight_end_km: Optional[float] = None,
         weight_start: Optional[float] = 0.99,
         weight_end: Optional[float] = 0.01,
         fix_depth: bool = False,
@@ -130,7 +130,7 @@ class EventLocator:
 
         # Calculate distance weighting parameters
         distance_weighting_enabled, k, x0 = configure_distance_weighting(
-            distance_weight_start, distance_weight_end, weight_start, weight_end
+            distance_weight_start_km, distance_weight_end_km, weight_start, weight_end
         )
 
         # Build immutable configuration
