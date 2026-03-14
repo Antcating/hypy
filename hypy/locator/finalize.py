@@ -67,9 +67,49 @@ class OriginFinalizer:
             if not np.isfinite(v[2]):
                 plunge = 0.0
                 azimuth = 0.0
+                rotation = 0.0
             else:
                 plunge = float(np.rad2deg(np.arcsin(np.clip(v[2], -1.0, 1.0))))
-                azimuth = float((np.rad2deg(np.arctan2(v[0], v[1])) + 360) % 360)
+                azimuth = float((np.rad2deg(np.arctan2(v[0], v[1])) + 360.0) % 360.0)
+
+                # Rotation of the intermediate axis about the major axis.
+                w = evecs[:, 1]
+                w = w / np.linalg.norm(w)
+
+                # Use the projection of the vertical as the reference direction.
+                ref = np.array([0.0, 0.0, 1.0], dtype=float)
+                ref = ref - np.dot(ref, v) * v
+                ref_norm = np.linalg.norm(ref)
+
+                # If the major axis is nearly vertical, fall back to north.
+                if ref_norm < 1e-12:
+                    ref = np.array([0.0, 1.0, 0.0], dtype=float)
+                    ref = ref - np.dot(ref, v) * v
+                    ref_norm = np.linalg.norm(ref)
+
+                if ref_norm < 1e-12 or not np.all(np.isfinite(w)):
+                    rotation = 0.0
+                else:
+                    ref /= ref_norm
+                    w_proj = w - np.dot(w, v) * v
+                    w_proj_norm = np.linalg.norm(w_proj)
+
+                    if w_proj_norm < 1e-12:
+                        rotation = 0.0
+                    else:
+                        w_proj /= w_proj_norm
+                        rotation = float(
+                            (
+                                np.rad2deg(
+                                    np.arctan2(
+                                        np.dot(v, np.cross(ref, w_proj)),
+                                        np.dot(ref, w_proj),
+                                    )
+                                )
+                                + 360.0
+                            )
+                            % 180.0
+                        )
 
             confidence_ellipsoid = ConfidenceEllipsoid(
                 semi_major_axis_length=s1 * 1000.0,
@@ -77,6 +117,7 @@ class OriginFinalizer:
                 semi_intermediate_axis_length=s2 * 1000.0,
                 major_axis_plunge=plunge,
                 major_axis_azimuth=azimuth,
+                major_axis_rotation=rotation,
             )
 
             origin_uncertainty = OriginUncertainty(
@@ -139,7 +180,7 @@ class OriginFinalizer:
 
             event.origins.append(origin)
 
-        return data.events
+        return Catalog(events=data.events)
 
     @staticmethod
     def report_invalid_events(data: DataHandler) -> np.ndarray:
