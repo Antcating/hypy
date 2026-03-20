@@ -10,9 +10,12 @@ from typing import Dict, List
 
 import numpy as np
 
+from obspy.taup import TauPyModel  # type: ignore[import-untyped]
+
 from hypy.logger import logger
 from hypy.propagation import PropagationModel
 from hypy.utils.math import interp_quant, finite_difference_derivative
+from hypy.utils.geo import gps2dist_azimuth_nb
 
 
 class TauTimeTables(PropagationModel):
@@ -115,12 +118,10 @@ class TauTimeTables(PropagationModel):
             )
             for i, depth in enumerate(depth_values):
                 for j, dist in enumerate(distance_values):
-                    # Handle P phase
                     if phase == "P" and "P" in self.travel_time_tables:
                         time, angle = self.tracer.get_arrival(depth, dist, "P")
                         self.travel_time_tables["P"][i, j] = time
                         self.takeoff_angle_tables["P"][i, j] = angle
-                    # Handle S phase
                     elif phase == "S" and "S" in self.travel_time_tables:
                         time, angle = self.tracer.get_arrival(depth, dist, "S")
                         self.travel_time_tables["S"][i, j] = time
@@ -146,13 +147,93 @@ class TauTimeTables(PropagationModel):
             self.takeoff_angle_tables[phase],
         )
 
-    def get_arrival(self, source_depth, distance, phase):
+    def get_arrival(
+        self,
+        source_latitude: float,
+        source_longitude: float,
+        source_depth_km: float,
+        receiver_latitude: float,
+        receiver_longitude: float,
+        receiver_elevation_m: float,
+        phase: str,
+        max_distance_km: float = None,
+    ):
         if phase not in self.phases:
             raise ValueError(f"Phase {phase} not in available phases: {self.phases}")
-        time = self.compute_travel_time(phase, source_depth, distance)
-        takeoff_angle = self.compute_takeoff_angle(phase, source_depth, distance)
+
+        dist_m, azimuth_deg, _ = gps2dist_azimuth_nb(
+            source_latitude,
+            source_longitude,
+            receiver_latitude,
+            receiver_longitude,
+            R=self.model.model.radius_of_planet * 1000.0,
+        )
+        arc_distance_km = dist_m / 1000.0
+
+        # Check max distance
+        # This check is nessesary when using Tables with limited grid coverage
+        if max_distance_km is not None and arc_distance_km > max_distance_km:
+            logger.info(
+                "Station at distance %.2f km exceeds max_distance %.2f km. Skipping.",
+                arc_distance_km,
+                max_distance_km,
+            )
+            return arc_distance_km, None, None, azimuth_deg
+
+        source_depth_km += receiver_elevation_m / 1000.0
+
+        time = self.compute_travel_time(phase, source_depth_km, arc_distance_km)
+        takeoff_angle = self.compute_takeoff_angle(
+            phase, source_depth_km, arc_distance_km
+        )
         if np.isnan(time) or np.isnan(takeoff_angle):
             raise ValueError(
-                f"No travel time or takeoff angle found for phase {phase} at depth {source_depth} and distance {distance}."
+                f"No travel time or takeoff angle found for phase {phase} at depth {source_depth_km} and distance {arc_distance_km}."
             )
-        return time, takeoff_angle
+        return arc_distance_km, time, takeoff_angle, azimuth_deg
+
+    def get_spatial_slowness(
+        self,
+        source_latitude: float,
+        source_longitude: float,
+        source_depth_km: float,
+        receiver_latitude: float,
+        receiver_longitude: float,
+        receiver_elevation_m: float,
+        phase: str,
+        delta=None,
+    ):
+        if phase not in self.phases:
+            raise ValueError(f"Phase {phase} not in available phases: {self.phases}")
+
+        dist_m, azimuth_deg, _ = gps2dist_azimuth_nb(
+            source_latitude,
+            source_longitude,
+            receiver_latitude,
+            receiver_longitude,
+            R=self.model.model.radius_of_planet * 1000.0,
+        )
+        arc_distance_km = dist_m / 1000.0
+
+        source_depth_km += receiver_elevation_m / 1000.0
+
+        dt_ddist = finite_difference_derivative(
+            lambda d: self.compute_travel_time(phase, source_depth_km, d),
+            arc_distance_km,
+            self.distance_step,
+            method="five-point",
+        )
+        dt_ddepth = finite_difference_derivative(
+            lambda z: self.compute_travel_time(phase, z, arc_distance_km),
+            source_depth_km,
+            self.depth_step,
+            method="five-point",
+        )
+        az_rad = np.deg2rad(azimuth_deg)
+
+        dt_dr = dt_ddist
+        dt_dx = dt_ddist * np.sin(az_rad)
+        dt_dy = dt_ddist * np.cos(az_rad)
+        dt_dz = dt_ddepth
+
+        return dt_dr, dt_dx, dt_dy, dt_dz
