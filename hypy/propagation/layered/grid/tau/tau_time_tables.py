@@ -6,19 +6,19 @@ Handles travel-time, ray-parameter, and takeoff angle table creation, saving, lo
 
 import os
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 
 from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 
 from hypy.logger import logger
-from hypy.propagation import PropagationModel
-from hypy.utils.math import interp_quant, finite_difference_derivative
+from hypy.propagation.layered import LayeredPropagationModel
+from hypy.utils.math import interp_quant
 from hypy.utils.geo import gps2dist_azimuth_nb
 
 
-class TauTimeTables(PropagationModel):
+class TauTimeTables(LayeredPropagationModel):
     """
     Manages travel-time, ray-parameter, and takeoff angle tables for seismic phases.
     """
@@ -34,9 +34,10 @@ class TauTimeTables(PropagationModel):
         engine: str = "pyrocko",
         overwrite: bool = False,
     ):
+        super().__init__(model_tvel)
         model_name = Path(model_tvel).stem
         self.engine = engine
-        self.tracer: PropagationModel
+        self.tracer: LayeredPropagationModel
         self.model_name = model_name
         self.phases = phases
         self.max_depth = max_depth
@@ -96,9 +97,16 @@ class TauTimeTables(PropagationModel):
                 continue
 
             # Initialize tracer for table generation
-            from hypy.propagation.ray_tracers import RayTracer
+            if self.engine == "pyrocko":
+                from hypy.propagation.layered.ray_tracer.pyrocko import PyrockoRayTracer
 
-            self.tracer = RayTracer(self.model_name, engine=self.engine)
+                self.tracer = PyrockoRayTracer(self.model_path)
+            elif self.engine == "taup":
+                from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
+
+                self.tracer = TauPRayTracer(self.model_path)
+            else:
+                raise ValueError(f"Unsupported engine: {self.engine}")
 
             depth_values = np.arange(0.1, self.max_depth + 0.1 + 1e-6, self.depth_step)
             distance_values = np.arange(
@@ -119,11 +127,11 @@ class TauTimeTables(PropagationModel):
             for i, depth in enumerate(depth_values):
                 for j, dist in enumerate(distance_values):
                     if phase == "P" and "P" in self.travel_time_tables:
-                        time, angle = self.tracer.get_arrival(depth, dist, "P")
+                        time, angle = self.tracer.get_arrival_1d(depth, dist, "P")
                         self.travel_time_tables["P"][i, j] = time
                         self.takeoff_angle_tables["P"][i, j] = angle
                     elif phase == "S" and "S" in self.travel_time_tables:
-                        time, angle = self.tracer.get_arrival(depth, dist, "S")
+                        time, angle = self.tracer.get_arrival_1d(depth, dist, "S")
                         self.travel_time_tables["S"][i, j] = time
                         self.takeoff_angle_tables["S"][i, j] = angle
             logger.info(f"Saving travel-time tables to {fname}")
@@ -156,8 +164,8 @@ class TauTimeTables(PropagationModel):
         receiver_longitude: float,
         receiver_elevation_m: float,
         phase: str,
-        max_distance_km: float = None,
-    ):
+        max_distance_km: float | None = None,
+    ) -> tuple[float, Optional[float], Optional[float], float]:
         if phase not in self.phases:
             raise ValueError(f"Phase {phase} not in available phases: {self.phases}")
 
@@ -166,7 +174,7 @@ class TauTimeTables(PropagationModel):
             source_longitude,
             receiver_latitude,
             receiver_longitude,
-            R=self.model.model.radius_of_planet * 1000.0,
+            R=self.velocity_model.model.model.radius_of_planet * 1000.0,
         )
         arc_distance_km = dist_m / 1000.0
 
@@ -192,48 +200,24 @@ class TauTimeTables(PropagationModel):
             )
         return arc_distance_km, time, takeoff_angle, azimuth_deg
 
-    def get_spatial_slowness(
+    def get_arrival_1d(
         self,
-        source_latitude: float,
-        source_longitude: float,
+        arc_distance_km: float,
         source_depth_km: float,
-        receiver_latitude: float,
-        receiver_longitude: float,
-        receiver_elevation_m: float,
         phase: str,
-        delta=None,
-    ):
+    ) -> tuple[float, float]:
+        """
+        Get the arrival time and takeoff angle for a given source depth, distance, and seismic phase.
+        This method is used for computing numerical derivatives and assumes a 1D velocity model.
+        """
         if phase not in self.phases:
             raise ValueError(f"Phase {phase} not in available phases: {self.phases}")
-
-        dist_m, azimuth_deg, _ = gps2dist_azimuth_nb(
-            source_latitude,
-            source_longitude,
-            receiver_latitude,
-            receiver_longitude,
-            R=self.model.model.radius_of_planet * 1000.0,
+        time = self.compute_travel_time(phase, source_depth_km, arc_distance_km)
+        takeoff_angle = self.compute_takeoff_angle(
+            phase, source_depth_km, arc_distance_km
         )
-        arc_distance_km = dist_m / 1000.0
-
-        source_depth_km += receiver_elevation_m / 1000.0
-
-        dt_ddist = finite_difference_derivative(
-            lambda d: self.compute_travel_time(phase, source_depth_km, d),
-            arc_distance_km,
-            self.distance_step,
-            method="five-point",
-        )
-        dt_ddepth = finite_difference_derivative(
-            lambda z: self.compute_travel_time(phase, z, arc_distance_km),
-            source_depth_km,
-            self.depth_step,
-            method="five-point",
-        )
-        az_rad = np.deg2rad(azimuth_deg)
-
-        dt_dr = dt_ddist
-        dt_dx = dt_ddist * np.sin(az_rad)
-        dt_dy = dt_ddist * np.cos(az_rad)
-        dt_dz = dt_ddepth
-
-        return dt_dr, dt_dx, dt_dy, dt_dz
+        if np.isnan(time) or np.isnan(takeoff_angle):
+            raise ValueError(
+                f"No travel time or takeoff angle found for phase {phase} at depth {source_depth_km} and distance {arc_distance_km}."
+            )
+        return time, takeoff_angle
