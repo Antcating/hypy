@@ -58,35 +58,17 @@ class DerivativeEngine:
         ev_lat, ev_lon, ev_depth_km = event_location
         st_lat, st_lon, st_elev_m = station_location
 
-        # Spherical distance & azimuth (meters, degrees)
-        dist_m, azimuth_deg, _ = gps2dist_azimuth_nb(
-            ev_lat,
-            ev_lon,
-            st_lat,
-            st_lon,
-            R=self.model_handler.model.model.radius_of_planet * 1000.0,
-        )
-        distance_km = dist_m / 1000.0
-
-        # Check max distance
-        # This check is nessesary when using Tables with limited grid coverage
-        # Also, you may want to limit the distance range for Ray tracing too to
-        # prevent runaway locations.
-        max_distance = self.config.max_distance_km
-        if max_distance is not None and distance_km > max_distance:
-            logger.info(
-                "Station at distance %.2f km exceeds max_distance %.2f km. Skipping.",
-                distance_km,
-                max_distance,
+        arc_distance_km, travel_time_s, takeoff_angle_deg, azimuth_deg = (
+            self.tracer.get_arrival(
+                source_latitude=ev_lat,
+                source_longitude=ev_lon,
+                source_depth_km=ev_depth_km,
+                receiver_latitude=st_lat,
+                receiver_longitude=st_lon,
+                receiver_elevation_m=st_elev_m,
+                phase=phase,
+                max_distance_km=self.config.max_distance_km,
             )
-            return distance_km, None, (None, None, None, None)
-
-        # Travel-time and takeoff angle from tracer
-        source_depth_km = (
-            ev_depth_km + st_elev_m / 1000.0
-        )  # account for station elevation
-        travel_time_s, takeoff_angle_deg = self.tracer.get_arrival(
-            source_depth=source_depth_km, distance=distance_km, phase=phase
         )
 
         # Local velocity and partial derivatives
@@ -98,7 +80,7 @@ class DerivativeEngine:
             takeoff_rad, azimuth_deg, velocity_km_s
         )
 
-        return distance_km, travel_time_s, (dt_dr, dt_dx, dt_dy, dt_dz)
+        return arc_distance_km, travel_time_s, (dt_dr, dt_dx, dt_dy, dt_dz)
 
     def populate_derivative_matrix(self) -> np.ndarray:
         """
