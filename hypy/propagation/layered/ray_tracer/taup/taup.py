@@ -67,7 +67,7 @@ class TauPRayTracer(LayeredRayTracer):
         receiver_elevation_m: float,
         phase: str,
         max_distance_km: float | None = None,
-    ):
+    ) -> tuple[float, Optional[float], Optional[float], float]:
 
         arc_distance_km, azimuth_deg, back_azimuth_deg = self._compute_arc_params(
             source_latitude,
