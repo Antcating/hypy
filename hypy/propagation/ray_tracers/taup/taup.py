@@ -1,8 +1,8 @@
 from typing import List
 
-from obspy.geodetics import kilometer2degrees
-from obspy.taup import TauPyModel
-from obspy.taup.tau import Arrival
+from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
+from obspy.taup import TauPyModel  # type: ignore[import-untyped]
+from obspy.taup.tau import Arrival  # type: ignore[import-untyped]
 
 from hypy.propagation import PropagationModel
 
@@ -14,7 +14,7 @@ class TauPRayTracer(PropagationModel):
 
     def __init__(self, model_path: str):
         super().__init__(model_path)
-        self.model = TauPyModel(self.model_name)
+        self.model: TauPyModel = TauPyModel(self.model_name)
 
     def get_arrival(self, source_depth: float, distance: float, phase: str):
         """

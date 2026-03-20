@@ -101,8 +101,8 @@ def init_locations(
         if len(picks) < max(3, data.min_picks_per_event // 2):
             return None
 
-        residual_arrival_times: list[float] = []
-        weights: list[float] = []
+        residual_arrival_times: list[float] | np.ndarray = []
+        weights: list[float] | np.ndarray = []
 
         for (
             station_id,

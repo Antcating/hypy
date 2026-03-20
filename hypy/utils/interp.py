@@ -1,5 +1,5 @@
 import numpy as np
-from numba import njit
+from numba import njit  # type: ignore[import-untyped]
 
 
 @njit(cache=True, inline="always")
@@ -78,21 +78,24 @@ def interp_quant(
     """
 
     if depth > depth_grid[-1]:
-        raise ValueError(f"Depth {depth} exceeds max depth {depth_grid[-1]} of travel-time table.")
+        raise ValueError(
+            f"Depth {depth} exceeds max depth {depth_grid[-1]} of travel-time table."
+        )
     if distance > distance_grid[-1]:
         raise ValueError(
             f"Distance {distance} outside range of travel-time table: [{distance_grid[0]}, {distance_grid[-1]}]"
         )
-    
+
     # Clamp depth to minimum grid value
     # TODO: consider raising an error instead
     depth = max(depth, depth_grid[0])
     distance = max(distance, distance_grid[0])
 
     # Locate depth bounds
-    i1 = np.searchsorted(depth_grid, depth)
+    i1 = int(np.searchsorted(depth_grid, depth))
     i0 = max(i1 - 1, 0)
-    i1 = min(i1, len(depth_grid) - 1)
+    if i1 > len(depth_grid) - 1:
+        i1 = len(depth_grid) - 1
 
     if i0 == i1:
         return interp_one_depth(distance, distance_grid, table[i0])

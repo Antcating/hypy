@@ -3,7 +3,7 @@ from scipy.sparse.linalg import lsmr
 import numpy as np
 from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
 
-from ..logger import logger  # type: ignore[import-not-found]
+from ..logger import logger
 from ..utils.damping import update_damping_factor
 from .config import LocatorConfig
 from .data import DataHandler

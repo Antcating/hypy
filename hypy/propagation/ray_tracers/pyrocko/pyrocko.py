@@ -19,7 +19,7 @@ class PyrockoRayTracer(PropagationModel):
 
     def __init__(self, model_path: str):
         super().__init__(model_path)
-        self.model = cake.load_model(model_path)
+        self.model: cake.LayeredModel = cake.load_model(model_path)
 
     def get_arrival(self, source_depth: float, distance: float, phase: str):
         """

@@ -76,7 +76,7 @@ class TauTimeTables(PropagationModel):
             save_dict[f"rp_{ph}"] = self.ray_param_tables[ph]
         for ph in self.takeoff_angle_tables:
             save_dict[f"ta_{ph}"] = self.takeoff_angle_tables[ph]
-        np.savez_compressed(filename, **save_dict)
+        np.savez_compressed(filename, allow_pickle=True, **save_dict)
 
     def load(self, filename: str, phase: str) -> None:
         """
