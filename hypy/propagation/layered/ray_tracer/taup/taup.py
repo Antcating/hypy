@@ -5,9 +5,6 @@ from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 from obspy.taup.tau import Arrival  # type: ignore[import-untyped]
 
 from hypy.propagation.layered.ray_tracer import LayeredRayTracer
-import numpy as np
-
-from hypy.utils.geo import gps2dist_azimuth_nb
 
 from hypy.logger import logger
 
@@ -21,7 +18,7 @@ class TauPRayTracer(LayeredRayTracer):
         super().__init__(model_path)
         self.model: TauPyModel = TauPyModel(self.model_name)
 
-    def get_ray_params(
+    def get_arrival_1d(
         self,
         arc_distance_km: float,
         source_depth_km: float,
@@ -54,7 +51,6 @@ class TauPRayTracer(LayeredRayTracer):
             raise ValueError(
                 f"No arrivals found for phase {phase} at distance {arc_distance_km} and depth {source_depth_km}."
             )
-
         return arrivals[0].time, arrivals[0].takeoff_angle
 
     def get_arrival(
@@ -88,7 +84,7 @@ class TauPRayTracer(LayeredRayTracer):
             )
             return arc_distance_km, None, None, azimuth_deg
 
-        time, takeoff_angle = self.get_ray_params(
+        time, takeoff_angle = self.get_arrival_1d(
             arc_distance_km=arc_distance_km,
             source_depth_km=eff_source_depth_km,
             phase=phase,

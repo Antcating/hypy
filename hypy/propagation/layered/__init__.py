@@ -16,7 +16,7 @@ class LayeredPropagationModel(PropagationModel):
         super().__init__(model_path)
         self.velocity_model = VelocityModelHandler(Path(model_path))
 
-    def get_ray_params(
+    def get_arrival_1d(
         self,
         arc_distance_km: float,
         source_depth_km: float,
@@ -69,15 +69,14 @@ class LayeredPropagationModel(PropagationModel):
         Compute spatial slowness derivatives (dt/dx, dt/dy, dt/dz) using numerical differentiation
         of arrival times computed via ray tracing.
         """
-
         dt_ddist = finite_difference_derivative(
-            lambda d: self.get_ray_params(d, source_depth_km, phase)[0],
+            lambda d: self.get_arrival_1d(d, source_depth_km, phase)[0],
             arc_distance_km,
             delta,
             method=method,
         )
         dt_ddepth = finite_difference_derivative(
-            lambda z: self.get_ray_params(arc_distance_km, z, phase)[0],
+            lambda z: self.get_arrival_1d(arc_distance_km, z, phase)[0],
             source_depth_km,
             delta,
             method=method,

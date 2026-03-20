@@ -22,7 +22,7 @@ class PyrockoRayTracer(LayeredRayTracer):
         super().__init__(model_path)
         self.model: cake.LayeredModel = cake.load_model(model_path)
 
-    def get_ray_params(
+    def get_arrival_1d(
         self,
         arc_distance_km: float,
         source_depth_km: float,
@@ -45,7 +45,7 @@ class PyrockoRayTracer(LayeredRayTracer):
             arrivals: List[Ray] = self.model.arrivals(
                 zstart=source_depth_km * 1000,
                 zstop=0,
-                distances=[kilometer2degrees(arc_distance_km)],
+                distances=[kilometer2degrees(abs(arc_distance_km))],
                 phases=phases,
             )
         except Exception as e:
@@ -90,7 +90,7 @@ class PyrockoRayTracer(LayeredRayTracer):
             )
             return arc_distance_km, None, None, azimuth_deg
 
-        time, takeoff_angle = self.get_ray_params(
+        time, takeoff_angle = self.get_arrival_1d(
             arc_distance_km=arc_distance_km,
             source_depth_km=eff_source_depth_km,
             phase=phase,
