@@ -26,7 +26,6 @@ def finite_difference_derivative(func: Callable, x: float, h: float, method: str
     elif method == "backward":
         return (func(x) - func(x - h)) / h
     elif method == "central":
-        print(f"t_plus: {func(x + h)}, t_minus: {func(x - h)}")
         return (func(x + h) - func(x - h)) / (2 * h)
     elif method == "five-point":
         return (
