@@ -12,7 +12,7 @@ class LayeredPropagationModel(PropagationModel):
         super().__init__(model_path)
         self.velocity_model = TauPyModel(self.model_name)
 
-    def compute_arc_params(
+    def _compute_arc_params(
         self,
         source_latitude: float,
         source_longitude: float,

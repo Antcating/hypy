@@ -69,7 +69,7 @@ class TauPRayTracer(LayeredRayTracer):
         max_distance_km: float | None = None,
     ):
 
-        arc_distance_km, azimuth_deg, back_azimuth_deg = self.compute_arc_params(
+        arc_distance_km, azimuth_deg, back_azimuth_deg = self._compute_arc_params(
             source_latitude,
             source_longitude,
             receiver_latitude,
