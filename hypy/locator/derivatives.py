@@ -4,7 +4,6 @@ import numpy as np
 
 from ..logger import logger  # type: ignore[import-not-found]
 from ..propagation import PropagationModel
-from ..utils.geo import get_spatial_slowness_1d, gps2dist_azimuth_nb
 from ..utils.weighting import distance_weight
 from .config import LocatorConfig
 from .data import DataHandler
@@ -70,16 +69,15 @@ class DerivativeEngine:
                 max_distance_km=self.config.max_distance_km,
             )
         )
-
-        # Local velocity and partial derivatives
-        velocity_km_s = self.model_handler._get_velocity_1d(ev_depth_km, phase)
-        takeoff_rad = np.deg2rad(takeoff_angle_deg)
-
+        # TODO: Expose method to compute derivatives (analytical or numerical).
         # dt/dr (ray), dt/dx (east), dt/dy (north), dt/dz (down)
-        dt_dr, dt_dx, dt_dy, dt_dz = get_spatial_slowness_1d(
-            takeoff_rad, azimuth_deg, velocity_km_s
+        dt_dr, dt_dx, dt_dy, dt_dz = self.tracer.get_spatial_slowness(
+            arc_distance_km=arc_distance_km,
+            takeoff_angle_deg=takeoff_angle_deg,
+            source_depth_km=ev_depth_km + st_elev_m / 1000.0,
+            az_deg=azimuth_deg,
+            phase=phase,
         )
-
         return arc_distance_km, travel_time_s, (dt_dr, dt_dx, dt_dy, dt_dz)
 
     def populate_derivative_matrix(self) -> np.ndarray:
