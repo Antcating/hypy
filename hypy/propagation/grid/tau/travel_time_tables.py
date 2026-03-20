@@ -9,11 +9,10 @@ from pathlib import Path
 from typing import Dict, List
 
 import numpy as np
-from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 
 from hypy.logger import logger
 from hypy.propagation import PropagationModel
-from hypy.utils.interp import interp_quant
+from hypy.utils.math import interp_quant, finite_difference_derivative
 
 
 class TauTimeTables(PropagationModel):
@@ -35,16 +34,6 @@ class TauTimeTables(PropagationModel):
         model_name = Path(model_tvel).stem
         self.engine = engine
         self.tracer: PropagationModel
-        if engine == "taup":
-            from hypy.propagation.ray_tracers.taup import TauPRayTracer
-
-            self.tracer = TauPRayTracer(model_tvel)
-        elif engine == "pyrocko":
-            from hypy.propagation.ray_tracers.pyrocko import PyrockoRayTracer
-
-            self.tracer = PyrockoRayTracer(model_tvel)
-        else:
-            raise ValueError(f"Unsupported engine: {engine}")
         self.model_name = model_name
         self.phases = phases
         self.max_depth = max_depth
@@ -102,6 +91,12 @@ class TauTimeTables(PropagationModel):
                 logger.info(f"Loading travel-time tables from {fname}")
                 self.load(fname, phase)
                 continue
+
+            # Initialize tracer for table generation
+            from hypy.propagation.ray_tracers import RayTracer
+
+            self.tracer = RayTracer(self.model_name, engine=self.engine)
+
             depth_values = np.arange(0.1, self.max_depth + 0.1 + 1e-6, self.depth_step)
             distance_values = np.arange(
                 0.1, self.max_distance + 0.1 + 1e-6, self.distance_step
