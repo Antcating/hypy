@@ -1,6 +1,5 @@
-from ..propagation import PropagationModel
-from ..propagation.grid.tau import TauTimeTables
-from ..propagation.ray_tracers import RayTracer
+from hypy.propagation import PropagationModel
+from hypy.propagation.layered.grid import TauTimeTables
 
 from .types import EngineLiteral, ModeLiteral, Optional, Path
 
@@ -33,6 +32,13 @@ def init_tracer(
             engine,
         )
     elif mode == "ray":
-        return RayTracer(model_path=tvel_file_path.as_posix(), engine=engine)
+        if engine == "taup":
+            from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
+
+            return TauPRayTracer(model_path=tvel_file_path.as_posix())
+        elif engine == "pyrocko":
+            from hypy.propagation.layered.ray_tracer.pyrocko import PyrockoRayTracer
+
+            return PyrockoRayTracer(model_path=tvel_file_path.as_posix())
     else:
         raise ValueError(f"Unsupported mode: {mode}")
