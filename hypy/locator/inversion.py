@@ -201,7 +201,7 @@ class InversionEngine:
                     if data.invalid_events[event_idx]:
                         continue
 
-                    new_depth = data.locations[event_idx, 2] - dx[event_idx, 2]
+                    new_depth = data.locations[event_idx, 2] + dx[event_idx, 2]
                     if not solve_airquakes and new_depth < 0.0:
                         logger.warning(
                             f"Event {event_idx} depth would become negative ({new_depth} km). "
