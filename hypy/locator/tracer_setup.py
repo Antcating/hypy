@@ -1,5 +1,5 @@
 from hypy.propagation import PropagationModel
-from hypy.propagation.layered.grid import TauTimeTables
+from hypy.propagation.layered.grid import SKFMTimeTables, TauTimeTables
 
 from .types import EngineLiteral, ModeLiteral, Optional, Path
 
@@ -22,15 +22,25 @@ def init_tracer(
                 "In table mode these variables are required: "
                 "max_depth, max_distance, depth_step, distance_step "
             )
-        return TauTimeTables(
-            tvel_file_path.as_posix(),
-            list(phases),
-            float(max_depth),  # type: ignore
-            float(max_distance),  # type: ignore
-            float(depth_step),  # type: ignore
-            float(distance_step),  # type: ignore
-            engine,
-        )
+        if engine == "fmm":
+            return SKFMTimeTables(
+                tvel_file_path.as_posix(),
+                list(phases),
+                float(max_depth),  # type: ignore
+                float(max_distance),  # type: ignore
+                float(depth_step),  # type: ignore
+                float(distance_step),  # type: ignore
+            )
+        else:
+            return TauTimeTables(
+                model_tvel=tvel_file_path.as_posix(),
+                phases=list(phases),
+                max_depth=float(max_depth),  # type: ignore
+                max_distance=float(max_distance),  # type: ignore
+                depth_step=float(depth_step),  # type: ignore
+                distance_step=float(distance_step),  # type: ignore
+                engine=engine,
+            )
     elif mode == "ray":
         if engine == "taup":
             from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
