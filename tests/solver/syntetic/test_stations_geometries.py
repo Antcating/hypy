@@ -47,6 +47,8 @@ from tests.solver.syntetic.utils.geometry_generator import (
     _uniform_grid_geometry,
 )
 
+from hypy.locator.config import VALID_OPERATING_REGIMES
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -233,7 +235,7 @@ GEOMETRIES = {
     "uniform_grid_3x3": (
         _uniform_grid_geometry,
         dict(grid_size=3, spacing_km=10.0, prefix="UG"),
-        (2.5, 1.5, 0.6),
+        (1, 1, 0.2),
     ),
     "sparse_3sta": (
         _sparse_geometry,
@@ -381,19 +383,29 @@ for geom_name in GEOMETRIES.keys():
         else ALL_PHASE_SETS
     )
     for phases in allowed_phase_sets:
-        for mode in ["ray", "table"]:
-            for eng in ["taup", "pyrocko"]:
-                _PARAMS.append((geom_name, phases, mode, eng))
+        for mode in VALID_OPERATING_REGIMES.keys():
+            for eng in VALID_OPERATING_REGIMES[mode]:
+                for derivative_method in VALID_OPERATING_REGIMES[mode][eng]:
+                    _PARAMS.append((geom_name, phases, mode, eng, derivative_method))
 
 _IDS = [
-    f"{geom}|phases={_phase_id(phs)}|{mode}/{eng}" for (geom, phs, mode, eng) in _PARAMS
+    f"{geom}|phases={_phase_id(phs)}|{mode}/{eng}/{derivative_method}"
+    for (geom, phs, mode, eng, derivative_method) in _PARAMS
 ]
 
 
 # -------------------- The Test Itself --------------------
-@pytest.mark.parametrize("geometry_name, phases, mode, engine", _PARAMS, ids=_IDS)
+@pytest.mark.parametrize(
+    "geometry_name, phases, mode, engine, derivative_method", _PARAMS, ids=_IDS
+)
 def test_event_location_vs_geometry(
-    taup_model, true_event_params, geometry_name, phases, mode, engine
+    taup_model,
+    true_event_params,
+    geometry_name,
+    phases,
+    mode,
+    engine,
+    derivative_method,
 ):
     (true_loc, true_t) = true_event_params
     builder, kwargs, (tol_arc_km, tol_depth_km, tol_time_s) = GEOMETRIES[geometry_name]
@@ -408,17 +420,24 @@ def test_event_location_vs_geometry(
     # configure locator
     model_path = _iasp91_tvel_path()
     if mode == "ray":
-        locator = EventLocator(model_path, phases=phases, mode="ray", engine=engine)
+        locator = EventLocator(
+            model_path,
+            phases=phases,
+            mode="ray",
+            engine=engine,
+            derivative_method=derivative_method,
+        )
     else:
         locator = EventLocator(
             model_path,
             phases=phases,
             mode="table",
             engine=engine,
+            derivative_method=derivative_method,
             max_distance_km=250.0,
             distance_step_km=1.0,
             max_depth_km=50.0,
-            depth_step_km=2.0,
+            depth_step_km=1.0,
         )
 
     # run
