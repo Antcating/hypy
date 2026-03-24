@@ -4,19 +4,34 @@ from typing import Optional
 
 import numpy as np
 
-from .types import EngineLiteral, ModeLiteral, SolverLiteral
+from .types import EngineLiteral, ModeLiteral, SolverLiteral, DerivativeMethodLiteral
 
 
-def validate_mode(mode: str) -> ModeLiteral:
-    if mode not in ("table", "ray"):
+VALID_OPERATING_REGIMES = {
+    "ray": {
+        "taup": {"analytical", "numerical"},
+        "pyrocko": {"analytical", "numerical"},
+    },
+    "table": {
+        "taup": {"analytical", "numerical"},
+        "pyrocko": {"analytical", "numerical"},
+        "fmm": {"numerical"},
+    },
+}
+
+
+def validate_operating_regime(
+    mode: str, engine: str
+) -> "tuple[ModeLiteral, EngineLiteral]":
+    if mode not in VALID_OPERATING_REGIMES:
         raise ValueError(f"Unsupported mode: {mode!r}. Use 'table' or 'ray'.")
-    return mode  # type: ignore[return-value]
-
-
-def validate_engine(engine: str) -> EngineLiteral:
-    if engine not in ("taup", "pyrocko"):
-        raise ValueError(f"Unsupported engine: {engine!r}. Use 'taup' or 'pyrocko'.")
-    return engine  # type: ignore[return-value]
+    if engine not in VALID_OPERATING_REGIMES[mode]:
+        valid_engines = ", ".join(VALID_OPERATING_REGIMES[mode])
+        raise ValueError(
+            f"Unsupported engine: {engine!r} for mode {mode!r}. "
+            f"Valid engines for this mode are: {valid_engines}."
+        )
+    return mode, engine  # type: ignore[return-value]
 
 
 def validate_solver(solver: str) -> SolverLiteral:
@@ -82,6 +97,7 @@ class LocatorConfig:
     default_time_error: float
     mode: ModeLiteral
     engine: EngineLiteral
+    derivative_method: DerivativeMethodLiteral
     max_depth_km: Optional[float]
     max_distance_km: Optional[float]
     depth_step_km: Optional[float]
@@ -91,6 +107,7 @@ class LocatorConfig:
     distance_weighting_enabled: bool
     k: Optional[float]
     x0: Optional[float]
+    derivative_delta_km: float = 0.5
     dim: int = 4
 
     @property

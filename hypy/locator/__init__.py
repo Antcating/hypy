@@ -21,8 +21,7 @@ from ..propagation import PropagationModel
 from .config import (
     LocatorConfig,
     configure_distance_weighting,
-    validate_engine,
-    validate_mode,
+    validate_operating_regime,
     validate_precompute_args,
     validate_solver,
 )
@@ -41,6 +40,7 @@ from .types import (
     Inventory,
     ModeLiteral,
     SolverLiteral,
+    DerivativeMethodLiteral,
 )
 
 
@@ -110,6 +110,7 @@ class EventLocator:
         default_time_error: float = 0.1,
         mode: ModeLiteral = "table",
         engine: EngineLiteral = "taup",
+        derivative_method: DerivativeMethodLiteral = "numerical",
         max_depth_km: Optional[float] = None,
         max_distance_km: Optional[float] = None,
         depth_step_km: Optional[float] = None,
@@ -122,8 +123,7 @@ class EventLocator:
         _precalculate_velocities: bool = False,
     ):
         # Validate mode and engine
-        validated_mode: ModeLiteral = validate_mode(mode)
-        validated_engine: EngineLiteral = validate_engine(engine)
+        mode, engine = validate_operating_regime(mode, engine)
 
         # Resolve model path
         tvel_file_path = Path(model_tvel_path).expanduser().resolve()
@@ -140,8 +140,9 @@ class EventLocator:
             phases=tuple(phases),
             min_picks_per_event=min_picks_per_event,
             default_time_error=default_time_error,
-            mode=validated_mode,
-            engine=validated_engine,
+            mode=mode,
+            engine=engine,
+            derivative_method=derivative_method,
             max_depth_km=max_depth_km,
             max_distance_km=max_distance_km,
             depth_step_km=depth_step_km,

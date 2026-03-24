@@ -77,6 +77,8 @@ class DerivativeEngine:
             source_depth_km=ev_depth_km + st_elev_m / 1000.0,
             az_deg=azimuth_deg,
             phase=phase,
+            mode=self.config.derivative_method,
+            delta=self.config.derivative_delta_km,
         )
         return arc_distance_km, travel_time_s, (dt_dr, dt_dx, dt_dy, dt_dz)
 
