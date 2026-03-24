@@ -27,6 +27,7 @@ DimLiteral = Literal[4]
 ModeLiteral = Literal["table", "ray"]
 EngineLiteral = Literal["taup", "pyrocko"]
 SolverLiteral = Literal["lsqr", "svd"]
+DerivativeMethodLiteral = Literal["numerical", "analytical"]
 
 
 @dataclass
