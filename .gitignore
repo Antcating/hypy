@@ -35,3 +35,8 @@ logs/
 
 # Austin 
 *.austin
+
+*.xml
+*.csv
+hypy/propagation/layered/grid/tau/data/*
+hypy/propagation/layered/grid/fmm/data/*
