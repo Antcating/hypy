@@ -66,10 +66,9 @@ def configure_distance_weighting(
             "distance_weight_end must be greater than distance_weight_start."
         )
 
-    # Solve logistic parameters for: w(d) = 1 / (1 + exp(-k (d - x0)))
-    k = (np.log((1.0 / w1) - 1.0) - np.log((1.0 / w0) - 1.0)) / (d1 - d0)
-    x0 = d0 - (np.log((1.0 / w0) - 1.0) / k)
-    return True, float(k), float(x0)
+    # Solve logistic parameters for: w(d) = 1 / (1 + 10^(k (d - x0)))
+    # https://www.desmos.com/calculator/221eudc8kc
+
 
 
 def validate_precompute_args(

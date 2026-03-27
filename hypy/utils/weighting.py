@@ -16,6 +16,7 @@ def distance_weight(distance, **kwargs):
     if k is None or x0 is None:
         raise ValueError("Parameters 'k' and 'x0' must be provided in kwargs.")
 
+    # https://www.desmos.com/calculator/221eudc8kc
     weight = 1.0 / (1.0 + np.exp(k * (distance - x0)))
 
     return weight
