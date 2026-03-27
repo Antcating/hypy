@@ -212,6 +212,8 @@ class TauTimeTables(LayeredPropagationModel):
         """
         if phase not in self.phases:
             raise ValueError(f"Phase {phase} not in available phases: {self.phases}")
+        # Normalize distrance to positive values (valid for 1D models)
+        arc_distance_km = abs(arc_distance_km)
         time = self.compute_travel_time(phase, source_depth_km, arc_distance_km)
         takeoff_angle = self.compute_takeoff_angle(
             phase, source_depth_km, arc_distance_km
