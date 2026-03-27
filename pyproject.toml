@@ -29,13 +29,15 @@ dependencies = [
 # Extra for development and testing
 dev = [
     "pytest",
+    "pytest-cov",
     "pyrocko",
     "ruff",
     "hypy",
     "hatchling"
 ]
-# Extra that only installs pyrocko
 pyrocko = ["pyrocko"]
+
+fmm = ["scikit-fmm"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["hypy"]
