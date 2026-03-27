@@ -19,12 +19,16 @@ VALID_OPERATING_REGIMES = {
     },
 }
 
+VALID_SOLVERS = {"lsqr", "svd"}
+
 
 def validate_operating_regime(
     mode: str, engine: str
 ) -> "tuple[ModeLiteral, EngineLiteral]":
     if mode not in VALID_OPERATING_REGIMES:
-        raise ValueError(f"Unsupported mode: {mode!r}. Use 'table' or 'ray'.")
+        raise ValueError(
+            f"Unsupported mode: {mode!r}. Use one of: {', '.join(VALID_OPERATING_REGIMES)}."
+        )
     if engine not in VALID_OPERATING_REGIMES[mode]:
         valid_engines = ", ".join(VALID_OPERATING_REGIMES[mode])
         raise ValueError(
@@ -35,9 +39,11 @@ def validate_operating_regime(
 
 
 def validate_solver(solver: str) -> SolverLiteral:
-    if solver not in ("lsqr", "svd"):
-        raise ValueError(f"Unsupported solver: {solver!r}. Use 'lsqr' or 'svd'.")
-    return solver  # type: ignore[return-value]
+    if solver.lower() not in VALID_SOLVERS:
+        raise ValueError(
+            f"Unsupported solver: {solver!r}. Use one of: {', '.join(VALID_SOLVERS)}."
+        )
+    return solver.lower()  # type: ignore[return-value]
 
 
 def configure_distance_weighting(
