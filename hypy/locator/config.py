@@ -4,30 +4,51 @@ from typing import Optional
 
 import numpy as np
 
-from .types import EngineLiteral, ModeLiteral, SolverLiteral
+from .types import EngineLiteral, ModeLiteral, SolverLiteral, DerivativeMethodLiteral
 
 
-def validate_mode(mode: str) -> ModeLiteral:
-    if mode not in ("table", "ray"):
-        raise ValueError(f"Unsupported mode: {mode!r}. Use 'table' or 'ray'.")
-    return mode  # type: ignore[return-value]
+VALID_OPERATING_REGIMES = {
+    "ray": {
+        "taup": {"analytical", "numerical"},
+        "pyrocko": {"analytical", "numerical"},
+    },
+    "table": {
+        "taup": {"analytical", "numerical"},
+        "pyrocko": {"analytical", "numerical"},
+        "fmm": {"numerical"},
+    },
+}
+
+VALID_SOLVERS = {"lsqr", "svd"}
 
 
-def validate_engine(engine: str) -> EngineLiteral:
-    if engine not in ("taup", "pyrocko"):
-        raise ValueError(f"Unsupported engine: {engine!r}. Use 'taup' or 'pyrocko'.")
-    return engine  # type: ignore[return-value]
+def validate_operating_regime(
+    mode: str, engine: str
+) -> "tuple[ModeLiteral, EngineLiteral]":
+    if mode not in VALID_OPERATING_REGIMES:
+        raise ValueError(
+            f"Unsupported mode: {mode!r}. Use one of: {', '.join(VALID_OPERATING_REGIMES)}."
+        )
+    if engine not in VALID_OPERATING_REGIMES[mode]:
+        valid_engines = ", ".join(VALID_OPERATING_REGIMES[mode])
+        raise ValueError(
+            f"Unsupported engine: {engine!r} for mode {mode!r}. "
+            f"Valid engines for this mode are: {valid_engines}."
+        )
+    return mode, engine  # type: ignore[return-value]
 
 
 def validate_solver(solver: str) -> SolverLiteral:
-    if solver not in ("lsqr", "svd"):
-        raise ValueError(f"Unsupported solver: {solver!r}. Use 'lsqr' or 'svd'.")
-    return solver  # type: ignore[return-value]
+    if solver.lower() not in VALID_SOLVERS:
+        raise ValueError(
+            f"Unsupported solver: {solver!r}. Use one of: {', '.join(VALID_SOLVERS)}."
+        )
+    return solver.lower()  # type: ignore[return-value]
 
 
 def configure_distance_weighting(
-    distance_weight_start: Optional[float],
-    distance_weight_end: Optional[float],
+    distance_start_km: Optional[float],
+    distance_end_km: Optional[float],
     weight_start: Optional[float],
     weight_end: Optional[float],
 ) -> "tuple[bool, Optional[float], Optional[float]]":
@@ -35,12 +56,12 @@ def configure_distance_weighting(
     Compute logistic weighting parameters (k, x0) if all inputs are provided.
     Returns: (enabled, k, x0).
     """
-    args = (distance_weight_start, distance_weight_end, weight_start, weight_end)
+    args = (distance_start_km, distance_end_km, weight_start, weight_end)
     if any(a is None for a in args):
         return False, None, None
 
-    d0 = float(distance_weight_start)  # type: ignore[arg-type]
-    d1 = float(distance_weight_end)  # type: ignore[arg-type]
+    d0 = float(distance_start_km)  # type: ignore[arg-type]
+    d1 = float(distance_end_km)  # type: ignore[arg-type]
     w0 = float(weight_start)  # type: ignore[arg-type]
     w1 = float(weight_end)  # type: ignore[arg-type]
 
@@ -51,9 +72,10 @@ def configure_distance_weighting(
             "distance_weight_end must be greater than distance_weight_start."
         )
 
-    # Solve logistic parameters for: w(d) = 1 / (1 + exp(-k (d - x0)))
-    k = (np.log((1.0 / w1) - 1.0) - np.log((1.0 / w0) - 1.0)) / (d1 - d0)
-    x0 = d0 - (np.log((1.0 / w0) - 1.0) / k)
+    # Solve logistic parameters for: w(d) = 1 / (1 + 10^(k (d - x0)))
+    # https://www.desmos.com/calculator/221eudc8kc
+    k = (np.log10((1.0 / w1) - 1.0) - np.log10((1.0 / w0) - 1.0)) / (d1 - d0)
+    x0 = d0 - (np.log10((1.0 / w0) - 1.0) / k)
     return True, float(k), float(x0)
 
 
@@ -82,6 +104,7 @@ class LocatorConfig:
     default_time_error: float
     mode: ModeLiteral
     engine: EngineLiteral
+    derivative_method: DerivativeMethodLiteral
     max_depth_km: Optional[float]
     max_distance_km: Optional[float]
     depth_step_km: Optional[float]
@@ -91,6 +114,7 @@ class LocatorConfig:
     distance_weighting_enabled: bool
     k: Optional[float]
     x0: Optional[float]
+    derivative_delta_km: float = 0.5
     dim: int = 4
 
     @property

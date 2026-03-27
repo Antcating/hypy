@@ -201,7 +201,7 @@ class InversionEngine:
                     if data.invalid_events[event_idx]:
                         continue
 
-                    new_depth = data.locations[event_idx, 2] - dx[event_idx, 2]
+                    new_depth = data.locations[event_idx, 2] + dx[event_idx, 2]
                     if not solve_airquakes and new_depth < 0.0:
                         logger.warning(
                             f"Event {event_idx} depth would become negative ({new_depth} km). "
@@ -225,7 +225,7 @@ class InversionEngine:
                 dx_apply[:, 1] = kilometer2degrees(dx_apply[:, 1], planet_radius)
 
                 valid_mask = ~data.invalid_events
-                data.locations[valid_mask, :3] -= dx_apply[valid_mask, :3]
+                data.locations[valid_mask, :3] += dx_apply[valid_mask, :3]
                 data.origin_times[valid_mask] += dx_apply[valid_mask, 3]
 
                 # Rebuild derivatives and recompute RMS AFTER trial update

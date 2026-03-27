@@ -64,10 +64,10 @@ def get_spatial_slowness_1d(takeoff_rad: float, az_deg: float, vel: float):
     az_rad = np.deg2rad(az_deg)
 
     # Horizontal slowness magnitude
-    dt_dr = np.sin(takeoff_rad) / vel
+    dt_dr = -np.sin(takeoff_rad) / vel
 
     # Depth derivative (depth positive down)
-    dt_dz = np.cos(takeoff_rad) / vel
+    dt_dz = -np.cos(takeoff_rad) / vel
 
     # Project horizontal slowness using azimuth-from-North (cw)
     dt_dx = dt_dr * np.sin(az_rad)  # East
