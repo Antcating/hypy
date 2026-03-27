@@ -41,8 +41,8 @@ def validate_solver(solver: str) -> SolverLiteral:
 
 
 def configure_distance_weighting(
-    distance_weight_start: Optional[float],
-    distance_weight_end: Optional[float],
+    distance_start_km: Optional[float],
+    distance_end_km: Optional[float],
     weight_start: Optional[float],
     weight_end: Optional[float],
 ) -> "tuple[bool, Optional[float], Optional[float]]":
@@ -50,12 +50,12 @@ def configure_distance_weighting(
     Compute logistic weighting parameters (k, x0) if all inputs are provided.
     Returns: (enabled, k, x0).
     """
-    args = (distance_weight_start, distance_weight_end, weight_start, weight_end)
+    args = (distance_start_km, distance_end_km, weight_start, weight_end)
     if any(a is None for a in args):
         return False, None, None
 
-    d0 = float(distance_weight_start)  # type: ignore[arg-type]
-    d1 = float(distance_weight_end)  # type: ignore[arg-type]
+    d0 = float(distance_start_km)  # type: ignore[arg-type]
+    d1 = float(distance_end_km)  # type: ignore[arg-type]
     w0 = float(weight_start)  # type: ignore[arg-type]
     w1 = float(weight_end)  # type: ignore[arg-type]
 
