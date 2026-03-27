@@ -127,11 +127,11 @@ class TauTimeTables(LayeredPropagationModel):
             for i, depth in enumerate(depth_values):
                 for j, dist in enumerate(distance_values):
                     if phase == "P" and "P" in self.travel_time_tables:
-                        time, angle = self.tracer.get_arrival_1d(depth, dist, "P")
+                        time, angle = self.tracer.get_arrival_1d(dist, depth, "P")
                         self.travel_time_tables["P"][i, j] = time
                         self.takeoff_angle_tables["P"][i, j] = angle
                     elif phase == "S" and "S" in self.travel_time_tables:
-                        time, angle = self.tracer.get_arrival_1d(depth, dist, "S")
+                        time, angle = self.tracer.get_arrival_1d(dist, depth, "S")
                         self.travel_time_tables["S"][i, j] = time
                         self.takeoff_angle_tables["S"][i, j] = angle
             logger.info(f"Saving travel-time tables to {fname}")
