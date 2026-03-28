@@ -363,7 +363,7 @@ class SKFMTimeTables(LayeredPropagationModel):
             None,
         )  # takeoff angle is not meaningful for scikit-fmm tables, set to None
 
-    def get_spatial_slowness(
+    def compute_derivatives(
         self,
         arc_distance_km: float,
         source_depth_km: float,
