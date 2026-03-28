@@ -50,5 +50,24 @@ def init_tracer(
             from hypy.propagation.layered.ray_tracer.pyrocko import PyrockoRayTracer
 
             return PyrockoRayTracer(model_path=tvel_file_path.as_posix())
+    elif mode == "table3d":
+        if engine == "fmm":
+            from hypy.propagation.volumetric.grid.pyekfmm import PyekfmmRayTracer
+
+            return PyekfmmRayTracer(
+                model_path=tvel_file_path.as_posix(),
+                max_distance_km=float(max_distance)
+                if max_distance is not None
+                else None,
+                distance_step_km=float(distance_step)
+                if distance_step is not None
+                else None,
+                max_depth_km=float(max_depth) if max_depth is not None else None,
+                depth_step_km=float(depth_step) if depth_step is not None else None,
+            )
+        else:
+            raise ValueError(f"Unsupported engine: {engine} for mode {mode}")
     else:
         raise ValueError(f"Unsupported mode: {mode}")
+
+    return None
