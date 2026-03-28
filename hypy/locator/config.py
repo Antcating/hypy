@@ -12,9 +12,12 @@ VALID_OPERATING_REGIMES = {
         "taup": {"analytical", "numerical"},
         "pyrocko": {"analytical", "numerical"},
     },
-    "table": {
+    "table1d": {
         "taup": {"analytical", "numerical"},
         "pyrocko": {"analytical", "numerical"},
+        "fmm": {"numerical"},
+    },
+    "table3d": {
         "fmm": {"numerical"},
     },
 }
