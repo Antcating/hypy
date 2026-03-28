@@ -23,6 +23,21 @@ class PropagationModel:
         # arrival time and takeoff angle retrieval
         raise NotImplementedError("This method should be overridden by subclasses")
 
+    def compute_travel_time_params(
+        self,
+        source_latitude: float,
+        source_longitude: float,
+        source_depth_km: float,
+        receiver_latitude: float,
+        receiver_longitude: float,
+        receiver_elevation_m: float,
+        phase: str,
+        delta: Optional[float] = None,
+        derivative_method: str = "analytical",
+    ) -> tuple[float, float, tuple[float, float, float, float]]:
+        # Placeholder for child classes to implement
+        # spatial slowness derivative computation
+        raise NotImplementedError("This method should be overridden by subclasses")
 
     def compute_derivatives(self, *args, **kwargs):
         # Placeholder for child classes to implement
