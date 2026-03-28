@@ -39,6 +39,11 @@ pyrocko = ["pyrocko"]
 
 fmm = ["scikit-fmm"]
 
+3d = [
+    "nllgrid",
+    "pyekfmm"
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["hypy"]
 exclude = [
