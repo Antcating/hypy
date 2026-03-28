@@ -1,6 +1,5 @@
 from typing import Optional
 
-from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 from pathlib import Path
 from hypy.logger import logger
 from hypy.propagation import PropagationModel

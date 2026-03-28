@@ -1,5 +1,3 @@
-from typing import Optional, Union, TYPE_CHECKING
-
 from hypy.propagation.layered import LayeredPropagationModel
 
 

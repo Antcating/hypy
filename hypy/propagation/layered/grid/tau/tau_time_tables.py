@@ -10,7 +10,6 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 
 from hypy.logger import logger
 from hypy.propagation.layered import LayeredPropagationModel
