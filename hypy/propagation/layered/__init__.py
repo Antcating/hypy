@@ -5,7 +5,7 @@ from pathlib import Path
 from hypy.logger import logger
 from hypy.propagation import PropagationModel
 from hypy.locator.model import VelocityModelHandler
-from hypy.utils.geo import gps2dist_azimuth_nb, get_spatial_slowness_1d
+from hypy.utils.geo import gps2dist_azimuth_nb, get_analytic_derivatives
 from hypy.utils.math import finite_difference_derivative
 
 import numpy as np
@@ -86,7 +86,7 @@ class LayeredPropagationModel(PropagationModel):
         velocity_km_s: float,
     ) -> tuple[float, float, float, float]:
         takeoff_angle_rad = np.deg2rad(takeoff_angle_deg)
-        dt_dr, dt_dx, dt_dy, dt_dz = get_spatial_slowness_1d(
+        dt_dr, dt_dx, dt_dy, dt_dz = get_analytic_derivatives(
             takeoff_angle_rad, azimuth_deg, velocity_km_s
         )
         return dt_dr, dt_dx, dt_dy, dt_dz

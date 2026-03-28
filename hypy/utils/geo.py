@@ -49,7 +49,7 @@ def gps2dist_azimuth_nb(lat1, lon1, lat2, lon2, R=6371.0e3):
 
 
 @njit(cache=True)
-def get_spatial_slowness_1d(takeoff_rad: float, az_deg: float, vel: float):
+def get_analytic_derivatives(takeoff_rad: float, az_deg: float, vel: float):
     """
     Spatial derivatives of travel time T for a 1D isotropic model.
 
