@@ -431,7 +431,7 @@ def test_event_location_vs_geometry(
         locator = EventLocator(
             model_path,
             phases=phases,
-            mode="table",
+            mode="table1d",
             engine=engine,
             derivative_method=derivative_method,
             max_distance_km=250.0,
