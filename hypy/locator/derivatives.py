@@ -57,30 +57,17 @@ class DerivativeEngine:
         ev_lat, ev_lon, ev_depth_km = event_location
         st_lat, st_lon, st_elev_m = station_location
 
-        arc_distance_km, travel_time_s, takeoff_angle_deg, azimuth_deg = (
-            self.tracer.get_arrival(
-                source_latitude=ev_lat,
-                source_longitude=ev_lon,
-                source_depth_km=ev_depth_km,
-                receiver_latitude=st_lat,
-                receiver_longitude=st_lon,
-                receiver_elevation_m=st_elev_m,
-                phase=phase,
-                max_distance_km=self.config.max_distance_km,
-            )
-        )
-        # TODO: Expose method to compute derivatives (analytical or numerical).
-        # dt/dr (ray), dt/dx (east), dt/dy (north), dt/dz (down)
-        dt_dr, dt_dx, dt_dy, dt_dz = self.tracer.get_spatial_slowness(
-            arc_distance_km=arc_distance_km,
-            takeoff_angle_deg=takeoff_angle_deg,
-            source_depth_km=ev_depth_km + st_elev_m / 1000.0,
-            az_deg=azimuth_deg,
+        return self.tracer.compute_travel_time_params(
+            source_latitude=ev_lat,
+            source_longitude=ev_lon,
+            source_depth_km=ev_depth_km,
+            receiver_latitude=st_lat,
+            receiver_longitude=st_lon,
+            receiver_elevation_m=st_elev_m,
             phase=phase,
-            mode=self.config.derivative_method,
             delta=self.config.derivative_delta_km,
+            derivative_method=self.config.derivative_method,
         )
-        return arc_distance_km, travel_time_s, (dt_dr, dt_dx, dt_dy, dt_dz)
 
     def populate_derivative_matrix(self) -> np.ndarray:
         """
