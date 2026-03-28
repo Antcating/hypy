@@ -25,6 +25,41 @@ class LayeredPropagationModel(PropagationModel):
         """Get the arrival time and takeoff angle for a given source depth, distance, and seismic phase."""
         raise NotImplementedError("This method should be implemented by subclasses")
 
+    def compute_travel_time_params(
+        self,
+        source_latitude: float,
+        source_longitude: float,
+        source_depth_km: float,
+        receiver_latitude: float,
+        receiver_longitude: float,
+        receiver_elevation_m: float,
+        phase: str,
+        delta: float | None = None,
+        derivative_method: str = "analytical",
+    ) -> tuple[float, float, tuple[float, float, float, float]]:
+        arc_distance_km, travel_time_s, takeoff_angle_deg, azimuth_deg = (
+            self.get_arrival(
+                source_latitude=source_latitude,
+                source_longitude=source_longitude,
+                source_depth_km=source_depth_km,
+                receiver_latitude=receiver_latitude,
+                receiver_longitude=receiver_longitude,
+                receiver_elevation_m=receiver_elevation_m,
+                phase=phase,
+            )
+        )
+
+        dt_dr, dt_dx, dt_dy, dt_dz = self.compute_derivatives(
+            arc_distance_km=arc_distance_km,
+            source_depth_km=source_depth_km + receiver_elevation_m / 1000.0,
+            az_deg=azimuth_deg,
+            phase=phase,
+            takeoff_angle_deg=takeoff_angle_deg,
+            delta=delta,
+            mode=derivative_method,
+        )
+        return arc_distance_km, travel_time_s, (dt_dr, dt_dx, dt_dy, dt_dz)
+
     def _compute_arc_params(
         self,
         source_latitude: float,
@@ -90,7 +125,7 @@ class LayeredPropagationModel(PropagationModel):
 
         return dt_dr, dt_dx, dt_dy, dt_dz
 
-    def get_spatial_slowness(
+    def compute_derivatives(
         self,
         arc_distance_km: float,
         source_depth_km: float,
