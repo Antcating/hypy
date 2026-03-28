@@ -14,7 +14,7 @@ def init_tracer(
     depth_step: Optional[float],
     distance_step: Optional[float],
 ) -> PropagationModel:
-    if mode == "table":
+    if mode == "table1d":
         if any(
             val is None for val in [max_depth, max_distance, depth_step, distance_step]
         ):

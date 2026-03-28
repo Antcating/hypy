@@ -24,8 +24,8 @@ from obspy.core.event.origin import (  # type: ignore[import-untyped]
 from obspy.core.inventory import Inventory  # type: ignore[import-untyped]
 
 DimLiteral = Literal[4]
-ModeLiteral = Literal["table", "ray"]
-EngineLiteral = Literal["taup", "pyrocko"]
+ModeLiteral = Literal["table1d", "table3d", "ray"]
+EngineLiteral = Literal["taup", "pyrocko", "fmm"]
 SolverLiteral = Literal["lsqr", "svd"]
 DerivativeMethodLiteral = Literal["numerical", "analytical"]
 
