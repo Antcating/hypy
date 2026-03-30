@@ -60,3 +60,9 @@ indent-width = 4
 
 [tool.ruff.format]
 docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["D", "E", "F", "W", "I"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
