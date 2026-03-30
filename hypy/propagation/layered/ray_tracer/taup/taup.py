@@ -131,7 +131,19 @@ class TauPRayTracer(LayeredRayTracer):
 
         Returns
         -------
-            tuple[float, Optional[float], Optional[float], float]: _description_
+        tuple[float, Optional[float], Optional[float], float]
+            A tuple containing:
+
+            arc_distance_km : float
+                Great-circle distance between source and receiver in kilometers.
+            arrival_time : float or None
+                Arrival time in seconds, or None if the station is beyond
+                max_distance_km.
+            takeoff_angle : float or None
+                Takeoff angle in degrees, or None if the station is beyond
+                max_distance_km.
+            azimuth_deg : float
+                Azimuth from source to receiver in degrees (clockwise from North).
         """
         arc_distance_km, azimuth_deg, back_azimuth_deg = self._compute_arc_params(
             source_latitude,
