@@ -9,8 +9,8 @@ except ImportError:
     )
 from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
 
-from hypy.propagation.layered.ray_tracer import LayeredRayTracer
 from hypy.logger import logger
+from hypy.propagation.layered.ray_tracer import LayeredRayTracer
 
 
 class PyrockoRayTracer(LayeredRayTracer):

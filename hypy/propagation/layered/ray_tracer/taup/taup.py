@@ -1,4 +1,4 @@
-"""taup.py Ray Tracer.
+"""1D TauP Ray Tracer based on obspy's TauP module.
 
 Performs seismic ray tracing using the obspy's TauP toolkit.
 This module defines the TauPRayTracer class,
@@ -30,11 +30,13 @@ from hypy.propagation.layered.ray_tracer import LayeredRayTracer
 class TauPRayTracer(LayeredRayTracer):
     """Seismic Ray Tracer using obspy's TauP toolkit.
 
-    It provides methods to compute travel times and takeoff angles
-    for seismic phases for given source-receiver configurations.
+    It provides methods to compute ray parametes for seismic phases
+    and given source-receiver configurations and a 1D velocity model.
 
-    Args:
-        LayeredRayTracer (LayeredPropagationModel): Base class for layered ray tracing.
+    Parameters
+    ----------
+    LayeredRayTracer : LayeredPropagationModel
+        Base class for layered ray tracing.
     """
 
     def __init__(self, model_path: str):
@@ -51,27 +53,31 @@ class TauPRayTracer(LayeredRayTracer):
 
         For 1D layered models, the arrival time and takeoff angle depend only
         on the source depth and the arc distance between source and receiver,
-        not on their specific geographic locations,
-        so we can compute these parameters in a 1D context.
+        not on the specific geographic locations,
+        so we can compute these parameters in a 1D context using TauP.
 
-        The calculation is performed using the TauP toolkit, which computes travel times
-        and ray paths based on a specified velocity model.
-
-        Args:
-            arc_distance_km (float): Great-circle distance between source
-                and receiver in kilometers.
-            source_depth_km (float): Depth of the seismic source in kilometers.
-            phase (str): Seismic phase for which to compute arrivals.
-
-        Raises
-        ------
-            ValueError: If an unsupported seismic phase is requested.
-            ValueError: If no arrivals are found for the given parameters.
-            ValueError: If an error occurs during arrival computation.
+        Parameters
+        ----------
+        arc_distance_km : float
+            Great-circle distance between source and receiver in kilometers.
+        source_depth_km : float
+            Depth of the seismic source in kilometers.
+        phase : str
+            Seismic phase for which to compute arrivals.
 
         Returns
         -------
-            (float, float): The arrival time and takeoff angle.
+        (float, float)
+            The arrival time and takeoff angle.
+
+        Raises
+        ------
+        ValueError
+            If an unsupported seismic phase is requested.
+        ValueError
+            If no arrivals are found for the given parameters.
+        ValueError
+            If an error occurs during arrival computation.
         """
         if phase.lower() == "p":
             phases = ["p", "P"]
@@ -118,16 +124,24 @@ class TauPRayTracer(LayeredRayTracer):
         the arrival time and takeoff angle are computed using TauP for the
         specified seismic phase.
 
-        Args:
-            source_latitude (float): Latitude of the seismic source in degrees.
-            source_longitude (float): Longitude of the seismic source in degrees.
-            source_depth_km (float): Depth of the seismic source in kilometers.
-            receiver_latitude (float): Latitude of the receiver in degrees.
-            receiver_longitude (float): Longitude of the receiver in degrees.
-            receiver_elevation_m (float): Elevation of the receiver in meters.
-            phase (str): Seismic phase for which to compute arrivals.
-            max_distance_km (float | None, optional): Maximum distance for which
-                to compute arrivals. Defaults to None.
+        Parameters
+        ----------
+        source_latitude : float
+            Latitude of the seismic source in degrees.
+        source_longitude : float
+            Longitude of the seismic source in degrees.
+        source_depth_km : float
+            Depth of the seismic source in kilometers.
+        receiver_latitude : float
+            Latitude of the receiver in degrees.
+        receiver_longitude : float
+            Longitude of the receiver in degrees.
+        receiver_elevation_m : float
+            Elevation of the receiver in meters.
+        phase : str
+            Seismic phase for which to compute arrivals.
+        max_distance_km : float | None, optional
+            Maximum distance for which to compute arrivals, by default None
 
         Returns
         -------
@@ -137,11 +151,9 @@ class TauPRayTracer(LayeredRayTracer):
             arc_distance_km : float
                 Great-circle distance between source and receiver in kilometers.
             arrival_time : float or None
-                Arrival time in seconds, or None if the station is beyond
-                max_distance_km.
+                Arrival time in seconds, or None if (distance >= max_distance_km).
             takeoff_angle : float or None
-                Takeoff angle in degrees, or None if the station is beyond
-                max_distance_km.
+                Takeoff angle in degrees, or None if (distance >= max_distance_km).
             azimuth_deg : float
                 Azimuth from source to receiver in degrees (clockwise from North).
         """
