@@ -31,11 +31,12 @@ class OriginFinalizer:
         self, error_results: ErrorResults
     ) -> Union[List[Event], Catalog]:
         """
-        Attach final Origin objects to events:
+        Attach final Origin objects to events.
+
         - Convert stored relative origin times (t0_rel) back to absolute by adding time_refs.
-        - Locations/depths are left as-is (km for depth, converted to meters for ObsPy).
-        - Arrival residuals are computed in the same sign convention used in inversion:
-          residual = (observed_travel_time - theoretical_travel_time).
+        - Leave locations/depths as-is (km for depth, converted to meters for ObsPy).
+        - Compute arrival residuals using inversion sign convention:
+            residual = (observed_travel_time - theoretical_travel_time).
         """
         config = self.config
         data = self.data
