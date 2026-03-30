@@ -1,5 +1,5 @@
-from numba import njit  # type: ignore[import-untyped]
 import numpy as np
+from numba import njit  # type: ignore[import-untyped]
 
 
 @njit(cache=True)
@@ -10,11 +10,13 @@ def gps2dist_azimuth_nb(lat1, lon1, lat2, lon2, R=6371.0e3):
 
     @This function is a Numba-optimized version of Obspy's gps2dist_azimuth.
 
-    Parameters:
+    Parameters
+    ----------
     - lat1, lon1: event (deg)
     - lat2, lon2: station (deg)
 
-    Returns:
+    Returns
+    -------
     - distance (meters), azimuth (deg), back_azimuth (deg)
     """
     # Convert to radians
