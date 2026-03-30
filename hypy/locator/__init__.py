@@ -95,8 +95,8 @@ class EventLocator:
         Weight factor at distance_weight_start. Default is 0.99.
     weight_end : float, optional
         Weight factor at distance_weight_end. Default is 0.01.
-    fix_depth : bool, optional
-        If True, event depths are fixed during inversion. Default is False.
+    fix_depth_km : Optional[float], optional
+        If not None, event depths are fixed during inversion. Default is None.
     _precalculate_velocities : bool, optional
         If True, precomputes velocity profiles for all events to speed up travel-time
         calculations. Requires max_depth_km and depth_step_km to be set. Default is False.
@@ -119,7 +119,7 @@ class EventLocator:
         distance_weight_end_km: Optional[float] = None,
         weight_start: Optional[float] = 0.99,
         weight_end: Optional[float] = 0.01,
-        fix_depth: bool = False,
+        fix_depth_km: Optional[float] = None,
         _precalculate_velocities: bool = False,
     ):
         # Validate mode and engine
@@ -147,7 +147,7 @@ class EventLocator:
             max_distance_km=max_distance_km,
             depth_step_km=depth_step_km,
             distance_step_km=distance_step_km,
-            fix_depth=fix_depth,
+            fix_depth_km=fix_depth_km,
             precalculate_velocities=bool(_precalculate_velocities),
             distance_weighting_enabled=distance_weighting_enabled,
             k=k,
@@ -165,7 +165,7 @@ class EventLocator:
             min_picks_per_event=self.config.min_picks_per_event,
             default_time_error=self.config.default_time_error,
             dim=self.config.dim,
-            fix_depth=self.config.fix_depth,
+            fix_depth_km=self.config.fix_depth_km,
         )
 
         # Initialize the travel-time calculator (tracer) based on the selected mode and engine.
@@ -254,6 +254,7 @@ class EventLocator:
 
         init_locations(
             self.data,
+            self.config,
             self.derivative_engine,
             trial_depth_km,
             self.config.max_depth_km,

@@ -32,8 +32,9 @@ dev = [
     "pytest-cov",
     "pyrocko",
     "ruff",
-    "hypy",
-    "hatchling"
+    "hatchling",
+    "sphinx>=9.0.4",
+    "sphinx-rtd-theme>=3.1.0",
 ]
 pyrocko = ["pyrocko"]
 
