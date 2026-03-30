@@ -83,9 +83,12 @@ class LayeredPropagationModel(PropagationModel):
         )
         az_rad = np.deg2rad(azimuth_deg)
 
-        dt_dr = dt_ddist
-        dt_dx = dt_ddist * np.sin(az_rad)
-        dt_dy = dt_ddist * np.cos(az_rad)
+        # Convert path-distance derivative to source-coordinate derivatives.
+        # Increasing source x/y toward the receiver reduces source-receiver distance,
+        # so source-coordinate horizontal derivatives carry a negative sign.
+        dt_dr = -dt_ddist
+        dt_dx = dt_dr * np.sin(az_rad)
+        dt_dy = dt_dr * np.cos(az_rad)
         dt_dz = dt_ddepth
 
         return dt_dr, dt_dx, dt_dy, dt_dz
