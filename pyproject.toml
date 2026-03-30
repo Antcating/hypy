@@ -53,3 +53,10 @@ exclude = [
 
 [tool.uv.sources]
 hypy = { workspace = true }
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.format]
+docstring-code-format = true
