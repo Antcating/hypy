@@ -1,13 +1,16 @@
 from typing import Optional
 
+
 from ..logger import logger  # type: ignore[import-not-found]
 from .data import DataHandler
 from .derivatives import DerivativeEngine
+from .config import LocatorConfig
 from .types import Event, np
 
 
 def init_locations(
     data: DataHandler,
+    config: LocatorConfig,
     derivative_engine: DerivativeEngine,
     trial_depth_km: float,
     max_depth_km: Optional[float],
@@ -77,12 +80,20 @@ def init_locations(
         # Depth grid around trial depth
         initial_depth_km = max(0.0, float(trial_depth_km))
         if max_depth_km is None:
+            # FIXME: It is a very dodgy assumption to set max_depth_km = initial_depth_km + 20.0,
+            # should be based on the velocity model and typical depth distribution of events in the region instead.
             max_depth_km = initial_depth_km + 20.0
+
+        if config.fix_depth_km is not None:
+            # If depth is fixed, just use that as the single candidate
+            candidate_depths = [float(config.fix_depth_km)]
+            return unique_seeds, candidate_depths
 
         depth_grid_candidates = {
             round(x, 2)
             for x in np.random.normal(loc=initial_depth_km, scale=5.0, size=10)
         }
+
         candidate_depths = sorted(
             [d for d in depth_grid_candidates if 0.0 <= d <= max_depth_km]
         ) or [initial_depth_km]
@@ -200,6 +211,10 @@ def init_locations(
         # Evaluate all seed/depth pairs, keep the one with the lowest WRMS
         for lat_seed, lon_seed in seeds:
             for depth_candidate_km in candidate_depths:
+                logger.debug(
+                    f"Evaluating seed (lat={lat_seed:.4f}, lon={lon_seed:.4f}, "
+                    f"depth={depth_candidate_km:.2f} km) for event {event_index}"
+                )
                 scored = _estimate_t0_and_score(
                     event_index, lat_seed, lon_seed, depth_candidate_km
                 )
@@ -215,6 +230,12 @@ def init_locations(
                         lon_seed,
                         depth_candidate_km,
                         t0_estimate_rel,
+                    )
+
+                    logger.debug(
+                        f"New best solution for event {event_index}: "
+                        f"WRMS={wrms:.3f}, lat={lat_seed:.4f}, lon={lon_seed:.4f}, "
+                        f"depth={depth_candidate_km:.2f} km, t0_rel={t0_estimate_rel:.3f}s"
                     )
 
         if best_solution is not None:

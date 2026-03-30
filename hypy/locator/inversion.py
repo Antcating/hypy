@@ -82,6 +82,12 @@ class InversionEngine:
         n_z = int(np.sum(np.abs(raw_depth) > max_vertical_km))
         n_t = int(np.sum(np.abs(raw_time) > max_time_s))
 
+        if self.config.fix_depth_km is not None:
+            # Number of clipped depth is equal to number of events,
+            # since all depth updates are forced to zero.
+            n_z = int(len(dx[:, 2]))
+            dx_out[:, 2] = 0.0  # Force depth updates to zero if depth is fixed
+
         if n_h or n_z or n_t:
             logger.warning(
                 f"Iteration {it + 1}: clipped/scaled updates "
@@ -138,7 +144,7 @@ class InversionEngine:
         logger.info(f"Using {solver} solver.")
         logger.info(f"Using {config.mode} mode for travel-time calculations.")
         logger.info(f"Distance weighting: {config.distance_weighting_enabled}")
-        logger.info(f"Fix depth: {config.fix_depth}")
+        logger.info(f"Fix depth: {config.fix_depth_km}")
         logger.info(f"Precalculate velocities: {config.precalculate_velocities}")
 
         damping = 1.0

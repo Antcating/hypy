@@ -1,5 +1,5 @@
 import copy
-from typing import List, Union
+from typing import List, Union, Optional
 
 import numpy as np
 
@@ -15,7 +15,7 @@ class DataHandler:
         min_picks_per_event: int,
         default_time_error: float,
         dim: int,
-        fix_depth: bool = False,
+        fix_depth_km: Optional[float] = None,
     ) -> None:
         # Per-solve data containers
 
@@ -47,7 +47,7 @@ class DataHandler:
         # when applying the update to the event locations. This means that fixing depth
         # will not reduce the computational cost of the inversion,
         # but it can help stabilize the solution when depth is poorly constrained.
-        self.fix_depth = fix_depth
+        self.fix_depth_km = fix_depth_km
         self.fixed_depth_mask: list = []
 
         # Dimensionality of the inversion problem (x, y, z, t0)
@@ -146,7 +146,7 @@ class DataHandler:
         # -------------------- 4) Build fixed-depth mask --------------------
         # An event is depth-fixed if global `_fix_depth` is set OR its last origin has operator-assigned depth.
         self.fixed_depth_mask = [
-            self.fix_depth
+            self.fix_depth_km is not None
             or (
                 len(ev.origins) > 0 and ev.origins[-1].depth_type == "operator assigned"
             )

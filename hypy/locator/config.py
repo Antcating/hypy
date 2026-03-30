@@ -109,7 +109,7 @@ class LocatorConfig:
     max_distance_km: Optional[float]
     depth_step_km: Optional[float]
     distance_step_km: Optional[float]
-    fix_depth: bool
+    fix_depth_km: Optional[float]
     precalculate_velocities: bool
     distance_weighting_enabled: bool
     k: Optional[float]
