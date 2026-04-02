@@ -32,8 +32,9 @@ dev = [
     "pytest-cov",
     "pyrocko",
     "ruff",
-    "hypy",
-    "hatchling"
+    "hatchling",
+    "sphinx>=9.0.4",
+    "sphinx-rtd-theme>=3.1.0",
 ]
 pyrocko = ["pyrocko"]
 
@@ -57,3 +58,16 @@ exclude = [
 
 [tool.uv.sources]
 hypy = { workspace = true }
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["D", "E", "F", "W", "I"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"

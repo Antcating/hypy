@@ -1,6 +1,6 @@
 # --- Travel Time Tables Data ---
 # Ignore automatically generated cache files
-hypy/propagation/tables/data/*.npz
+hypy/propagation/layered/grid/*/data/*
 
 
 # --- Build and Distribution ---
@@ -38,5 +38,3 @@ logs/
 
 *.xml
 *.csv
-hypy/propagation/layered/grid/tau/data/*
-hypy/propagation/layered/grid/fmm/data/*

@@ -1,0 +1,7 @@
+logger
+======
+
+.. automodule:: hypy.logger
+   :members:
+   :show-inheritance:
+   :undoc-members:

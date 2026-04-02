@@ -1,9 +1,15 @@
+"""Layered ray tracing module for seismic wave propagation."""
+
 from hypy.propagation.layered import LayeredPropagationModel
 
 
 class LayeredRayTracer(LayeredPropagationModel):
     """
-    Ray tracer for layered Earth models, supporting multiple backends (e.g., Pyrocko, TauP).
+    Ray tracer for layered Earth models.
+
+    Supports multiple backends (e.g., Pyrocko, TauP), but with
+    unified interface for computing ray parameters like travel time and takeoff angle
+    for given source-receiver configurations and seismic phases.
     """
 
     def __init__(self, model_path: str):

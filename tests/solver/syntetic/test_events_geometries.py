@@ -1,5 +1,7 @@
 import zlib
+
 import pytest
+
 from tests.solver.syntetic.utils.common import Scenario, run_scenario
 
 
