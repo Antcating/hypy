@@ -55,11 +55,11 @@ def test_compute_travel_time(
     depth = 50.0
     distance = 500.0
     if "P" in phases:
-        travel_time_p = tables.compute_travel_time("P", depth, distance)
+        travel_time_p = tables.compute_travel_time(distance, depth, "P")
         assert isinstance(travel_time_p, float)
         assert pytest.approx(travel_time_p, rel=1e-3) == 65.54952023370768
     if "S" in phases:
-        travel_time_s = tables.compute_travel_time("S", depth, distance)
+        travel_time_s = tables.compute_travel_time(distance, depth, "S")
         assert isinstance(travel_time_s, float)
         assert pytest.approx(travel_time_s, rel=1e-3) == 117.19924749280987
 
@@ -72,11 +72,11 @@ def test_compute_takeoff_angle(
     depth = 50.0
     distance = 500.0
     if "P" in phases:
-        takeoff_angle_p = tables.compute_takeoff_angle("P", depth, distance)
+        takeoff_angle_p = tables.compute_takeoff_angle(distance, depth, "P")
         assert isinstance(takeoff_angle_p, float)
         assert pytest.approx(takeoff_angle_p, rel=1e-1) == 89.65376553407343
     if "S" in phases:
-        takeoff_angle_s = tables.compute_takeoff_angle("S", depth, distance)
+        takeoff_angle_s = tables.compute_takeoff_angle(distance, depth, "S")
         assert isinstance(takeoff_angle_s, float)
         assert pytest.approx(takeoff_angle_s, rel=1e-1) == 88.82780282349177
 
