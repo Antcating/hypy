@@ -131,6 +131,15 @@ class TauTimeTables(LayeredPropagationModel):
         if self.depth_grid is None or self.distance_grid is None:
             raise ValueError("Travel-time tables are not built; nothing to save.")
         save_dict = {"depth_grid": self.depth_grid, "distance_grid": self.distance_grid}
+        if (
+            self.travel_time_tables is None
+            or self.travel_time_tables == {}
+            or self.ray_param_tables is None
+            or self.ray_param_tables == {}
+            or self.takeoff_angle_tables is None
+            or self.takeoff_angle_tables == {}
+        ):
+            raise ValueError("Travel-time tables are not built; nothing to save.")
         for ph in self.travel_time_tables:
             save_dict[f"tt_{ph}"] = self.travel_time_tables[ph]
         for ph in self.ray_param_tables:
@@ -250,14 +259,10 @@ class TauTimeTables(LayeredPropagationModel):
             )
             for i, depth in enumerate(depth_values):
                 for j, dist in enumerate(distance_values):
-                    if phase == "P" and "P" in self.travel_time_tables:
-                        time, angle = self.tracer.get_arrival_1d(dist, depth, "P")
-                        self.travel_time_tables["P"][i, j] = time
-                        self.takeoff_angle_tables["P"][i, j] = angle
-                    elif phase == "S" and "S" in self.travel_time_tables:
-                        time, angle = self.tracer.get_arrival_1d(dist, depth, "S")
-                        self.travel_time_tables["S"][i, j] = time
-                        self.takeoff_angle_tables["S"][i, j] = angle
+                    if phase in self.travel_time_tables:
+                        time, angle = self.tracer.get_arrival_1d(dist, depth, phase)
+                        self.travel_time_tables[phase][i, j] = time
+                        self.takeoff_angle_tables[phase][i, j] = angle
             logger.info(f"Saving travel-time tables to {fname}")
             self.save(fname)
 
