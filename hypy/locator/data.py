@@ -1,5 +1,13 @@
+"""Data handler for seismic information and associated arrays used during inversion.
+
+Raises
+------
+ValueError
+    If (#stations * #phases) < min_picks_per_event.
+"""
+
 import copy
-from typing import List, Union, Optional
+from typing import List, Optional, Union
 
 import numpy as np
 
@@ -9,6 +17,34 @@ from .types import Catalog, Event, Inventory
 
 
 class DataHandler:
+    """
+    Manage seismic stations and events and prepare data structures for inversion.
+
+    Utility class responsible for loading and managing all data
+    related to seismic events, stations, picks,
+    and the associated arrays used during inversion.
+
+    Parameters
+    ----------
+    phases : tuple
+        Seismic phases to use for travel-time calculations (e.g., ("P", "S")).
+    min_picks_per_event : int
+        Minimum number of picks required per event to attempt location.
+        Events with fewer picks will be marked as invalid
+        and skipped during inversion.
+    default_time_error : float
+        Default time error to use for picks without associated errors.
+        Used as a floor for time errors to avoid zero or negative weights.
+    dim : int
+        Dimensionality of the inversion problem (x, y, z, t0).
+    fix_depth_km : Optional[float], optional
+        Depth to fix for all events, by default None
+        If set, this will override any event-specific depth settings
+        and fix depth during inversion to the specified value (in km).
+        This is a common practice when depth is poorly constrained or
+        when the depth is known (e.g., solving for controlled explosions).
+    """
+
     def __init__(
         self,
         phases: tuple,
@@ -26,10 +62,12 @@ class DataHandler:
         self.n_phases = len(phases)
 
         # Minimum number of picks required per event to attempt location.
-        # Events with fewer picks will be marked as invalid and skipped during inversion.
+        # Events with fewer picks will be marked as invalid
+        # and skipped during inversion.
         # The lowest reasonable value is equal to the dimensionality of the problem.
-        # For example, if the depth is fixed for all events, the effective dimensionality
-        # is reduced by one, so the minimum number of picks can also be reduced by one.
+        # For example, if the depth is fixed for all events,
+        # the effective dimensionality is reduced by one, so the minimum number
+        # of picks can also be reduced by one.
         self.min_picks_per_event = min_picks_per_event
 
         # If a pick does not have an associated time error,
@@ -51,7 +89,8 @@ class DataHandler:
         self.fixed_depth_mask: list = []
 
         # Dimensionality of the inversion problem (x, y, z, t0)
-        # Note: for now, only 4D is supported, but this could be made flexible in the future if needed.
+        # Note: for now, only 4D is supported,
+        # but this could be made flexible in the future if needed.
         self.dim = dim
 
         # Inventory
@@ -81,7 +120,9 @@ class DataHandler:
         self, inventory: Inventory, events: Union[List[Event], Catalog]
     ) -> None:
         """
-        Load inventory and events, extract the set of stations present in picks,
+        Load inventory and events, extract the set of stations present in picks.
+
+        Loads the inventory and events, cross-ref. stations in picks with inventory,
         validate counts, allocate arrays, and populate arrival/time-error matrices.
 
         Parameters
@@ -96,27 +137,20 @@ class DataHandler:
         ValueError
             If (#stations * #phases) < min_picks_per_event.
         """
-        # -------------------- 1) Basic assignments --------------------
         self.inv = inventory
         self.events = copy.deepcopy(list(events))
         self.n_events = len(events)
-
-        # -------------------- 2) Build a fast lookup for all inventory stations --------------------
         # Map ("NET", "STA") → (latitude, longitude, elevation)
         inventory_station_map: dict[tuple[str, str], tuple[float, float, float]] = {
             (net.code, sta.code): (sta.latitude, sta.longitude, sta.elevation)
             for net in inventory
             for sta in net.stations
         }
-
-        # -------------------- 3) Collect all stations referenced in picks --------------------
         picked_station_keys: set[tuple[str, str]] = {
             (pick.waveform_id.network_code, pick.waveform_id.station_code)
             for event in events
             for pick in event.picks
         }
-
-        # -------------------- 4) Validate & determine the active subset --------------------
         # Stations present in picks but missing in inventory
         missing_stations = picked_station_keys - inventory_station_map.keys()
         if missing_stations:
@@ -124,27 +158,28 @@ class DataHandler:
                 "Stations present in picks but missing in inventory: %s",
                 sorted(missing_stations),
             )
-
         # Keep only those that exist in both picks and inventory
         active_station_keys = sorted(picked_station_keys & inventory_station_map.keys())
 
-        # -------------------- 5) Assign to instance attributes --------------------
         self.stations = active_station_keys
         self.n_stations = len(active_station_keys)
+        logger.info(
+            f"Loaded {self.n_events} events and {self.n_stations} stations with"
+            f" picks for phases {self.phases}."
+        )
         self.stations_locations = np.array(
             [inventory_station_map[key] for key in active_station_keys],
             dtype=float,
         )
 
-        # -------------------- 3) Validate minimal data sufficiency --------------------
         if self.n_phases * self.n_stations < self.min_picks_per_event:
             raise ValueError(
                 f"{self.n_stations} stations * {self.n_phases} phases < "
                 f"{self.min_picks_per_event} required picks/event."
             )
 
-        # -------------------- 4) Build fixed-depth mask --------------------
-        # An event is depth-fixed if global `_fix_depth` is set OR its last origin has operator-assigned depth.
+        # An event is depth-fixed if global `fix_depth_km` is set
+        # OR its last origin has operator-assigned depth.
         self.fixed_depth_mask = [
             self.fix_depth_km is not None
             or (
@@ -152,8 +187,12 @@ class DataHandler:
             )
             for ev in events
         ]
+        if sum(self.fixed_depth_mask) > 0:
+            logger.info(
+                f"{sum(self.fixed_depth_mask)} out of {self.n_events} events"
+                " will be depth-fixed during inversion."
+            )
 
-        # -------------------- 5) Allocate working arrays and populate them --------------------
         self._allocate_arrays(self.n_events, self.n_stations, self.n_phases)
         self._fill_data()
 
@@ -168,7 +207,7 @@ class DataHandler:
         n_stations : int
             Number of active stations (with metadata and picks).
         n_phases : int
-            Number of seismic phases considered (e.g., P, S).
+            Number of seismic phases used (e.g., P, S).
 
         Notes
         -----
@@ -176,7 +215,6 @@ class DataHandler:
         Array shapes are chosen to allow fast vectorized operations later
         in the inversion and residual calculations.
         """
-
         # --- Observed and theoretical arrival-time matrices ---
         # Shape: (n_events, n_stations * n_phases)
         # Each row corresponds to an event; each column to a station–phase pair.
@@ -216,7 +254,8 @@ class DataHandler:
         for event_idx, event in enumerate(self.events):
             if len(event.picks) < self.min_picks_per_event:
                 logger.warning(
-                    f"Event {event.resource_id} has only {len(event.picks)} picks, skipping."
+                    f"Skipping event {event.resource_id}: "
+                    f"only {len(event.picks)} picks < {self.min_picks_per_event} required."  # noqa: E501
                 )
                 self.invalid_events[event_idx] = True
                 continue
@@ -227,7 +266,7 @@ class DataHandler:
             }
             if len(picked_stations) * self.n_phases < self.min_picks_per_event:
                 logger.warning(
-                    f"Event {event.resource_id} has picks at only {len(picked_stations)} stations, skipping."
+                    f"Skipping event {event.resource_id}: only {len(picked_stations)} stations with picks."  # noqa: E501
                 )
                 self.invalid_events[event_idx] = True
                 continue
@@ -281,7 +320,8 @@ class DataHandler:
                     )
                     if arrival_time_error == self.default_time_error:
                         logger.warning(
-                            f"Pick {network}.{station} {phase}: invalid error → using floor {self.default_time_error}s."
+                            f"Pick {network}.{station} {phase}: invalid time error."
+                            f" Using floor {self.default_time_error} s."
                         )
 
                     j = self.n_phases * station_idx + phase_idx
