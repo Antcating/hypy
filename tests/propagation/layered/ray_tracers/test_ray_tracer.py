@@ -1,9 +1,11 @@
 import os
+
 import obspy
 import pytest
+
 from hypy.propagation.layered.ray_tracer import LayeredRayTracer
-from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
 from hypy.propagation.layered.ray_tracer.pyrocko import PyrockoRayTracer
+from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
 
 
 @pytest.fixture(params=["taup", "pyrocko"])
