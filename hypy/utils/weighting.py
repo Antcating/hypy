@@ -4,12 +4,12 @@ import numpy as np
 def distance_weight(distance, **kwargs):
     """
     Compute distance weight based on logistic function.
+
     Parameters
     ----------
     distance : float or np.ndarray
         Distance in kilometers.
     """
-
     k = kwargs.get("k", None)
     x0 = kwargs.get("x0", None)
 
@@ -25,12 +25,12 @@ def distance_weight(distance, **kwargs):
 def time_error_weight(time_error, **kwargs):
     """
     Compute time error weight based on logistic function.
+
     Parameters
     ----------
     time_error : float or np.ndarray
         Time error in seconds.
     """
-
     weight = 1.0 / ((time_error + 1) ** 2)
 
     return weight

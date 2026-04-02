@@ -1,7 +1,6 @@
-from scipy.sparse.linalg import lsmr
-
 import numpy as np
 from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
+from scipy.sparse.linalg import lsmr
 
 from ..logger import logger
 from ..utils.damping import update_damping_factor

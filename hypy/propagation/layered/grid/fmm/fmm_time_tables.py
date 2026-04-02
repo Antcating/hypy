@@ -385,10 +385,10 @@ class SKFMTimeTables(LayeredPropagationModel):
             az_deg: Azimuth from source to receiver in degrees (clockwise from North)
             delta: Perturbation for numerical differentiation in km
 
-        Returns:
+        Returns
+        -------
             Tuple of (dt_dr, dt_dx, dt_dy, dt_dz) in s/km
         """
-
         if mode == "analytical":
             raise NotImplementedError(
                 "Analytical derivatives are not implemented for scikit-fmm tables."
