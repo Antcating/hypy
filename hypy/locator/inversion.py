@@ -443,8 +443,8 @@ class InversionEngine:
         logger.info(f"Final RMS = {rms:.6f} s")
 
         return InversionResults(
-            A_final=design_matrix,
-            valid_rows_final=valid_rows,
-            residuals_flat_final=residuals_flat,
-            lambda_final=damping,
+            design_matrix=design_matrix,
+            valid_rows=valid_rows,
+            residuals_flat=residuals_flat,
+            damping=damping,
         )

@@ -1,3 +1,5 @@
+"""Type declarations for locator components."""
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import (
@@ -34,10 +36,10 @@ DerivativeMethodLiteral = Literal["numerical", "analytical"]
 class InversionResults:
     """Output of the iterative inversion step."""
 
-    A_final: np.ndarray  # full weighted design matrix
-    valid_rows_final: np.ndarray  # indices of rows with valid observations
-    residuals_flat_final: np.ndarray  # flattened residual vector
-    lambda_final: float  # final damping factor
+    design_matrix: np.ndarray  # full weighted design matrix
+    valid_rows: np.ndarray  # indices of rows with valid observations
+    residuals_flat: np.ndarray  # flattened residual vector
+    damping: float  # final damping factor
 
 
 @dataclass
