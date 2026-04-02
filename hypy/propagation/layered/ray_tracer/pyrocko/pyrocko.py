@@ -25,7 +25,7 @@ try:
 except ImportError:
     raise ImportError(
         "Pyrocko is not installed or not available."
-        "Please install Pyrocko to use the pyrocko engine."
+        " Please install Pyrocko to use the pyrocko engine."
     )
 from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
 
