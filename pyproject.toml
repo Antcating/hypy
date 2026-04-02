@@ -40,6 +40,11 @@ pyrocko = ["pyrocko"]
 
 fmm = ["scikit-fmm"]
 
+3d = [
+    "nllgrid",
+    "pyekfmm"
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["hypy"]
 exclude = [
@@ -53,3 +58,16 @@ exclude = [
 
 [tool.uv.sources]
 hypy = { workspace = true }
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["D", "E", "F", "W", "I"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"

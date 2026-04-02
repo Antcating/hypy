@@ -1,7 +1,12 @@
-import json
 import hashlib
+import json
 from pathlib import Path
-from obspy import read_inventory, read_events, UTCDateTime  # type: ignore[import-untyped]
+
+from obspy import (  # type: ignore[import-untyped]
+    UTCDateTime,
+    read_events,
+    read_inventory,
+)
 
 
 def _cache_dir() -> Path:

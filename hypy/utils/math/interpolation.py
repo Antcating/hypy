@@ -76,7 +76,6 @@ def interp_quant(
     """
     Numba-compatible generic interpolation over depth and distance.
     """
-
     if depth > depth_grid[-1]:
         raise ValueError(
             f"Depth {depth} exceeds max depth {depth_grid[-1]} of travel-time table."

@@ -1,10 +1,9 @@
 from typing import Optional
 
-
 from ..logger import logger  # type: ignore[import-not-found]
+from .config import LocatorConfig
 from .data import DataHandler
 from .derivatives import DerivativeEngine
-from .config import LocatorConfig
 from .types import Event, np
 
 
@@ -104,7 +103,6 @@ def init_locations(
         Estimate origin time (t0, RELATIVE to time_refs) and WRMS for a candidate hypocenter.
         Returns (t0_rel, wrms, n_obs) or None.
         """
-
         # Collect all usable picks for the event — each item is (station_idx, phase_idx, t_obs_rel, sigma)
         picks = _usable_arrivals_for_event(ev_idx)
 

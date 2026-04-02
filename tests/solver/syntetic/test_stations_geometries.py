@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 
 # -------------------------------------------------------
 from hypy.locator import EventLocator
+from hypy.locator.config import VALID_OPERATING_REGIMES
 from tests.solver.syntetic.utils.geometry_generator import (
     _circle_geometry,
     _circle_offset_center,
@@ -46,8 +47,6 @@ from tests.solver.syntetic.utils.geometry_generator import (
     _square_geometry,
     _uniform_grid_geometry,
 )
-
-from hypy.locator.config import VALID_OPERATING_REGIMES
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -419,11 +418,11 @@ def test_event_location_vs_geometry(
 
     # configure locator
     model_path = _iasp91_tvel_path()
-    if mode == "ray":
+    if mode == "ray-1d":
         locator = EventLocator(
             model_path,
             phases=phases,
-            mode="ray",
+            mode="ray-1d",
             engine=engine,
             derivative_method=derivative_method,
         )
@@ -431,7 +430,7 @@ def test_event_location_vs_geometry(
         locator = EventLocator(
             model_path,
             phases=phases,
-            mode="table",
+            mode="table-1d",
             engine=engine,
             derivative_method=derivative_method,
             max_distance_km=250.0,

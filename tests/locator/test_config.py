@@ -4,29 +4,31 @@ from hypy.locator import config
 
 
 @pytest.mark.parametrize(
-    "mode,engine,expected",
+    "mode,engine,derivative_method,expected",
     [
-        ("ray", "taup", ("ray", "taup")),
-        ("table", "pyrocko", ("table", "pyrocko")),
-        ("table", "fmm", ("table", "fmm")),
+        ("ray-1d", "taup", "analytical", ("ray-1d", "taup", "analytical")),
+        ("table-1d", "pyrocko", "numerical", ("table-1d", "pyrocko", "numerical")),
+        ("table-1d", "fmm", "numerical", ("table-1d", "fmm", "numerical")),
     ],
 )
-def test_validate_operating_regime_valid(mode, engine, expected):
-    result = config.validate_operating_regime(mode, engine)
+def test_validate_operating_regime_valid(mode, engine, derivative_method, expected):
+    result = config.validate_operating_regime(mode, engine, derivative_method)
     assert result == expected
 
 
 @pytest.mark.parametrize(
-    "mode,engine",
+    "mode,engine,derivative_method",
     [
-        ("invalid_mode", "taup"),
-        ("ray", "invalid_engine"),
-        ("table", "invalid_engine"),
+        ("invalid_mode", "taup", "analytical"),
+        ("ray-1d", "invalid_engine", "analytical"),
+        ("table-1d", "invalid_engine", "numerical"),
+        ("ray-1d", "taup", "invalid_derivative_method"),
+        ("table-1d", "pyrocko", "invalid_derivative_method"),
     ],
 )
-def test_validate_operating_regime_invalid(mode, engine):
+def test_validate_operating_regime_invalid(mode, engine, derivative_method):
     with pytest.raises(ValueError):
-        config.validate_operating_regime(mode, engine)
+        config.validate_operating_regime(mode, engine, derivative_method)
 
 
 @pytest.mark.parametrize(

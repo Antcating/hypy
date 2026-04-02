@@ -1,7 +1,7 @@
-from .interpolation import adaptive_interp_1d, interp_one_depth, interp_quant
 from .derivatives import finite_difference_derivative
+from .interpolation import adaptive_interp_1d, interp_one_depth, interp_quant
 
-__ALL__ = [
+__all__ = [
     "adaptive_interp_1d",
     "interp_one_depth",
     "interp_quant",

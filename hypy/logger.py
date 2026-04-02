@@ -1,13 +1,30 @@
 # logging_utils.py
 import logging
 import os
-
 from logging.handlers import RotatingFileHandler
 
 
 def get_logger(
     name: str = __name__, level: int = logging.INFO, verbose=True, log_file=None
 ) -> logging.Logger:
+    """Return a configured logger instance.
+
+    Parameters
+    ----------
+    name : str, optional
+        Name of the logger, by default __name__
+    level : int, optional
+        Logging level, by default logging.INFO
+    verbose : bool, optional
+        Whether to output log messages to the console, by default True
+    log_file : _type_, optional
+        Path to the log file, by default None
+
+    Returns
+    -------
+    logging.Logger
+        Configured logger instance
+    """
     logger = logging.getLogger(name)
     logger.setLevel(level)
 

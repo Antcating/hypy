@@ -35,10 +35,9 @@ class DerivativeEngine:
         event_location: "tuple[float, float, float]",  # (lat, lon, depth_km)
         station_location: "tuple[float, float, float]",  # (lat, lon, elev_m)
         phase: str,
-    ) -> "tuple[float, Union[float, None], tuple[Union[float, None], Union[float, None], Union[float, None], Union[float, None]]]":
+    ) -> "tuple[float, Union[float, None], tuple[Union[float, None], Union[float, None], Union[float, None], Union[float, None]]]":  # noqa: E501
         """
-        Compute great-circle distance/azimuth, travel time, and spatial derivatives
-        for a given event-station pair and phase.
+        Compute travel time params for a given event-station pair and phase.
 
         Parameters
         ----------
@@ -57,30 +56,17 @@ class DerivativeEngine:
         ev_lat, ev_lon, ev_depth_km = event_location
         st_lat, st_lon, st_elev_m = station_location
 
-        arc_distance_km, travel_time_s, takeoff_angle_deg, azimuth_deg = (
-            self.tracer.get_arrival(
-                source_latitude=ev_lat,
-                source_longitude=ev_lon,
-                source_depth_km=ev_depth_km,
-                receiver_latitude=st_lat,
-                receiver_longitude=st_lon,
-                receiver_elevation_m=st_elev_m,
-                phase=phase,
-                max_distance_km=self.config.max_distance_km,
-            )
-        )
-        # TODO: Expose method to compute derivatives (analytical or numerical).
-        # dt/dr (ray), dt/dx (east), dt/dy (north), dt/dz (down)
-        dt_dr, dt_dx, dt_dy, dt_dz = self.tracer.get_spatial_slowness(
-            arc_distance_km=arc_distance_km,
-            takeoff_angle_deg=takeoff_angle_deg,
-            source_depth_km=ev_depth_km + st_elev_m / 1000.0,
-            az_deg=azimuth_deg,
+        return self.tracer.compute_travel_time_params(
+            source_latitude=ev_lat,
+            source_longitude=ev_lon,
+            source_depth_km=ev_depth_km,
+            receiver_latitude=st_lat,
+            receiver_longitude=st_lon,
+            receiver_elevation_m=st_elev_m,
             phase=phase,
-            mode=self.config.derivative_method,
             delta=self.config.derivative_delta_km,
+            derivative_method=self.config.derivative_method,
         )
-        return arc_distance_km, travel_time_s, (dt_dr, dt_dx, dt_dy, dt_dz)
 
     def populate_derivative_matrix(self) -> np.ndarray:
         """
@@ -101,25 +87,30 @@ class DerivativeEngine:
             if data.invalid_events[event_index]:
                 continue
 
+            # Column block start for this event in the global design matrix
+            col0 = event_index * config.dim
             ev_lat, ev_lon, ev_depth_km = data.locations[event_index]
 
             for station_index in range(data.n_stations):
                 st_lat, st_lon, st_elev_m = data.stations_locations[station_index]
 
                 for phase_index, phase_name in enumerate(config.phases):
-                    # Column block start for this event in the global design matrix
-                    col0 = event_index * config.dim
-
                     # Column within the event's observation vector for this station–phase
                     obs_col = config.n_phases * station_index + phase_index
 
                     # If no observed pick, skip row
-                    observed_time_s = data.arrivals[event_index, obs_col]
-                    if np.isnan(observed_time_s):
+                    observed_travel_time_s = data.arrivals[event_index, obs_col]
+                    if np.isnan(observed_travel_time_s):
+                        logger.warning(
+                            "Skipping event %d, station %s, phase %s: no observed pick.",  # noqa: E501
+                            event_index,
+                            data.stations[station_index],
+                            phase_name,
+                        )
                         continue
 
                     # Compute travel time and spatial derivatives
-                    distance_km, phase_travel_time, (_, dt_dx, dt_dy, dt_dz) = (
+                    distance_km, theoretical_travel_time, (_, dt_dx, dt_dy, dt_dz) = (
                         self.derive_travel_time_param(
                             (ev_lat, ev_lon, ev_depth_km),
                             (st_lat, st_lon, st_elev_m),
@@ -127,9 +118,21 @@ class DerivativeEngine:
                         )
                     )
                     # Skip if no travel time (e.g., out of range)
-                    if phase_travel_time is None:
+                    if theoretical_travel_time is None:
                         logger.warning(
-                            "No travel time for event %d, station %s, phase %s → skip.",
+                            "Skipping event %d, station %s, phase %s: no valid travel time computed.",  # noqa: E501
+                            event_index,
+                            data.stations[station_index],
+                            phase_name,
+                        )
+                        continue
+
+                    derivatives = (dt_dx, dt_dy, dt_dz)
+                    if any(v is None for v in derivatives) or any(
+                        np.isnan(v) for v in derivatives if v is not None
+                    ):
+                        logger.warning(
+                            "Skipping event %d, station %s, phase %s: invalid derivatives computed.",  # noqa: E501
                             event_index,
                             data.stations[station_index],
                             phase_name,
@@ -138,7 +141,7 @@ class DerivativeEngine:
 
                     # Store theoretical travel time
                     data.theoretical_travel_times[event_index, obs_col] = (
-                        phase_travel_time
+                        theoretical_travel_time
                     )
 
                     # Row index in the global design matrix for this observation
@@ -154,10 +157,10 @@ class DerivativeEngine:
 
                     # Fill design matrix:
                     # follow original convention: [y, x, z, t0] ordering in columns
-                    data.derivative_matrix[row_index, col0 + 0] = dt_dy or 0.0
-                    data.derivative_matrix[row_index, col0 + 1] = dt_dx or 0.0
+                    data.derivative_matrix[row_index, col0 + 0] = dt_dy  # type: ignore[index]
+                    data.derivative_matrix[row_index, col0 + 1] = dt_dx
                     if not data.fixed_depth_mask[event_index]:
-                        data.derivative_matrix[row_index, col0 + 2] = dt_dz or 0.0
+                        data.derivative_matrix[row_index, col0 + 2] = dt_dz
                     data.derivative_matrix[row_index, col0 + 3] = 1.0  # dt/dt
 
                     valid_row_indices.append(row_index)
