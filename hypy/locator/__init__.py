@@ -28,7 +28,7 @@ from .config import (
 from .data import DataHandler
 from .derivatives import DerivativeEngine
 from .errors import ErrorAnalyzer
-from .finalize import OriginFinalizer
+from .export import OriginExporter
 from .inversion import InversionEngine
 from .locations_setup import init_locations
 from .model import VelocityModelHandler
@@ -280,9 +280,9 @@ class EventLocator:
         error_analyzer = ErrorAnalyzer(config=self.config, data=self.data)
         error_results = error_analyzer.compute_error_ellipsoids(inversion_results)
 
-        finalizer = OriginFinalizer(config=self.config, data=self.data)
-        events = finalizer.finalize_origins(error_results)
-        invalid_indices = OriginFinalizer.report_invalid_events(self.data)
+        exporter = OriginExporter(config=self.config, data=self.data)
+        events = exporter.finalize_origins(error_results, as_catalog=True)
+        invalid_indices = OriginExporter.report_invalid_events(self.data)
 
         return events, invalid_indices
 
