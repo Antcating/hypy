@@ -1,23 +1,38 @@
+"""Numba-optimized geodesy utilities for common geospatial functions."""
+
 import numpy as np
 from numba import njit  # type: ignore[import-untyped]
 
 
 @njit(cache=True)
-def gps2dist_azimuth_nb(lat1, lon1, lat2, lon2, R=6371.0e3):
+def gps2dist_azimuth_nb(
+    lat1: float, lon1: float, lat2: float, lon2: float, R: float = 6371.0e3
+) -> tuple[float, float, float]:
     """
+    Compute distance, azimuth, and back azimuth between two lat/lon points.
+
     Compute distance (meters), azimuth (degrees), and back azimuth (degrees)
     between two lat/lon points using spherical Earth approximation.
 
-    @This function is a Numba-optimized version of Obspy's gps2dist_azimuth.
+    This function is a Numba-optimized version of obspy's gps2dist_azimuth.
 
     Parameters
     ----------
-    - lat1, lon1: event (deg)
-    - lat2, lon2: station (deg)
+    lat1 : float
+        Latitude of the first point in degrees.
+    lon1 : float
+        Longitude of the first point in degrees.
+    lat2 : float
+        Latitude of the second point in degrees.
+    lon2 : float
+        Longitude of the second point in degrees.
+    R : float, optional
+        Radius of the Earth in meters, by default 6371.0e3
 
     Returns
     -------
-    - distance (meters), azimuth (deg), back_azimuth (deg)
+    tuple[float, float, float]
+        Distance (meters), azimuth (degrees), and back azimuth (degrees)
     """
     # Convert to radians
     lan1_rad = np.radians(lat1)
@@ -51,17 +66,33 @@ def gps2dist_azimuth_nb(lat1, lon1, lat2, lon2, R=6371.0e3):
 
 
 @njit(cache=True)
-def get_spatial_slowness_1d(takeoff_rad: float, az_deg: float, vel: float):
+def get_analytical_derivative_1d(takeoff_rad: float, az_deg: float, vel: float):
     """
-    Spatial derivatives of travel time T for a 1D isotropic model.
+    Get analytical spatial derivatives for a specific ray.
 
-    Axes & conventions:
-      - x = East (km), y = North (km), z = depth (km, positive DOWN).
-      - takeoff_rad: angle from DOWN (TauP).
-      - az_deg: azimuth from source to receiver, clockwise from North.
-      - vel: phase velocity (km/s).
+    Given a takeoff angle, azimuth, and phase velocity, compute the spatial slowness
+    derivatives (dt/dx, dt/dy, dt/dz) for a ray path in a 1D velocity model,
+    assuming a flat-Earth approximation.
 
-    Returns (s/km): dt_dr (horizontal magnitude), dt_dz, dt_dx (East), dt_dy (North)
+    Parameters
+    ----------
+    takeoff_rad : float
+        Takeoff angle in radians (angle between ray path and vertical, positive down).
+    az_deg : float
+        Azimuth from source to receiver in degrees (clockwise from North).
+    vel : float
+        Velocity of the given layer in km/s.
+
+    Returns
+    -------
+    dt_dr : float
+        Derivative of travel time with respect to path distance (s/km).
+    dt_dx : float
+        Derivative of travel time with respect to source x-coordinate (s/km).
+    dt_dy : float
+        Derivative of travel time with respect to source y-coordinate (s/km).
+    dt_dz : float
+        Derivative of travel time with respect to source depth (s/km, positive in).
     """
     az_rad = np.deg2rad(az_deg)
 
