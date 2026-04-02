@@ -14,7 +14,9 @@ def init_tracer(
     depth_step: Optional[float],
     distance_step: Optional[float],
 ) -> PropagationModel:
-    if mode == "table":
+    # TODO: Rewrite this to be more flexible and extensible,
+    # e.g. by using a registry of available tracers and their required parameters.
+    if mode == "table-1d":
         if any(
             val is None for val in [max_depth, max_distance, depth_step, distance_step]
         ):
@@ -26,10 +28,10 @@ def init_tracer(
             return SKFMTimeTables(
                 tvel_file_path.as_posix(),
                 list(phases),
-                float(max_depth),  # type: ignore
-                float(max_distance),  # type: ignore
-                float(depth_step),  # type: ignore
-                float(distance_step),  # type: ignore
+                max_depth=max_depth,  # type: ignore
+                max_distance=max_distance,  # type: ignore
+                depth_step=depth_step,  # type: ignore
+                distance_step=distance_step,  # type: ignore
             )
         else:
             return TauTimeTables(
@@ -41,7 +43,7 @@ def init_tracer(
                 distance_step=float(distance_step),  # type: ignore
                 engine=engine,
             )
-    elif mode == "ray":
+    elif mode == "ray-1d":
         if engine == "taup":
             from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
 

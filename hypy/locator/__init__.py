@@ -35,12 +35,12 @@ from .model import VelocityModelHandler
 from .tracer_setup import init_tracer
 from .types import (
     Catalog,
+    DerivativeMethodLiteral,
     EngineLiteral,
     Event,
     Inventory,
     ModeLiteral,
     SolverLiteral,
-    DerivativeMethodLiteral,
 )
 
 
@@ -59,32 +59,32 @@ class EventLocator:
         Minimum number of picks required per event to attempt location. Default is 4.
     default_time_error : float, optional
         Minimum pick time error (in seconds). Used if pick error is not given. Default is 0.1 s.
-    mode : Literal["table", "ray"], optional
-        Travel-time calculation mode. "table" uses precomputed travel-time tables (faster,
-        less accurate), "ray" computes travel-times on-the-fly using ray-tracing (slower,
-        more accurate). Default is "table".
+    mode : Literal["table-1d", "ray-1d"], optional
+        Travel-time calculation mode. "table-1d" uses precomputed travel-time tables (faster,
+        less accurate), "ray-1d" computes travel-times on-the-fly using ray-tracing (slower,
+        more accurate). Default is "table-1d".
 
-        Note: "table" mode has to calculate travel-times for the entire distance/depth
+        Note: "table-1d" mode has to calculate travel-times for the entire distance/depth
         grid on the first call, which can take a while for large grids. Subsequent calls
         are fast.
     engine : Literal["taup", "pyrocko"], optional
         Travel-time calculation engine. "taup" uses Obspy's TauPyModel, "pyrocko" uses
         Pyrocko's travel-time calculator. Default is "taup".
     max_depth_km : Optional[float], optional
-        Maximum depth (in km) for travel-time tables. Required if mode is "table" or if
-        using precomputed velocity profiles. Optional if mode is "ray", as ray-tracing
+        Maximum depth (in km) for travel-time tables. Required if mode is "table-1d" or if
+        using precomputed velocity profiles. Optional if mode is "ray-1d", as ray-tracing
         can handle arbitrary depths.
     max_distance_km : Optional[float], optional
         Maximum epicentral distance (in degrees) for travel-time tables. Required if
-        mode is "table" or if using precomputed velocity profiles.
-        Optional if mode is "ray", as ray-tracing can handle arbitrary
+        mode is "table-1d" or if using precomputed velocity profiles.
+        Optional if mode is "ray-1d", as ray-tracing can handle arbitrary
         distances.
     depth_step_km : Optional[float], optional
         Depth sampling interval (in km) for travel-time tables. Required if mode is
-        "table". Optional if mode is "ray".
+        "table-1d". Optional if mode is "ray-1d".
     distance_step_km : Optional[float], optional
         Distance sampling interval (in degrees) for travel-time tables. Required if mode
-        is "table". Optional if mode is "ray".
+        is "table-1d". Optional if mode is "ray-1d".
     distance_weight_start : Optional[float], optional
         Distance (in km) at which distance-based weighting starts to be applied. If None,
         no distance weighting is applied. Default is None.
@@ -108,7 +108,7 @@ class EventLocator:
         phases: Tuple[str, ...] = ("P", "S"),
         min_picks_per_event: int = 4,
         default_time_error: float = 0.1,
-        mode: ModeLiteral = "table",
+        mode: ModeLiteral = "table-1d",
         engine: EngineLiteral = "taup",
         derivative_method: DerivativeMethodLiteral = "numerical",
         max_depth_km: Optional[float] = None,
@@ -123,7 +123,9 @@ class EventLocator:
         _precalculate_velocities: bool = False,
     ):
         # Validate mode and engine
-        mode, engine = validate_operating_regime(mode, engine)
+        mode, engine, derivative_method = validate_operating_regime(
+            mode, engine, derivative_method
+        )
 
         # Resolve model path
         tvel_file_path = Path(model_tvel_path).expanduser().resolve()

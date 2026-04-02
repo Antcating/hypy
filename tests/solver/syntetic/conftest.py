@@ -1,5 +1,6 @@
 import logging
 import zlib
+
 import numpy as np
 import pytest
 from obspy.taup import TauPyModel  # type: ignore[import-untyped]
@@ -9,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 
 # ---- Global parametrization spaces ----
 PHASE_SETS = (["P"], ["S"], ["P", "S"])
-MODES = ["table"]
+MODES = ["table-1d"]
 ENGINES = ["taup", "pyrocko"]
 GEOM_NAMES = sorted(["uniform_grid", "ring", "L_shape", "sparse", "cluster"])
 SOLVERS = ["lsqr", "svd"]

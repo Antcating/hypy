@@ -2,18 +2,32 @@ from __future__ import annotations
 
 import os
 import random
+import zlib
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-import zlib
+
+import matplotlib
 import numpy as np
 from obspy import UTCDateTime  # type: ignore[import-untyped]
-from obspy.core.event import Catalog, Event, Pick, WaveformStreamID  # type: ignore[import-untyped]
+from obspy.core.event import (  # type: ignore[import-untyped]
+    Catalog,
+    Event,
+    Pick,
+    WaveformStreamID,
+)
 from obspy.core.event.base import QuantityError  # type: ignore[import-untyped]
-from obspy.core.inventory import Inventory, Network, Site, Station  # type: ignore[import-untyped]
-from obspy.geodetics import gps2dist_azimuth, kilometers2degrees  # type: ignore[import-untyped]
-import matplotlib
+from obspy.core.inventory import (  # type: ignore[import-untyped]
+    Inventory,
+    Network,
+    Site,
+    Station,
+)
+from obspy.geodetics import (  # type: ignore[import-untyped]
+    gps2dist_azimuth,
+    kilometers2degrees,
+)
 
 from hypy.logger import logger
 
@@ -22,7 +36,6 @@ import matplotlib.pyplot as plt
 
 from tests.solver.syntetic.utils.test_cache_utils import load_cache, save_cache
 from tests.solver.syntetic.utils.test_output_utils import _save_results_json
-
 
 # -------------------- Dataclasses --------------------
 
@@ -325,12 +338,12 @@ def prepare_geometry_and_biases(builder, kwargs, base_event_loc, base_t, bias, r
 def locator_factory(mode, engine, phases, model_path):
     from hypy import EventLocator
 
-    if mode == "ray":
-        return EventLocator(model_path, phases=phases, mode="ray", engine=engine)
+    if mode == "ray-1d":
+        return EventLocator(model_path, phases=phases, mode="ray-1d", engine=engine)
     return EventLocator(
         model_path,
         phases=phases,
-        mode="table",
+        mode="table-1d",
         engine=engine,
         max_distance_km=250.0,
         distance_step_km=1.0,
