@@ -1,7 +1,9 @@
+import obspy
 import os
 from collections.abc import Callable
 from pathlib import Path
 
+import numpy as np
 import obspy
 import pytest
 
@@ -45,6 +47,60 @@ def test_table_creation(
     assert tables.travel_time_tables is not None
     for phase in phases:
         assert phase in tables.travel_time_tables
+
+
+def test_table_reuse(travel_time_tables: Callable[[list[str], bool], TauTimeTables]):
+    # Create tables with overwrite=True to ensure they are generated
+    tables1 = travel_time_tables(["P", "S"], True)
+    # Create tables again with overwrite=False to test reuse
+    tables2 = travel_time_tables(["P", "S"], False)
+    assert tables1.depth_grid is not None
+    assert tables1.distance_grid is not None
+    assert tables1.travel_time_tables is not None
+    assert tables2.depth_grid is not None
+    assert tables2.distance_grid is not None
+    assert tables2.travel_time_tables is not None
+    for phase in ["P", "S"]:
+        assert phase in tables1.travel_time_tables
+        assert phase in tables2.travel_time_tables
+        # Check that the tables are the same object (i.e., reused)
+        assert np.array_equal(
+            tables1.travel_time_tables[phase], tables2.travel_time_tables[phase]
+        )
+
+
+def test_load_invalid_phases(
+    travel_time_tables: Callable[[list[str], bool], TauTimeTables],
+):
+    with pytest.raises(ValueError):
+        travel_time_tables(["X"], False)
+
+
+def test_invalid_engine():
+    with pytest.raises(ValueError):
+        obspy_path = Path(obspy.__file__).parents[0].as_posix()
+        model_path = os.path.join(obspy_path, "taup/data/iasp91.tvel")
+        TauTimeTables(
+            model_tvel=model_path,
+            phases=["P"],
+            max_depth=100.0,
+            max_distance=1000.0,
+            depth_step=10.0,
+            distance_step=50.0,
+            engine="invalid_engine",
+            overwrite=True,
+        )
+
+
+def test_save_emply_table(
+    travel_time_tables: Callable[[list[str], bool], TauTimeTables],
+    tmp_path: Path,
+):
+    tables: TauTimeTables = travel_time_tables(["P"], True)
+    tables.travel_time_tables = {}
+    with pytest.raises(ValueError):
+        save_path = os.path.join(tmp_path, "empty_table.npz")
+        tables.save(save_path)
 
 
 @pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
