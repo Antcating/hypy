@@ -1,20 +1,33 @@
+from pathlib import Path
 from typing import Optional
 
+import numpy as np
 from obspy.taup import TauPyModel  # type: ignore[import-untyped]
-from pathlib import Path
+
+from hypy.locator.model import VelocityModelHandler
 from hypy.logger import logger
 from hypy.propagation import PropagationModel
-from hypy.locator.model import VelocityModelHandler
-from hypy.utils.geo import gps2dist_azimuth_nb, get_spatial_slowness_1d
+from hypy.utils.geo import get_analytical_derivative_1d, gps2dist_azimuth_nb
 from hypy.utils.math import finite_difference_derivative
-
-import numpy as np
 
 
 class LayeredPropagationModel(PropagationModel):
     def __init__(self, model_path: str):
         super().__init__(model_path)
         self.velocity_model = VelocityModelHandler(Path(model_path))
+
+    @property
+    def dim(self) -> int:
+        """Return the dimensionality of the propagation model.
+
+        For a layered 1D model, this is typically 1 (only depth dependence).
+
+        Returns
+        -------
+        int
+            The dimensionality of the propagation model.
+        """
+        return 1
 
     def get_arrival_1d(
         self,
@@ -51,7 +64,7 @@ class LayeredPropagationModel(PropagationModel):
         velocity_km_s: float,
     ) -> tuple[float, float, float, float]:
         takeoff_angle_rad = np.deg2rad(takeoff_angle_deg)
-        dt_dr, dt_dx, dt_dy, dt_dz = get_spatial_slowness_1d(
+        dt_dr, dt_dx, dt_dy, dt_dz = get_analytical_derivative_1d(
             takeoff_angle_rad, azimuth_deg, velocity_km_s
         )
         return dt_dr, dt_dx, dt_dy, dt_dz
@@ -115,10 +128,10 @@ class LayeredPropagationModel(PropagationModel):
             az_deg: Azimuth from source to receiver in degrees (clockwise from North)
             delta: Perturbation for numerical differentiation in km
 
-        Returns:
+        Returns
+        -------
             Tuple of (dt_dr, dt_dx, dt_dy, dt_dz) in s/km
         """
-
         if mode == "analytical":
             velocity_km_s = self.velocity_model._get_velocity_1d(source_depth_km, phase)
             if takeoff_angle_deg is None:
