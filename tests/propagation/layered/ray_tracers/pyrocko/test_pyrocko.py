@@ -1,7 +1,7 @@
 import builtins
 import importlib
 import sys
-import types
+
 import pytest
 
 MODULE_PATH = "hypy.propagation.layered.ray_tracer.pyrocko.pyrocko"
