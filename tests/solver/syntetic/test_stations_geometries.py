@@ -20,11 +20,12 @@ from obspy.core.inventory import (  # type: ignore[import-untyped]
     Site,
     Station,
 )
-from obspy.geodetics import gps2dist_azimuth  # type: ignore[import-untyped]
+from obspy.geodetics import gps2dist_azimuth, kilometers2degrees  # type: ignore[import-untyped]
 from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
 
 # -------------------------------------------------------
 from hypy.locator import EventLocator
@@ -159,9 +160,10 @@ def _save_geom_plot(
     geo_err_km,
     depth_err_km,
     time_err_s,
+    origin_uncertainty=None,
 ):
     """
-    Save a 2D lat/lon plot showing station geometry, true epicenter, and solution.
+    Save a 2D lat/lon plot showing station geometry, true epicenter, solution, and uncertainty ellipse.
     """
     outdir = Path("test_artifacts") / "station_geometries"
     outdir.mkdir(parents=True, exist_ok=True)
@@ -186,6 +188,32 @@ def _save_geom_plot(
         label="Estimated",
         zorder=5,
     )
+
+    # Error ellipse (if available)
+    if (
+        origin_uncertainty is not None
+        and getattr(origin_uncertainty, "confidence_ellipsoid", None) is not None
+    ):
+        c_ell = origin_uncertainty.confidence_ellipsoid
+        semi_major_m = float(getattr(c_ell, "semi_major_axis_length", 0.0))
+        semi_minor_m = float(getattr(c_ell, "semi_minor_axis_length", 0.0))
+        azimuth = float(getattr(c_ell, "major_axis_azimuth", 0.0) or 0.0)
+
+        if semi_major_m > 0 and semi_minor_m > 0:
+            width_deg = 2 * kilometers2degrees(semi_major_m / 1000.0)
+            height_deg = 2 * kilometers2degrees(semi_minor_m / 1000.0)
+            ellipse = Ellipse(
+                (est_loc[1], est_loc[0]),
+                width=width_deg,
+                height=height_deg,
+                angle=azimuth,
+                edgecolor="red",
+                facecolor="none",
+                linewidth=1.5,
+                zorder=4,
+                label="Uncertainty ellipse",
+            )
+            ax.add_patch(ellipse)
 
     # Connect true to estimated
     ax.plot(
@@ -455,6 +483,9 @@ def test_event_location_vs_geometry(
     depth_err_km = abs(true_loc[2] - est_depth_km)
     time_err_s = abs(catalog[0].true_origin_time.timestamp - est_time)
 
+    origin = e.origins[-1] if e.origins else None
+    origin_unc = origin.origin_uncertainty if origin is not None else None
+
     _save_geom_plot(
         stations=stations,
         true_loc=true_loc,
@@ -466,6 +497,7 @@ def test_event_location_vs_geometry(
         geo_err_km=geo_err_km,
         depth_err_km=depth_err_km,
         time_err_s=time_err_s,
+        origin_uncertainty=origin_unc,
     )
     # ----------------------------------------------------------
 
