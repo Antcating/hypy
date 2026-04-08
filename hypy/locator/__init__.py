@@ -1,15 +1,7 @@
 """
-Public API for hypy.locator
+Public API for hypy.locator.
 
 Exposes EventLocator as a composition-based orchestrator.
-Internal modules provide independent component classes:
-- LocatorConfig: immutable settings
-- DataHandler: mutable runtime arrays and event/station data
-- VelocityModelHandler: velocity model access
-- DerivativeEngine: travel-time derivative computation
-- InversionEngine: iterative least-squares relocation
-- ErrorAnalyzer: uncertainty estimation
-- OriginFinalizer: ObsPy Origin construction
 """
 
 from pathlib import Path
@@ -17,6 +9,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
+from ..model import VelocityModel  # type: ignore[import-not-found]
 from ..propagation import PropagationModel
 from .config import (
     LocatorConfig,
@@ -24,6 +17,7 @@ from .config import (
     validate_operating_regime,
     validate_precompute_args,
     validate_solver,
+    validate_velocity_model_file,
 )
 from .data import DataHandler
 from .derivatives import DerivativeEngine
@@ -31,7 +25,6 @@ from .errors import ErrorAnalyzer
 from .export import OriginExporter
 from .inversion import InversionEngine
 from .locations_setup import init_locations
-from .model import VelocityModelHandler
 from .tracer_setup import init_tracer
 from .types import (
     Catalog,
@@ -100,11 +93,11 @@ class EventLocator:
     _precalculate_velocities : bool, optional
         If True, precomputes velocity profiles for all events to speed up travel-time
         calculations. Requires max_depth_km and depth_step_km to be set. Default is False.
-    """
+    """  # noqa: E501
 
     def __init__(
         self,
-        model_tvel_path: str,
+        model_path: str,
         phases: Tuple[str, ...] = ("P", "S"),
         min_picks_per_event: int = 4,
         default_time_error: float = 0.1,
@@ -127,8 +120,10 @@ class EventLocator:
             mode, engine, derivative_method
         )
 
-        # Resolve model path
-        tvel_file_path = Path(model_tvel_path).expanduser().resolve()
+        # Validate model file existence and type
+        model_full_path = validate_velocity_model_file(
+            Path(model_path).expanduser().resolve()
+        )
 
         # Calculate distance weighting parameters
         distance_weighting_enabled, k, x0 = configure_distance_weighting(
@@ -137,8 +132,6 @@ class EventLocator:
 
         # Build immutable configuration
         self.config = LocatorConfig(
-            tvel_file_path=tvel_file_path,
-            model_name=tvel_file_path.stem,
             phases=tuple(phases),
             min_picks_per_event=min_picks_per_event,
             default_time_error=default_time_error,
@@ -159,7 +152,7 @@ class EventLocator:
         # Initiate TauPyModel for the given velocity model file.
         # TODO: Evaluate if this can be engine specific in the future
         # to remove hard dependency on obspy's TauPyModel when using other engines.
-        self.model_handler = VelocityModelHandler(tvel_file_path)
+        self.velocity_model_handler = VelocityModel(model_full_path)
 
         # Initialize Data handling
         self.data = DataHandler(
@@ -170,12 +163,12 @@ class EventLocator:
             fix_depth_km=self.config.fix_depth_km,
         )
 
-        # Initialize the travel-time calculator (tracer) based on the selected mode and engine.
+        # Initialize the travel-time calculator (tracer).
         self.tracer: PropagationModel = init_tracer(
             mode=self.config.mode,
             engine=self.config.engine,
             phases=self.config.phases,
-            tvel_file_path=self.config.tvel_file_path,
+            model_path=self.velocity_model_handler.model_path,  # type: ignore
             max_depth=max_depth_km,
             max_distance=max_distance_km,
             depth_step=depth_step_km,
@@ -186,7 +179,6 @@ class EventLocator:
         self.derivative_engine = DerivativeEngine(
             config=self.config,
             data=self.data,
-            model_handler=self.model_handler,
             tracer=self.tracer,
         )
 
@@ -197,8 +189,12 @@ class EventLocator:
         # what travel-time calculation engine is used,
         # which can impact the accuracy of the solution in ray-tracing mode.
         if self.config.precalculate_velocities:
+            raise NotImplementedError(
+                "Precomputing velocity profiles is not yet implemented. "
+                "This feature is planned for a future release."
+            )
             validate_precompute_args(max_depth_km, depth_step_km)
-            self.model_handler._precompute_velocity_profiles_1d(
+            self.velocity_model_handler._precompute_velocity_profiles_1d(
                 self.config.phases, max_depth_km, depth_step_km
             )  # type: ignore[arg-type]
 
@@ -221,15 +217,21 @@ class EventLocator:
     def locate(
         self,
         solver: SolverLiteral = "lsqr",
-        max_iterations: int = 1000,
+        max_iterations: int = 100,
         conv_threshold: float = 1e-3,
         solve_airquakes: bool = False,
         safe_iteration_limit: int = 20,
         trial_depth_km: float = 10.0,
     ) -> Tuple[Union[List[Event], Catalog], np.ndarray]:
         """
-        Run the full location pipeline: initialization, iterative inversion,
-        error analysis, and finalization.
+        Run the full location pipeline.
+
+        Performs iterative least-squares inversion to locate events
+        based on the loaded data and configuration. The process includes:
+        1. Initial location setup (seed generation)
+        2. Iterative inversion to refine event locations
+        3. Error analysis to compute uncertainty ellipsoids
+        4. Finalization of Origin objects and reporting of invalid picks/events
 
         Parameters
         ----------
@@ -265,7 +267,7 @@ class EventLocator:
         inversion_engine = InversionEngine(
             config=self.config,
             data=self.data,
-            model_handler=self.model_handler,
+            model_handler=self.velocity_model_handler,
             derivative_engine=self.derivative_engine,
         )
         inversion_results = inversion_engine.run_iterations(

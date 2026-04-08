@@ -1,3 +1,39 @@
+"""Main configuration and validation logic for the event locator.
+
+This module defines the LocatorConfig dataclass, which holds all the immutable
+settings for the event locator. It also includes validation functions to ensure
+that the provided configuration parameters are valid and compatible with each other.
+
+Returns
+-------
+tuple
+    A tuple containing:
+    - mode: Mode of operation (ModeLiteral).
+    - engine: Ray tracing engine (EngineLiteral).
+    - derivative_method: Method for computing derivatives (DerivativeMethodLiteral).
+
+Raises
+------
+ValueError
+    If the provided mode is not supported.
+ValueError
+    If the provided engine is not supported for the specified mode.
+ValueError
+    If the provided derivative_method is not supported for the mode and engine.
+FileNotFoundError
+    If a required file is not found.
+ValueError
+    If a provided file has an unsupported format.
+ValueError
+    If an unsupported solver is specified.
+ValueError
+    If distance weighting parameters are invalid.
+ValueError
+    If precomputation arguments are invalid.
+ValueError
+    If weight_start or weight_end are not in (0, 1).
+"""
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -16,10 +52,12 @@ VALID_OPERATING_REGIMES = {
         "pyrocko": {"analytical", "numerical"},
         "fmm": {"numerical"},
     },
-    "table3d": {
+    "table-3d": {
         "fmm": {"numerical"},
     },
 }
+
+VALID_VElOCITY_MODEL_FTYPES = {".tvel", ".nllgrid", ".nc"}
 
 VALID_SOLVERS = {"lsqr", "svd"}
 
@@ -88,7 +126,8 @@ def validate_operating_regime(
     """
     if mode not in VALID_OPERATING_REGIMES:
         raise ValueError(
-            f"Unsupported mode: {mode!r}. Use one of: {', '.join(VALID_OPERATING_REGIMES)}."
+            f"Unsupported mode: {mode!r}. "
+            f"Use one of: {', '.join(VALID_OPERATING_REGIMES)}."
         )
     if engine not in VALID_OPERATING_REGIMES[mode]:
         valid_engines = ", ".join(VALID_OPERATING_REGIMES[mode])
@@ -99,10 +138,42 @@ def validate_operating_regime(
     if derivative_method not in VALID_OPERATING_REGIMES[mode][engine]:
         valid_methods = ", ".join(VALID_OPERATING_REGIMES[mode][engine])
         raise ValueError(
-            f"Unsupported derivative method: {derivative_method!r} for mode {mode!r} and engine {engine!r}. "
+            f"Unsupported derivative method: "
+            f"{derivative_method!r} for mode {mode!r} and engine {engine!r}. "
             f"Valid derivative methods for this mode and engine are: {valid_methods}."
         )
     return mode, engine, derivative_method  # type: ignore[return-value]
+
+
+def validate_velocity_model_file(model_path: Path) -> Path:
+    """Validate that the provided velocity model file exists and has a supported format.
+
+    Supported formats are defined in VALID_VElOCITY_MODEL_FTYPES.
+
+    Parameters
+    ----------
+    model_path : Path
+        Path to the velocity model file.
+
+    Returns
+    -------
+    Path
+        The validated path to the velocity model file.
+
+    Raises
+    ------
+    FileNotFoundError if the file does not exist.
+    ValueError if the file format is not supported.
+    """
+    if not model_path.exists():
+        raise FileNotFoundError(f"Velocity model file not found: {model_path}")
+    if model_path.suffix.lower() not in VALID_VElOCITY_MODEL_FTYPES:
+        valid_formats = ", ".join(VALID_VElOCITY_MODEL_FTYPES)
+        raise ValueError(
+            f"Unsupported velocity model file type: {model_path.suffix!r}. "
+            f"Supported formats are: {valid_formats}."
+        )
+    return model_path
 
 
 def validate_solver(solver: str) -> SolverLiteral:
@@ -227,7 +298,8 @@ def validate_precompute_args(
     # precomputation configuration.
     if max_depth_km is None or depth_step_km is None:
         raise ValueError(
-            "When using precalculated velocities, 'max_depth' and 'depth_step' must be provided."
+            "When using precalculated velocities, "
+            "'max_depth' and 'depth_step' must be provided."
         )
 
 
@@ -240,8 +312,6 @@ class LocatorConfig:
     Created once in EventLocator.__init__ and shared (read-only) with all components.
     """
 
-    tvel_file_path: Path
-    model_name: str
     phases: tuple
     min_picks_per_event: int
     default_time_error: float
