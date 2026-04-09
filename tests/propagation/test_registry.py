@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from hypy.model import VelocityModel
 from hypy.propagation import (
     create_tracer,
     get_tracer_factory,
@@ -153,3 +154,36 @@ def test_load_tracer_plugins_registers_valid_entry_points(
     loaded = load_tracer_plugins(override=True)
     assert ("plugin-mode", "plugin-engine") in loaded
     assert get_tracer_factory("plugin-mode", "plugin-engine") is not None
+
+
+def test_create_tracer_rejects_incompatible_velocity_model(monkeypatch):
+    """Factory creation should fail for incompatible model feature flags."""
+    mode = "compat-mode"
+    engine = "compat-engine"
+
+    class _ModelWithoutNeededFeatures(VelocityModel):
+        feature_flags = frozenset({"dimension.3d"})
+
+    def _factory(*, model_path: Path, **kwargs):
+        del kwargs
+        return DummyPropagationModel(model_path=model_path.as_posix())
+
+    register_tracer(mode, engine, _factory, override=True)
+    monkeypatch.setitem(
+        registry.REQUIRED_MODEL_FEATURE_FLAGS,
+        (mode, engine),
+        frozenset({"dimension.1d"}),
+    )
+
+    with pytest.raises(ValueError, match="Incompatible model and propagation backend"):
+        create_tracer(
+            mode=mode,
+            engine=engine,
+            phases=("P",),
+            model_path=Path("/tmp/unit-test.tvel"),
+            max_depth=None,
+            max_distance=None,
+            depth_step=None,
+            distance_step=None,
+            velocity_model=_ModelWithoutNeededFeatures("/tmp/unit-test-model.nc"),
+        )
