@@ -40,22 +40,11 @@ from typing import Optional
 
 import numpy as np
 
+from hypy.propagation import list_valid_operating_regimes_by_features
+
 from .types import DerivativeMethodLiteral, EngineLiteral, ModeLiteral, SolverLiteral
 
-VALID_OPERATING_REGIMES = {
-    "ray-1d": {
-        "taup": {"analytical", "numerical"},
-        "pyrocko": {"analytical", "numerical"},
-    },
-    "table-1d": {
-        "taup": {"analytical", "numerical"},
-        "pyrocko": {"analytical", "numerical"},
-        "fmm": {"numerical"},
-    },
-    "table-3d": {
-        "fmm": {"numerical"},
-    },
-}
+VALID_OPERATING_REGIMES = list_valid_operating_regimes_by_features()
 
 VALID_VElOCITY_MODEL_FTYPES = {".tvel", ".nllgrid", ".nc"}
 
@@ -94,19 +83,22 @@ def validate_operating_regime(
     ------
     ValueError if the mode, engine, or derivative method is not valid or not compatible.
     """
-    if mode not in VALID_OPERATING_REGIMES:
+    valid_operating_regimes = list_valid_operating_regimes_by_features()
+    print(f"Valid operating regimes: {valid_operating_regimes}")
+
+    if mode not in valid_operating_regimes:
         raise ValueError(
             f"Unsupported mode: {mode!r}. "
-            f"Use one of: {', '.join(VALID_OPERATING_REGIMES)}."
+            f"Use one of: {', '.join(valid_operating_regimes)}."
         )
-    if engine not in VALID_OPERATING_REGIMES[mode]:
-        valid_engines = ", ".join(VALID_OPERATING_REGIMES[mode])
+    if engine not in valid_operating_regimes[mode]:
+        valid_engines = ", ".join(valid_operating_regimes[mode])
         raise ValueError(
             f"Unsupported engine: {engine!r} for mode {mode!r}. "
             f"Valid engines for this mode are: {valid_engines}."
         )
-    if derivative_method not in VALID_OPERATING_REGIMES[mode][engine]:
-        valid_methods = ", ".join(VALID_OPERATING_REGIMES[mode][engine])
+    if derivative_method not in valid_operating_regimes[mode][engine]:
+        valid_methods = ", ".join(valid_operating_regimes[mode][engine])
         raise ValueError(
             f"Unsupported derivative method: "
             f"{derivative_method!r} for mode {mode!r} and engine {engine!r}. "
@@ -137,8 +129,13 @@ def validate_velocity_model_file(model_path: Path) -> Path:
     """
     if not model_path.exists():
         raise FileNotFoundError(f"Velocity model file not found: {model_path}")
-    if model_path.suffix.lower() not in VALID_VElOCITY_MODEL_FTYPES:
-        valid_formats = ", ".join(VALID_VElOCITY_MODEL_FTYPES)
+    from hypy.model import VelocityModel
+
+    VelocityModel._ensure_default_registry()
+    VelocityModel.load_model_plugins()
+    valid_model_file_types = set(VelocityModel.list_registered_model_backends())
+    if model_path.suffix.lower() not in valid_model_file_types:
+        valid_formats = ", ".join(sorted(valid_model_file_types))
         raise ValueError(
             f"Unsupported velocity model file type: {model_path.suffix!r}. "
             f"Supported formats are: {valid_formats}."

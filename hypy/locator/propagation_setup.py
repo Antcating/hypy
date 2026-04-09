@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import warnings
 
+from hypy.model import VelocityModel
 from hypy.propagation import PropagationEngine, create_propagation_backend
 
 from .types import PropagationConfig
@@ -20,6 +21,7 @@ def init_propagation(
     max_distance: float | None = None,
     depth_step: float | None = None,
     distance_step: float | None = None,
+    velocity_model: VelocityModel | None = None,
 ) -> PropagationEngine:
     """Initialize a propagation backend from typed config or legacy kwargs.
 
@@ -61,4 +63,5 @@ def init_propagation(
         max_distance=config.max_distance,
         depth_step=config.depth_step,
         distance_step=config.distance_step,
+        velocity_model=velocity_model,
     )

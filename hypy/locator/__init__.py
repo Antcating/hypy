@@ -150,10 +150,7 @@ class EventLocator:
             x0=x0,
         )
 
-        # Initiate TauPyModel for the given velocity model file.
-        # TODO: Evaluate if this can be engine specific in the future
-        # to remove hard dependency on obspy's TauPyModel when using other engines.
-        self.velocity_model_handler = VelocityModel(model_full_path)
+        self.velocity_model_handler = VelocityModel.from_file(model_full_path)
 
         # Initialize Data handling
         self.data = DataHandler(
@@ -177,6 +174,7 @@ class EventLocator:
         )
         self.propagation_backend: PropagationEngine = init_propagation(
             propagation_config,
+            velocity_model=self.velocity_model_handler,
         )
         self.tracer = self.propagation_backend
 
@@ -199,9 +197,17 @@ class EventLocator:
                 "This feature is planned for a future release."
             )
             validate_precompute_args(max_depth_km, depth_step_km)
-            self.velocity_model_handler._precompute_velocity_profiles_1d(
-                self.config.phases, max_depth_km, depth_step_km
-            )  # type: ignore[arg-type]
+            precompute_velocity_profiles = getattr(
+                self.velocity_model_handler,
+                "_precompute_velocity_profiles_1d",
+                None,
+            )
+            if callable(precompute_velocity_profiles):
+                precompute_velocity_profiles(
+                    self.config.phases,
+                    max_depth_km,
+                    depth_step_km,
+                )
 
     def load_data(self, inv: Inventory, catalog: Union[List[Event], Catalog]) -> None:
         """
