@@ -1,10 +1,11 @@
+"""Utility functions for working with NLLGrids and TauP models."""
+
 from pathlib import Path
 
 import numpy as np
+from nllgrid import NLLGrid  # type: ignore[import-untyped]
 from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 from obspy.taup.taup_create import build_taup_model  # type: ignore[import-untyped]
-
-from nllgrid import NLLGrid  # type: ignore[import-untyped]
 
 
 def _load_taup_model_from_tvel(model_tvel: str | Path) -> TauPyModel:
@@ -41,7 +42,6 @@ def create_nll_grid_from_tvel(
     The 1D velocity profile is sampled along depth (z) and replicated along x/y.
     Depths above sea level are clamped to 0 km for TauP queries.
     """
-
     model = _load_taup_model_from_tvel(model_tvel)
     if model.model.s_mod is None:
         raise ValueError("TauP velocity model 's_mod' is not initialized.")
