@@ -1,18 +1,16 @@
-"""
-scikit_fmm_time_tables.py
--------------------------
-Handles first-arrival travel-time table creation using scikit-fmm.
+"""First-arrival travel-time tables using scikit-fmm.
 
-This is a fast-eikonal alternative to TauP/Pyrocko-based table generation.
-It computes first-arrival travel times in a laterally homogeneous 1D medium
-embedded on a 2D (depth, distance) grid.
+This backend is a fast-eikonal alternative to TauP/Pyrocko-based travel-time
+generation. It computes first-arrival travel times in a laterally homogeneous
+1D medium sampled on a 2D depth-distance grid.
 
 Notes
 -----
-- "P" and "S" phases are interpreted as using vp(z) and vs(z), respectively.
+- ``"P"`` and ``"S"`` phases are interpreted as using ``vp(z)`` and
+    ``vs(z)``, respectively.
 - This is not a phase-branch tracer like TauP.
-- takeoff_angle is set to 0.0 everywhere by design.
-- ray_param is set to 0.0 everywhere by design.
+- ``takeoff_angle`` is set to ``0.0`` everywhere by design.
+- ``ray_param`` is set to ``0.0`` everywhere by design.
 """
 
 import os
@@ -23,12 +21,12 @@ import numpy as np
 import skfmm
 
 from hypy.logger import logger
-from hypy.propagation.layered import LayeredPropagationModel
+from hypy.propagation.layered import LayeredPropagationEngine
 from hypy.utils.geo import gps2dist_azimuth_nb
 from hypy.utils.math import interp_quant
 
 
-class SKFMTimeTables(LayeredPropagationModel):
+class FmmTravelTimeGrid1D(LayeredPropagationEngine):
     """
     First-arrival travel-time tables using scikit-fmm.
 
@@ -76,9 +74,7 @@ class SKFMTimeTables(LayeredPropagationModel):
         return os.path.join(table_root_dir, "data", table_name)
 
     def save(self, filename: str) -> None:
-        """
-        Save the travel-time, ray-parameter, and takeoff-angle tables.
-        """
+        """Save the travel-time, ray-parameter, and takeoff-angle tables."""
         if self.depth_grid is None or self.distance_grid is None:
             raise ValueError("Travel-time tables are not built; nothing to save.")
 
@@ -97,9 +93,7 @@ class SKFMTimeTables(LayeredPropagationModel):
         np.savez_compressed(filename, allow_pickle=True, **save_dict)
 
     def load(self, filename: str, phase: str) -> None:
-        """
-        Load travel-time, ray-parameter, and takeoff-angle tables.
-        """
+        """Load travel-time, ray-parameter, and takeoff-angle tables."""
         data = np.load(filename, allow_pickle=True)
         self.depth_grid = data["depth_grid"]
         self.distance_grid = data["distance_grid"]
@@ -112,9 +106,7 @@ class SKFMTimeTables(LayeredPropagationModel):
             self.takeoff_angle_tables[phase] = data[f"ta_{phase}"]
 
     def _build_velocity_profiles(self) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Build vp(z) and vs(z) sampled on self.depth_grid from the loaded layered model.
-        """
+        """Build ``vp(z)`` and ``vs(z)`` sampled on ``self.depth_grid``."""
         depths = self.depth_grid
 
         vp_profile = np.full(depths.shape, np.nan, dtype=float)
@@ -162,13 +154,10 @@ class SKFMTimeTables(LayeredPropagationModel):
         velocity_grid: np.ndarray,
         source_depth_index: int,
     ) -> np.ndarray:
-        """
-        Solve eikonal travel times for one source depth and return surface times
-        as a function of horizontal distance.
+        """Solve eikonal travel times for one source depth.
 
-        Grid axes:
-            axis 0 = depth
-            axis 1 = horizontal distance
+        Returns surface travel times as a function of horizontal distance.
+        Axis 0 is depth and axis 1 is horizontal distance.
         """
         phi = np.ones_like(velocity_grid, dtype=float)
 
@@ -191,9 +180,7 @@ class SKFMTimeTables(LayeredPropagationModel):
         return np.asarray(surface_tt, dtype=float)
 
     def _build_tables(self, overwrite: bool = False) -> None:
-        """
-        Build or load first-arrival travel-time tables for each phase.
-        """
+        """Build or load first-arrival travel-time tables for each phase."""
         self.depth_grid = np.arange(
             0.0, self.max_depth + 0.0 + 1e-6, self.depth_step, dtype=float
         )
@@ -261,6 +248,7 @@ class SKFMTimeTables(LayeredPropagationModel):
             self.save(fname)
 
     def compute_travel_time(self, phase: str, depth: float, distance: float) -> float:
+        """Interpolate the first-arrival travel time for a phase."""
         return interp_quant(
             depth,
             distance,
@@ -270,6 +258,7 @@ class SKFMTimeTables(LayeredPropagationModel):
         )
 
     def compute_takeoff_angle(self, phase: str, depth: float, distance: float) -> float:
+        """Interpolate the takeoff angle for a phase."""
         return interp_quant(
             depth,
             distance,
@@ -289,12 +278,12 @@ class SKFMTimeTables(LayeredPropagationModel):
         phase: str,
         max_distance_km: float | None = None,
     ) -> tuple[float, Optional[float], Optional[float], float]:
-        """
-        Same external API style as TauTimeTables.
+        """Return travel-time table values for a source-receiver pair.
 
         Returns
         -------
-        arc_distance_km, travel_time_s, takeoff_angle_deg, azimuth_deg
+        tuple of float or None
+            ``(arc_distance_km, travel_time_s, takeoff_angle_deg, azimuth_deg)``.
         """
         if phase not in self.phases:
             raise ValueError(f"Phase {phase} not in available phases: {self.phases}")
@@ -337,12 +326,12 @@ class SKFMTimeTables(LayeredPropagationModel):
         source_depth_km: float,
         phase: str,
     ) -> tuple[float, float]:
-        """
-        1D query used by derivative code.
+        """Return travel time and takeoff angle for a 1D query.
 
         Returns
         -------
-        travel_time_s, takeoff_angle_deg
+        tuple of float
+            ``(travel_time_s, takeoff_angle_deg)``.
         """
         if phase not in self.phases:
             raise ValueError(f"Phase {phase} not in available phases: {self.phases}")
@@ -373,21 +362,12 @@ class SKFMTimeTables(LayeredPropagationModel):
         delta: Optional[float] = 0.01,
         mode: str = "analytical",
     ):
-        """
-        Compute spatial slowness derivatives (dt/dx, dt/dy, dt/dz) using numerical differentiation
-        of arrival times computed via ray tracing.
-
-        Args:
-            source_depth: Source depth in km
-            distance: Horizontal distance in km
-            phase: Seismic phase ('P' or 'S')
-            phase_vel: Phase velocity in km/s
-            az_deg: Azimuth from source to receiver in degrees (clockwise from North)
-            delta: Perturbation for numerical differentiation in km
+        """Compute spatial slowness derivatives with finite differences.
 
         Returns
         -------
-            Tuple of (dt_dr, dt_dx, dt_dy, dt_dz) in s/km
+        tuple of float
+            ``(dt_dr, dt_dx, dt_dy, dt_dz)`` in s/km.
         """
         if mode == "analytical":
             raise NotImplementedError(
@@ -398,7 +378,8 @@ class SKFMTimeTables(LayeredPropagationModel):
                 raise ValueError(
                     "Delta must be provided for numerical derivative computation."
                 )
-            # TODO: Expose method to computing numerical derivatives (central, forward, backward, five-point, etc.)
+            # TODO: Expose numerical derivative stencils (central, forward,
+            # backward, five-point, etc.).
             return self._compute_derivatives_numerical(
                 arc_distance_km=arc_distance_km,
                 source_depth_km=source_depth_km,
@@ -408,5 +389,6 @@ class SKFMTimeTables(LayeredPropagationModel):
             )
         else:
             raise ValueError(
-                f"Invalid mode: {mode}. Supported modes are 'analytical' and 'numerical'."
+                f"Invalid mode: {mode}. Supported modes are 'analytical' and "
+                "'numerical'."
             )

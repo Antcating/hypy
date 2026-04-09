@@ -1,3 +1,5 @@
-from .fmm_time_tables import SKFMTimeTables
+"""Fast marching method travel-time grid backend."""
 
-__all__ = ["SKFMTimeTables"]
+from .grid import FmmTravelTimeGrid1D
+
+__all__ = ["FmmTravelTimeGrid1D"]
