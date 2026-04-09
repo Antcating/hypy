@@ -1,18 +1,18 @@
-from pathlib import Path
+"""Volumetric propagation backend for 3D travel-time calculations."""
 
-from obspy.geodetics import kilometers2degrees
+import numpy as np
 
-from hypy.locator.model import VelocityModelHandler
 from hypy.logger import logger
-from hypy.propagation import PropagationModel
+from hypy.propagation.base import PropagationEngine
 from hypy.utils.geo import gps2dist_azimuth_nb
 from hypy.utils.math import finite_difference_derivative
 
 
-class VolumetricPropagationModel(PropagationModel):
+class VolumetricPropagationEngine(PropagationEngine):
+    """Propagation backend that computes numerical 3D travel-time derivatives."""
+
     def __init__(self, model_path: str):
         super().__init__(model_path)
-        self.velocity_model = VelocityModelHandler(Path(model_path))
 
     def _compute_arc_params(
         self,
@@ -21,9 +21,7 @@ class VolumetricPropagationModel(PropagationModel):
         receiver_latitude: float,
         receiver_longitude: float,
     ) -> tuple[float, float, float]:
-        """
-        Compute the arc distance between source and receiver in kilometers.
-        """
+        """Compute arc distance and azimuth pair for a source-receiver geometry."""
         dist_m, azimuth, back_azimuth = gps2dist_azimuth_nb(
             source_latitude,
             source_longitude,
@@ -44,7 +42,12 @@ class VolumetricPropagationModel(PropagationModel):
         phase: str,
         delta: float | None = None,
         derivative_method: str = "numerical",
-    ) -> tuple[float, float, tuple[float, float, float, float]]:
+    ) -> tuple[
+        float,
+        float | None,
+        tuple[float | None, float | None, float | None, float | None],
+    ]:
+        """Return travel time and spatial derivatives for a source-receiver pair."""
         arc_distance_km, travel_time, _, _ = self.get_arrival(
             source_latitude=source_latitude,
             source_longitude=source_longitude,
@@ -55,22 +58,40 @@ class VolumetricPropagationModel(PropagationModel):
             phase=phase,
         )
 
+        if travel_time is None:
+            return arc_distance_km, None, (None, None, None, None)
+
         if delta is None:
             raise ValueError(
                 "Delta must be provided for numerical derivative computation."
             )
 
-        dt_dr, dt_dx, dt_dy, dt_dz = self._compute_derivatives_numerical(
-            source_latitude=source_latitude,
-            source_longitude=source_longitude,
-            source_depth_km=source_depth_km,
-            receiver_latitude=receiver_latitude,
-            receiver_longitude=receiver_longitude,
-            receiver_elevation_m=receiver_elevation_m,
-            phase=phase,
-            delta_km=delta,
-            method="central",
-        )
+        try:
+            dt_dr, dt_dx, dt_dy, dt_dz = self._compute_derivatives_numerical(
+                source_latitude=source_latitude,
+                source_longitude=source_longitude,
+                source_depth_km=source_depth_km,
+                receiver_latitude=receiver_latitude,
+                receiver_longitude=receiver_longitude,
+                receiver_elevation_m=receiver_elevation_m,
+                phase=phase,
+                delta_km=delta,
+                method="central",
+            )
+        except ValueError as exc:
+            logger.warning(
+                "Unable to compute numerical derivatives for source=(%s, %s, %s) "
+                "receiver=(%s, %s, %s) phase=%s: %s",
+                source_latitude,
+                source_longitude,
+                source_depth_km,
+                receiver_latitude,
+                receiver_longitude,
+                receiver_elevation_m,
+                phase,
+                exc,
+            )
+            return arc_distance_km, travel_time, (None, None, None, None)
 
         return arc_distance_km, travel_time, (dt_dr, dt_dx, dt_dy, dt_dz)
 
@@ -86,38 +107,48 @@ class VolumetricPropagationModel(PropagationModel):
         delta_km: float,
         method: str = "central",
     ) -> tuple[float, float, float, float]:
-        """
-        Compute spatial slowness derivatives (dt/dx, dt/dy, dt/dz) using numerical differentiation
-        of arrival times computed via ray tracing.
-        """
+        """Compute spatial slowness derivatives with numerical finite differences."""
 
-        dt_dy = finite_difference_derivative(
-            lambda lat: self.get_arrival(
-                source_latitude=lat,
+        def _lat_offset_deg(delta_km: float) -> float:
+            return float(delta_km / 111.0)
+
+        def _lon_offset_deg(lat_deg: float, delta_km: float) -> float:
+            return float(delta_km / (111.320 * np.cos(np.deg2rad(lat_deg))))
+
+        def _travel_time_north(d_km: float) -> float:
+            return self.get_arrival(
+                source_latitude=source_latitude + _lat_offset_deg(d_km),
                 source_longitude=source_longitude,
                 source_depth_km=source_depth_km,
                 receiver_latitude=receiver_latitude,
                 receiver_longitude=receiver_longitude,
                 receiver_elevation_m=receiver_elevation_m,
                 phase=phase,
-            )[1],
-            source_latitude,
-            kilometers2degrees(delta_km),
-            method=method,
-        )
+            )[1]
 
-        dt_dx = finite_difference_derivative(
-            lambda lon: self.get_arrival(
+        def _travel_time_east(d_km: float) -> float:
+            return self.get_arrival(
                 source_latitude=source_latitude,
-                source_longitude=lon,
+                source_longitude=source_longitude
+                + _lon_offset_deg(source_latitude, d_km),
                 source_depth_km=source_depth_km,
                 receiver_latitude=receiver_latitude,
                 receiver_longitude=receiver_longitude,
                 receiver_elevation_m=receiver_elevation_m,
                 phase=phase,
-            )[1],
-            source_longitude,
-            kilometers2degrees(delta_km),
+            )[1]
+
+        dt_dy = finite_difference_derivative(
+            _travel_time_north,
+            0.0,
+            delta_km,
+            method=method,
+        )
+
+        dt_dx = finite_difference_derivative(
+            _travel_time_east,
+            0.0,
+            delta_km,
             method=method,
         )
 
