@@ -1,106 +1,116 @@
-Addon Example
-=============
+Addons and Custom Backends
+==========================
 
-This page shows how to add a small extension, or addon, to ``hypy`` without
-modifying the core package. The current architecture supports two practical
-extension points:
+This page documents how to extend ``hypy`` with custom:
 
-* propagation backends through the ``hypy.propagation.backends`` entry-point group
-* model loaders through ``VelocityModel.register_loader``
+* model backends (new velocity model formats)
+* propagation backends (new travel-time engines)
 
-Add a propagation addon
------------------------
+The extension system supports runtime registration and plugin discovery through
+Python entry points.
 
-A propagation addon is the recommended extension path when you want to add a
-new ray-tracer or travel-time backend.
+Addons topics
+-------------
 
-Example package layout:
+.. toctree::
+   :maxdepth: 1
 
-.. code-block:: text
-
-   my_package/
-     __init__.py
-    backends.py
-     pyproject.toml
-
-Example addon factory:
-
-.. code-block:: python
-
-   from pathlib import Path
-
-   from hypy.propagation.base import PropagationModel
+   addon_model
+   addon_propagation
 
 
-    class MyBackend(PropagationModel):
-       def __init__(self, model_path: str):
-           super().__init__(model_path)
+Extension points
+----------------
 
-       @property
-       def dim(self) -> int:
-           return 3
+Model backends
+~~~~~~~~~~~~~~
 
-       def get_arrival(self, *args, **kwargs):
-           return 0.0, None, None, 0.0
+Model backends are registered by file extension and must return a
+``VelocityModel`` instance.
 
-       def compute_travel_time_params(self, *args, **kwargs):
-           return 0.0, 0.0, (None, None, None, None)
+Public APIs:
+
+* ``register_model_backend``
+* ``get_model_backend_factory``
+* ``list_registered_model_backends``
+* ``load_model_plugins``
+* ``create_model``
 
 
-   def create_my_backend(*, model_path: Path, **kwargs) -> PropagationModel:
-       del kwargs
-       return MyBackend(model_path.as_posix())
+Propagation backends
+~~~~~~~~~~~~~~~~~~~~
 
-Register the addon through ``pyproject.toml``:
+Propagation backends are registered by ``(mode, engine)`` and must return a
+``PropagationEngine`` instance.
+
+Public APIs:
+
+* ``register_propagation_backend``
+* ``get_propagation_backend_factory``
+* ``list_registered_propagation_backends``
+* ``load_propagation_plugins``
+* ``create_propagation_backend``
+
+Compatibility contract
+----------------------
+
+``hypy`` validates model/propagation compatibility during propagation backend
+creation.
+
+* Each model exposes ``supported_features``.
+* Each propagation backend exposes ``required_model_features``.
+* Backend creation fails early with ``ValueError`` when required model features
+  are missing.
+
+Typical feature flags include:
+
+* ``dimension.1d`` / ``dimension.3d``
+* ``model.profile.1d`` / ``model.grid.3d``
+* ``propagation.ray`` / ``propagation.table``
+
+
+Use entry points for install-time discovery
+-------------------------------------------
+
+For third-party packages, prefer entry points so registration happens after
+installation without app-level wiring.
 
 .. code-block:: toml
 
-    [project.entry-points."hypy.propagation.backends"]
-    "table-3d:fmm" = "my_package.backends:create_my_backend"
+   [project.entry-points."hypy.model.backends"]
+   ".xyz" = "my_package.models:load_xyz_model"
 
-Then load plugins before creating propagation backends:
+   [project.entry-points."hypy.propagation.backends"]
+   "ray-1d:myengine" = "my_package.backends:create_my_ray_backend"
 
-.. code-block:: python
+Optional legacy groups are still supported:
 
-    from hypy.propagation import create_propagation_backend, load_propagation_plugins
+* ``hypy.model.loaders``
+* ``hypy.propagation.tracers``
 
-    load_propagation_plugins()
-    backend = create_propagation_backend(
-       mode="table-3d",
-       engine="fmm",
-       phases=("P",),
-       model_path="/path/to/model.nc",
-       max_depth=50.0,
-       max_distance=100.0,
-       depth_step=1.0,
-       distance_step=1.0,
-   )
 
-Add a model loader addon
-------------------------
+How to use from applications
+----------------------------
 
-If you only need to teach ``hypy`` how to read a new model file format, register a
-loader with ``VelocityModel`` at application startup.
+You can explicitly load plugins at startup:
 
 .. code-block:: python
 
-   from hypy.model import VelocityModel
+   from hypy.model import load_model_plugins
+   from hypy.propagation import load_propagation_plugins
+
+   load_model_plugins()
+   load_propagation_plugins()
+
+Then create your locator normally. During setup, ``hypy`` validates model and
+propagation feature compatibility before running location.
 
 
-   def load_xyz_model(path, **kwargs):
-       del kwargs
-       ...  # return a VelocityModel subclass
-
-
-   VelocityModel.register_loader(".xyz", load_xyz_model)
-
-This is useful when your addon produces a model wrapper rather than a ray-tracer
-backend.
-
-Recommended pattern
+Recommended testing
 -------------------
 
-1. Keep addon code outside the core ``hypy`` package.
-2. Register the addon once during app startup.
-3. Prefer the public package roots and registry APIs over deep imports.
-4. Add tests that import the addon and exercise the registration path.
+For every addon, add tests that cover:
+
+1. Registration (runtime and entry-point load paths).
+2. Backend creation.
+3. Compatibility failures for missing model features.
