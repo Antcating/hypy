@@ -22,27 +22,35 @@ dependencies = [
     "numpy==1.26.4",
     "obspy>=1.2",
     "scipy>=1.7",
-    "numba>=0.61"
+    "numba>=0.61",
+    "matplotlib>=3.10.8",
+    "cartopy>=0.25.0",
 ]
 
 [project.optional-dependencies]
 # Extra for development and testing
+
+[dependency-groups]
+3d = [
+    "netcdf4>=1.7.3",
+    "nllgrid>=1.6",
+    "pyekfmm>=0.0.9.0",
+]
 dev = [
-    "pytest",
-    "pytest-cov",
-    "pyrocko",
-    "ruff",
-    "hatchling",
+    "austin-dist>=4.0.0",
+    "hatchling>=1.29.0",
+    "pre-commit>=4.5.1",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.1.0",
+    "pytest-ruff>=0.5",
     "sphinx>=9.0.4",
     "sphinx-rtd-theme>=3.1.0",
 ]
-pyrocko = ["pyrocko"]
-
-fmm = ["scikit-fmm"]
-
-3d = [
-    "nllgrid",
-    "pyekfmm"
+fmm = [
+    "scikit-fmm>=2025.6.23",
+]
+pyrocko = [
+    "pyrocko>=2025.12.4",
 ]
 
 [tool.hatch.build.targets.wheel]
