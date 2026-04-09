@@ -1,4 +1,5 @@
-# logging_utils.py
+"""Logging helpers used across the package."""
+
 import logging
 import os
 from logging.handlers import RotatingFileHandler
