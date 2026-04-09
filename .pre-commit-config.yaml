@@ -3,5 +3,5 @@ repos:
     rev: v0.13.2
     hooks:
       - id: ruff
-        args: [--fix, --exclude=**/docs/**]
+        args: [--fix, --exclude=**/docs/**, --exclude=**/tests/**, --exclude=**/examples/**]
       - id: ruff-format
