@@ -4,15 +4,154 @@ from __future__ import annotations
 
 import importlib.metadata as metadata
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional, Protocol, cast
+
+from hypy.model import VelocityModel
 
 from .base import PropagationEngine
 
 PropagationBackendFactory = Callable[..., PropagationEngine]
 _registry: dict[tuple[str, str], PropagationBackendFactory] = {}
 ENTRY_POINT_GROUP = "hypy.propagation.backends"
-LEGACY_ENTRY_POINT_GROUP = "hypy.propagation.tracers"
 _plugins_loaded = False
+
+
+class _EntryPointLike(Protocol):
+    """Subset of importlib entry point API used by plugin loading."""
+
+    name: str
+
+    def load(self) -> object:
+        """Load and return the object referenced by the entry point."""
+
+
+BACKEND_FEATURE_FLAGS: dict[tuple[str, str], frozenset[str]] = {
+    (
+        "ray-1d",
+        "taup",
+    ): frozenset(
+        {
+            "propagation.layered",
+            "propagation.ray",
+            "derivative.analytical",
+            "derivative.numerical",
+        }
+    ),
+    (
+        "ray-1d",
+        "pyrocko",
+    ): frozenset(
+        {
+            "propagation.layered",
+            "propagation.ray",
+            "derivative.analytical",
+            "derivative.numerical",
+        }
+    ),
+    (
+        "table-1d",
+        "taup",
+    ): frozenset(
+        {
+            "propagation.layered",
+            "propagation.table",
+            "derivative.analytical",
+            "derivative.numerical",
+        }
+    ),
+    (
+        "table-1d",
+        "pyrocko",
+    ): frozenset(
+        {
+            "propagation.layered",
+            "propagation.table",
+            "derivative.analytical",
+            "derivative.numerical",
+        }
+    ),
+    (
+        "table-1d",
+        "fmm",
+    ): frozenset(
+        {
+            "propagation.layered",
+            "propagation.table",
+            "derivative.numerical",
+        }
+    ),
+    (
+        "table-3d",
+        "fmm",
+    ): frozenset(
+        {
+            "propagation.volumetric",
+            "propagation.table",
+            "derivative.numerical",
+        }
+    ),
+}
+
+REQUIRED_MODEL_FEATURE_FLAGS: dict[tuple[str, str], frozenset[str]] = {
+    ("ray-1d", "taup"): frozenset({"model.profile.1d", "dimension.1d"}),
+    ("ray-1d", "pyrocko"): frozenset({"model.profile.1d", "dimension.1d"}),
+    ("table-1d", "taup"): frozenset({"model.profile.1d", "dimension.1d"}),
+    ("table-1d", "pyrocko"): frozenset({"model.profile.1d", "dimension.1d"}),
+    ("table-1d", "fmm"): frozenset({"model.profile.1d", "dimension.1d"}),
+    ("table-3d", "fmm"): frozenset({"model.grid.3d", "dimension.3d"}),
+}
+
+
+def register_propagation_backend_features(
+    mode: str,
+    engine: str,
+    feature_flags: set[str] | frozenset[str],
+    *,
+    required_model_features: set[str] | frozenset[str] | None = None,
+    override: bool = False,
+) -> None:
+    """Register feature metadata for a propagation backend.
+
+    Feature metadata is used by configuration validation and compatibility
+    checks. Third-party backends should register both factory and feature
+    metadata so they participate in operating-regime validation.
+    """
+    key = (mode, engine)
+    if key in BACKEND_FEATURE_FLAGS and not override:
+        raise ValueError(
+            f"Feature flags already registered for mode={mode!r}, engine={engine!r}."
+        )
+
+    BACKEND_FEATURE_FLAGS[key] = frozenset(feature_flags)
+    if required_model_features is not None:
+        REQUIRED_MODEL_FEATURE_FLAGS[key] = frozenset(required_model_features)
+
+
+def get_propagation_backend_features(mode: str, engine: str) -> frozenset[str]:
+    """Return feature flags declared for a propagation mode/engine pair."""
+    return BACKEND_FEATURE_FLAGS.get((mode, engine), frozenset())
+
+
+def list_valid_operating_regimes_by_features() -> dict[str, dict[str, set[str]]]:
+    """Return mode/engine/derivative combinations inferred from feature flags."""
+    _register_defaults()
+    load_propagation_plugins()
+
+    regimes: dict[str, dict[str, set[str]]] = {}
+    for mode, engine in list_registered_propagation_backends():
+        features = get_propagation_backend_features(mode, engine)
+        derivative_methods = {
+            feature.split(".", 1)[1]
+            for feature in features
+            if feature.startswith("derivative.") and "." in feature
+        }
+        if not derivative_methods:
+            continue
+
+        mode_regimes = regimes.setdefault(mode, {})
+        mode_regimes[engine] = derivative_methods
+
+    return regimes
 
 
 def register_propagation_backend(
@@ -43,20 +182,22 @@ def list_registered_propagation_backends() -> tuple[tuple[str, str], ...]:
     return tuple(sorted(_registry))
 
 
-def _iter_plugin_entry_points() -> list[object]:
+def _iter_plugin_entry_points() -> list[_EntryPointLike]:
     """Return entry points for external backend plugins across Python versions."""
     try:
-        return list(metadata.entry_points(group=ENTRY_POINT_GROUP)) + list(
-            metadata.entry_points(group=LEGACY_ENTRY_POINT_GROUP)
+        return cast(
+            list[_EntryPointLike], list(metadata.entry_points(group=ENTRY_POINT_GROUP))
         )
     except TypeError:
         all_entry_points = metadata.entry_points()
         if hasattr(all_entry_points, "select"):
-            return list(all_entry_points.select(group=ENTRY_POINT_GROUP)) + list(
-                all_entry_points.select(group=LEGACY_ENTRY_POINT_GROUP)
+            return cast(
+                list[_EntryPointLike],
+                list(all_entry_points.select(group=ENTRY_POINT_GROUP)),
             )
-        return list(all_entry_points.get(ENTRY_POINT_GROUP, [])) + list(
-            all_entry_points.get(LEGACY_ENTRY_POINT_GROUP, [])
+        legacy_entry_points = cast(Any, all_entry_points)
+        return cast(
+            list[_EntryPointLike], list(legacy_entry_points.get(ENTRY_POINT_GROUP, []))
         )
 
 
@@ -83,9 +224,10 @@ def load_propagation_plugins(*, override: bool = False) -> tuple[tuple[str, str]
         if not mode or not engine:
             continue
 
-        factory = entry_point.load()
-        if not callable(factory):
+        loaded_object = entry_point.load()
+        if not callable(loaded_object):
             continue
+        factory = cast(PropagationBackendFactory, loaded_object)
 
         try:
             register_propagation_backend(mode, engine, factory, override=override)
@@ -111,6 +253,11 @@ def _require_table_grid_params(
             "In table mode these variables are required: "
             "max_depth, max_distance, depth_step, distance_step "
         )
+
+    assert max_depth is not None
+    assert max_distance is not None
+    assert depth_step is not None
+    assert distance_step is not None
 
     return (
         float(max_depth),
@@ -244,6 +391,7 @@ def create_propagation_backend(
     max_distance: Optional[float],
     depth_step: Optional[float],
     distance_step: Optional[float],
+    velocity_model: VelocityModel | None = None,
 ) -> PropagationEngine:
     """Create a propagation backend from the mode/engine registry."""
     _register_defaults()
@@ -254,7 +402,7 @@ def create_propagation_backend(
             raise ValueError(f"Unsupported mode: {mode}")
         raise ValueError(f"Unsupported engine: {engine} for mode {mode}")
 
-    return factory(
+    backend = factory(
         mode=mode,
         engine=engine,
         phases=phases,
@@ -264,6 +412,31 @@ def create_propagation_backend(
         depth_step=depth_step,
         distance_step=distance_step,
     )
+
+    backend.mode = mode
+    backend.engine = engine
+    backend.feature_flags = BACKEND_FEATURE_FLAGS.get((mode, engine), frozenset())
+    backend.required_model_features = REQUIRED_MODEL_FEATURE_FLAGS.get(
+        (mode, engine),
+        frozenset(),
+    )
+
+    if backend.required_model_features:
+        model_instance = velocity_model or VelocityModel.create_model(model_path)
+        missing = sorted(
+            backend.required_model_features.difference(
+                model_instance.supported_features
+            )
+        )
+        if missing:
+            raise ValueError(
+                "Incompatible model and propagation backend: "
+                f"mode={mode!r}, engine={engine!r} requires model features "
+                f"{missing}, but model {model_instance.model_name!r} "
+                f"provides {sorted(model_instance.supported_features)}."
+            )
+
+    return backend
 
 
 TracerFactory = PropagationBackendFactory
