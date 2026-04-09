@@ -10,7 +10,7 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 
 from ..model import VelocityModel  # type: ignore[import-not-found]
-from ..propagation import PropagationModel
+from ..propagation import PropagationEngine
 from .config import (
     LocatorConfig,
     configure_distance_weighting,
@@ -20,12 +20,12 @@ from .config import (
     validate_velocity_model_file,
 )
 from .data import DataHandler
-from .derivatives import DerivativeEngine
+from .derivatives import DerivativesHandler
 from .errors import ErrorAnalyzer
 from .export import OriginExporter
 from .inversion import InversionEngine
 from .locations_setup import init_locations
-from .tracer_setup import init_tracer
+from .propagation_setup import init_propagation
 from .types import (
     Catalog,
     DerivativeMethodLiteral,
@@ -33,6 +33,7 @@ from .types import (
     Event,
     Inventory,
     ModeLiteral,
+    PropagationConfig,
     SolverLiteral,
 )
 
@@ -163,23 +164,27 @@ class EventLocator:
             fix_depth_km=self.config.fix_depth_km,
         )
 
-        # Initialize the travel-time calculator (tracer).
-        self.tracer: PropagationModel = init_tracer(
+        # Initialize the travel-time calculator.
+        propagation_config = PropagationConfig(
             mode=self.config.mode,
             engine=self.config.engine,
             phases=self.config.phases,
-            model_path=self.velocity_model_handler.model_path,  # type: ignore
+            model_path=self.velocity_model_handler.model_path,  # type: ignore[arg-type]
             max_depth=max_depth_km,
             max_distance=max_distance_km,
             depth_step=depth_step_km,
             distance_step=distance_step_km,
         )
+        self.propagation_backend: PropagationEngine = init_propagation(
+            propagation_config,
+        )
+        self.tracer = self.propagation_backend
 
-        # Derivative engine - bridges config, data, model, and tracer
-        self.derivative_engine = DerivativeEngine(
+        # Derivative engine - bridges config, data, model, and propagation backend
+        self.derivative_engine = DerivativesHandler(
             config=self.config,
             data=self.data,
-            tracer=self.tracer,
+            tracer=self.propagation_backend,
         )
 
         # Whether to precompute velocity profiles for all events.

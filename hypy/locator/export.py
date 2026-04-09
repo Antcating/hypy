@@ -1,3 +1,5 @@
+"""Export location results to ObsPy catalogs and events."""
+
 from pathlib import Path
 from typing import List, Union
 

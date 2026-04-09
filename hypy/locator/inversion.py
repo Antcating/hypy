@@ -5,11 +5,11 @@ from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
 from scipy.sparse.linalg import lsmr
 
 from ..logger import logger
+from ..model import VelocityModel
 from ..utils.damping import update_damping_factor
 from .config import LocatorConfig
 from .data import DataHandler
-from .derivatives import DerivativeEngine
-from .model import VelocityModelHandler
+from .derivatives import DerivativesHandler
 from .types import InversionResults, SolverLiteral
 
 
@@ -46,8 +46,8 @@ class InversionEngine:
         self,
         config: LocatorConfig,
         data: DataHandler,
-        model_handler: VelocityModelHandler,
-        derivative_engine: DerivativeEngine,
+        model_handler: VelocityModel,
+        derivative_engine: DerivativesHandler,
     ) -> None:
         self.config = config
         self.data = data
@@ -220,7 +220,7 @@ class InversionEngine:
 
         for it in range(max_iterations):
             # Build derivatives and theoretical travel times for CURRENT model
-            valid_rows = self.derivative_engine.populate_derivative_matrix()
+            valid_rows = self.derivative_engine.build_derivative_matrix(data, config)
             if len(valid_rows) == 0:
                 logger.error("No valid observations available for inversion. Aborting.")
                 break
@@ -311,7 +311,9 @@ class InversionEngine:
                 data.origin_times[valid_mask] += dx_apply[valid_mask, 3]
 
                 # Rebuild derivatives and recompute RMS AFTER trial update
-                valid_rows_trial = self.derivative_engine.populate_derivative_matrix()
+                valid_rows_trial = self.derivative_engine.build_derivative_matrix(
+                    data, config
+                )
                 if len(valid_rows_trial) == 0:
                     logger.warning(
                         f"Iteration {it + 1}, LM trial {lm_trial + 1}: "
@@ -334,6 +336,7 @@ class InversionEngine:
                     best_rms_trial = rms_trial
                     best_oob_events = trial_oob.copy()
 
+                print(rms_before, rms_trial, best_rms_trial)
                 rel_impr_trial = (rms_before - rms_trial) / max(rms_before, 1e-12)
 
                 if rel_impr_trial > lm_acceptance_tol:
@@ -351,6 +354,12 @@ class InversionEngine:
                         max_factor=max_damping,
                     )
                     break
+
+                logger.warning(
+                    f"Iteration {it + 1}, LM trial {lm_trial + 1}: "
+                    f"RMS={rms_trial:.6f} s, relative improvement={rel_impr_trial:.6e} "
+                    "not sufficient to accept trial step; increasing damping.",
+                )
 
                 # Reject trial: do not keep trial state, increase damping and retry
                 damping = update_damping_factor(
@@ -378,7 +387,9 @@ class InversionEngine:
                         "Best solution had out-of-bounds depth for invalidated events."
                     )
 
-                valid_rows = self.derivative_engine.populate_derivative_matrix()
+                valid_rows = self.derivative_engine.build_derivative_matrix(
+                    data, config
+                )
                 if len(valid_rows) == 0:
                     logger.error(
                         "No valid observations available after failed LM trials. "
@@ -426,7 +437,7 @@ class InversionEngine:
             prev_rms = rms_after
 
         # Ensure final derivatives / travel times / valid rows correspond to final state
-        valid_rows = self.derivative_engine.populate_derivative_matrix()
+        valid_rows = self.derivative_engine.build_derivative_matrix(data, config)
         residuals_flat, rms = _compute_residuals_and_rms(valid_rows)
 
         design_matrix = (
