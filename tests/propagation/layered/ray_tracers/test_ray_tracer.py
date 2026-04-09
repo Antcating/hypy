@@ -1,3 +1,5 @@
+"""Tests for layered ray-tracer backends."""
+
 import os
 
 import obspy
@@ -10,6 +12,7 @@ from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
 
 @pytest.fixture(params=["taup", "pyrocko"])
 def tracer(request):
+    """Build a layered ray-tracer backend for each supported engine."""
     model = "iasp91"
     obspy_path = os.path.dirname(obspy.__file__)
     model_path = os.path.join(obspy_path, "taup", "data", f"{model}.tvel")
@@ -20,6 +23,7 @@ def tracer(request):
 
 
 def test_get_arrival_1d(tracer: LayeredRayTracer):
+    """1D ray-tracer arrivals should match reference values."""
     depth = 50.0
     distance = 500.0
     time_p, angle_p = tracer.get_arrival_1d(distance, depth, "P")
@@ -36,6 +40,7 @@ def test_get_arrival_1d(tracer: LayeredRayTracer):
 
 
 def test_get_arrival_1d_invalid_phase(tracer: LayeredRayTracer):
+    """Invalid 1D phases should raise a validation error."""
     depth = 50.0
     distance = 500.0
     with pytest.raises(ValueError):
@@ -43,6 +48,7 @@ def test_get_arrival_1d_invalid_phase(tracer: LayeredRayTracer):
 
 
 def test_get_arrival_1d_out_of_bounds(tracer: LayeredRayTracer):
+    """Out-of-range 1D depths should raise a validation error."""
     depth = -50.0
     distance = 500.0
     with pytest.raises(ValueError):
@@ -52,6 +58,7 @@ def test_get_arrival_1d_out_of_bounds(tracer: LayeredRayTracer):
 
 
 def test_get_arrival_1d_negative_distance(tracer: LayeredRayTracer):
+    """Negative distances should mirror positive-distance arrivals."""
     depth = 50.0
     distance = -100.0
     assert tracer.get_arrival_1d(distance, depth, "P") == tracer.get_arrival_1d(
@@ -63,6 +70,7 @@ def test_get_arrival_1d_negative_distance(tracer: LayeredRayTracer):
 
 
 def test_get_arrival(tracer: LayeredRayTracer):
+    """2D ray-tracer arrivals should match the geodesic reference values."""
     source_latitude = 0.0
     source_longitude = 0.0
     source_depth_km = 50.0
@@ -109,6 +117,7 @@ def test_get_arrival(tracer: LayeredRayTracer):
 
 
 def test_get_arrival_invalid_phase(tracer: LayeredRayTracer):
+    """Invalid phases should raise a validation error for 2D arrivals."""
     source_latitude = 0.0
     source_longitude = 0.0
     source_depth_km = 50.0
@@ -128,6 +137,7 @@ def test_get_arrival_invalid_phase(tracer: LayeredRayTracer):
 
 
 def test_get_arrival_out_of_bounds(tracer: LayeredRayTracer):
+    """Out-of-range depths should raise a validation error for arrivals."""
     source_latitude = 0.0
     source_longitude = 0.0
     source_depth_km = -50.0
@@ -157,6 +167,7 @@ def test_get_arrival_out_of_bounds(tracer: LayeredRayTracer):
 
 
 def test_get_arrival_max_distance_exceeded(tracer: LayeredRayTracer):
+    """Exceeding the max distance should suppress travel-time computation."""
     source_latitude = 0.0
     source_longitude = 0.0
     source_depth_km = 50.0

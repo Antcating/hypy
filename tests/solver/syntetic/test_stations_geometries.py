@@ -20,7 +20,10 @@ from obspy.core.inventory import (  # type: ignore[import-untyped]
     Site,
     Station,
 )
-from obspy.geodetics import gps2dist_azimuth, kilometers2degrees  # type: ignore[import-untyped]
+from obspy.geodetics import (  # type: ignore[import-untyped]
+    gps2dist_azimuth,
+    kilometers2degrees,
+)
 from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 
 matplotlib.use("Agg")

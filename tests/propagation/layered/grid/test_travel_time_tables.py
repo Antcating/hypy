@@ -1,4 +1,5 @@
-import obspy
+"""Tests for layered travel-time table backends."""
+
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -7,13 +8,14 @@ import numpy as np
 import obspy
 import pytest
 
-from hypy.propagation.layered.grid import TauTimeTables
+from hypy.propagation.layered.grid import TauTravelTimeGrid
 
 
 @pytest.fixture(scope="session", params=["taup", "pyrocko"])
 def travel_time_tables(
     request, overwrite=False
-) -> Callable[[list[str], bool], TauTimeTables]:
+) -> Callable[[list[str], bool], TauTravelTimeGrid]:
+    """Build travel-time table factories for the layered grid tests."""
     obspy_path = Path(obspy.__file__).parents[0].as_posix()
     model_path = os.path.join(obspy_path, "taup/data/iasp91.tvel")
     max_depth = 100.0
@@ -22,8 +24,8 @@ def travel_time_tables(
     distance_step = 50.0
     engine = request.param
 
-    def _create_tables(phases, overwrite=False) -> TauTimeTables:
-        return TauTimeTables(
+    def _create_tables(phases, overwrite=False) -> TauTravelTimeGrid:
+        return TauTravelTimeGrid(
             model_tvel=model_path,
             phases=phases,
             max_depth=max_depth,
@@ -39,8 +41,10 @@ def travel_time_tables(
 
 @pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
 def test_table_creation(
-    travel_time_tables: Callable[[list[str], bool], TauTimeTables], phases: list[str]
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
+    phases: list[str],
 ):
+    """Creating tables should populate the expected phase grids."""
     tables = travel_time_tables(phases, True)
     assert tables.depth_grid is not None
     assert tables.distance_grid is not None
@@ -49,7 +53,10 @@ def test_table_creation(
         assert phase in tables.travel_time_tables
 
 
-def test_table_reuse(travel_time_tables: Callable[[list[str], bool], TauTimeTables]):
+def test_table_reuse(
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
+):
+    """Reusing tables should yield equivalent cached travel-time values."""
     # Create tables with overwrite=True to ensure they are generated
     tables1 = travel_time_tables(["P", "S"], True)
     # Create tables again with overwrite=False to test reuse
@@ -70,17 +77,19 @@ def test_table_reuse(travel_time_tables: Callable[[list[str], bool], TauTimeTabl
 
 
 def test_load_invalid_phases(
-    travel_time_tables: Callable[[list[str], bool], TauTimeTables],
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
 ):
+    """Unsupported phases should raise a validation error."""
     with pytest.raises(ValueError):
         travel_time_tables(["X"], False)
 
 
 def test_invalid_engine():
+    """Unsupported engines should raise a validation error."""
     with pytest.raises(ValueError):
         obspy_path = Path(obspy.__file__).parents[0].as_posix()
         model_path = os.path.join(obspy_path, "taup/data/iasp91.tvel")
-        TauTimeTables(
+        TauTravelTimeGrid(
             model_tvel=model_path,
             phases=["P"],
             max_depth=100.0,
@@ -93,10 +102,11 @@ def test_invalid_engine():
 
 
 def test_save_emply_table(
-    travel_time_tables: Callable[[list[str], bool], TauTimeTables],
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
     tmp_path: Path,
 ):
-    tables: TauTimeTables = travel_time_tables(["P"], True)
+    """Saving an empty table collection should fail."""
+    tables: TauTravelTimeGrid = travel_time_tables(["P"], True)
     tables.travel_time_tables = {}
     with pytest.raises(ValueError):
         save_path = os.path.join(tmp_path, "empty_table.npz")
@@ -105,8 +115,10 @@ def test_save_emply_table(
 
 @pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
 def test_compute_travel_time(
-    travel_time_tables: Callable[[list[str], bool], TauTimeTables], phases: list[str]
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
+    phases: list[str],
 ):
+    """Travel-time interpolation should return the reference values."""
     tables = travel_time_tables(phases, True)
     depth = 50.0
     distance = 500.0
@@ -122,8 +134,10 @@ def test_compute_travel_time(
 
 @pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
 def test_compute_takeoff_angle(
-    travel_time_tables: Callable[[list[str], bool], TauTimeTables], phases: list[str]
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
+    phases: list[str],
 ):
+    """Takeoff-angle interpolation should return the reference values."""
     tables = travel_time_tables(phases, True)
     depth = 50.0
     distance = 500.0
@@ -139,8 +153,10 @@ def test_compute_takeoff_angle(
 
 @pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
 def test_get_arrival_1d(
-    travel_time_tables: Callable[[list[str], bool], TauTimeTables], phases: list[str]
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
+    phases: list[str],
 ):
+    """1D arrivals should match the expected table values."""
     tables = travel_time_tables(phases, False)
     depth = 50.0
     distance = 500.0
@@ -161,11 +177,12 @@ def test_get_arrival_1d(
 @pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
 @pytest.mark.parametrize("depth,distance", [(150.0, 500.0), (50.0, 1500.0)])
 def test_get_arrival_1d_out_of_bounds(
-    travel_time_tables: Callable[[list[str], bool], TauTimeTables],
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
     phases: list[str],
     depth: float,
     distance: float,
 ):
+    """Out-of-range 1D queries should raise a validation error."""
     tables = travel_time_tables(phases, False)
     if "P" in phases:
         with pytest.raises(ValueError):
@@ -177,8 +194,10 @@ def test_get_arrival_1d_out_of_bounds(
 
 @pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
 def test_get_arrival_1d_negative_distance(
-    travel_time_tables: Callable[[list[str], bool], TauTimeTables], phases: list[str]
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
+    phases: list[str],
 ):
+    """Negative distances should mirror positive-distance 1D arrivals."""
     tables = travel_time_tables(phases, False)
     depth = 50.0
     distance = -500.0
@@ -196,8 +215,10 @@ def test_get_arrival_1d_negative_distance(
 
 @pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
 def test_invalid_phase_1d(
-    travel_time_tables: Callable[[list[str], bool], TauTimeTables], phases: list[str]
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
+    phases: list[str],
 ):
+    """Invalid 1D phases should raise a validation error."""
     tables = travel_time_tables(phases, False)
     depth = 50.0
     distance = 500.0
@@ -207,8 +228,10 @@ def test_invalid_phase_1d(
 
 @pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
 def test_get_arrival(
-    travel_time_tables: Callable[[list[str], bool], TauTimeTables], phases: list[str]
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
+    phases: list[str],
 ):
+    """2D arrivals should match the expected geodesic reference values."""
     tables = travel_time_tables(phases, False)
     source_latitude = 0.0
     source_longitude = 0.0
@@ -256,8 +279,10 @@ def test_get_arrival(
 
 @pytest.mark.parametrize("phases", [["P"], ["S"]])
 def test_get_arrival_invalid_phase(
-    travel_time_tables: Callable[[list[str], bool], TauTimeTables], phases: list[str]
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
+    phases: list[str],
 ):
+    """Invalid phases should raise a validation error for 2D arrivals."""
     tables = travel_time_tables(phases, False)
     source_latitude = 0.0
     source_longitude = 0.0
@@ -279,8 +304,10 @@ def test_get_arrival_invalid_phase(
 
 @pytest.mark.parametrize("phases", [["P"], ["S"]])
 def test_get_arrival_out_of_bounds(
-    travel_time_tables: Callable[[list[str], bool], TauTimeTables], phases: list[str]
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
+    phases: list[str],
 ):
+    """Out-of-range depths should raise a validation error for arrivals."""
     tables = travel_time_tables(phases, False)
     source_latitude = 0.0
     source_longitude = 0.0
@@ -314,8 +341,10 @@ def test_get_arrival_out_of_bounds(
 
 @pytest.mark.parametrize("phases", [["P"], ["S"]])
 def test_get_arrival_max_distance_exceeded(
-    travel_time_tables: Callable[[list[str], bool], TauTimeTables], phases: list[str]
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
+    phases: list[str],
 ):
+    """Queries beyond the configured max distance should short-circuit."""
     tables = travel_time_tables(phases, False)
     source_latitude = 0.0
     source_longitude = 0.0
