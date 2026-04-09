@@ -13,6 +13,7 @@ Subpackages
    :maxdepth: 4
 
    locator <hypy.locator>
+   model <hypy.model>
    propagation <hypy.propagation>
    utils <hypy.utils>
 

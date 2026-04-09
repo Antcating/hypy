@@ -1,7 +1,7 @@
-locator.model
+utils.seismic
 =============
 
-.. automodule:: hypy.locator.model
+.. automodule:: hypy.utils.seismic
    :members:
    :show-inheritance:
    :undoc-members:

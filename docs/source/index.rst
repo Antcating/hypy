@@ -11,19 +11,14 @@ Project documentation generated with Sphinx.
 
 .. toctree::
    :maxdepth: 3
-   :caption: Locator
+   :caption: API
 
-   api/hypy.locator
-
-.. toctree::
-   :maxdepth: 3
-   :caption: Propagation
-
-   api/hypy.propagation
+   api/hypy
 
 .. toctree::
-   :maxdepth: 3
-   :caption: Utils
+   :maxdepth: 2
+   :caption: Architecture
 
-   api/hypy.utils
+   migration
+   addon
 

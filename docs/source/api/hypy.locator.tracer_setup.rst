@@ -5,3 +5,4 @@ locator.tracer_setup
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:

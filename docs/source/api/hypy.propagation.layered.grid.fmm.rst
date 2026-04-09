@@ -12,4 +12,4 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   propagation.layered.grid.fmm.fmm_time_tables <hypy.propagation.layered.grid.fmm.fmm_time_tables>
+   propagation.layered.grid.fmm.grid <hypy.propagation.layered.grid.fmm.grid>

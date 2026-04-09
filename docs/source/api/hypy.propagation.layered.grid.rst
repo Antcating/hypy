@@ -5,6 +5,7 @@ propagation.layered.grid
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:
 
 Subpackages
 -----------

@@ -1,7 +1,7 @@
-locator.finalize
+propagation.base
 ================
 
-.. automodule:: hypy.locator.finalize
+.. automodule:: hypy.propagation.base
    :members:
    :show-inheritance:
    :undoc-members:

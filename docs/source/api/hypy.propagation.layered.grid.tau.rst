@@ -12,4 +12,4 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   propagation.layered.grid.tau.tau_time_tables <hypy.propagation.layered.grid.tau.tau_time_tables>
+   propagation.layered.grid.tau.grid <hypy.propagation.layered.grid.tau.grid>

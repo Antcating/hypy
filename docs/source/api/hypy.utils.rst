@@ -13,6 +13,7 @@ Subpackages
    :maxdepth: 4
 
    utils.math <hypy.utils.math>
+   utils.nllgrid <hypy.utils.nllgrid>
 
 Submodules
 ----------
@@ -22,4 +23,5 @@ Submodules
 
    utils.damping <hypy.utils.damping>
    utils.geo <hypy.utils.geo>
+   utils.seismic <hypy.utils.seismic>
    utils.weighting <hypy.utils.weighting>

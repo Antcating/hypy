@@ -12,4 +12,4 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   propagation.layered.ray_tracer.taup.taup <hypy.propagation.layered.ray_tracer.taup.taup>
+   propagation.layered.ray_tracer.taup.tracer <hypy.propagation.layered.ray_tracer.taup.tracer>
