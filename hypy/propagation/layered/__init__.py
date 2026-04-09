@@ -1,31 +1,28 @@
+"""Layered propagation model base classes."""
+
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 
-from hypy.locator.model import VelocityModelHandler
-from hypy.logger import logger
-from hypy.propagation import PropagationModel
+from hypy.model import TvelModel
+from hypy.propagation.base import PropagationEngine
 from hypy.utils.geo import get_analytical_derivative_1d, gps2dist_azimuth_nb
 from hypy.utils.math import finite_difference_derivative
 
 
-class LayeredPropagationModel(PropagationModel):
+class LayeredPropagationEngine(PropagationEngine):
+    """Base class for layered 1D propagation backends."""
+
     def __init__(self, model_path: str):
         super().__init__(model_path)
-        self.velocity_model = VelocityModelHandler(Path(model_path))
+        self.velocity_model = TvelModel(Path(model_path))
 
     @property
     def dim(self) -> int:
         """Return the dimensionality of the propagation model.
 
-        For a layered 1D model, this is typically 1 (only depth dependence).
-
-        Returns
-        -------
-        int
-            The dimensionality of the propagation model.
+        For a layered 1D model, this is typically ``1``.
         """
         return 1
 
@@ -35,7 +32,7 @@ class LayeredPropagationModel(PropagationModel):
         source_depth_km: float,
         phase: str,
     ) -> tuple[float, float]:
-        """Get the arrival time and takeoff angle for a given source depth, distance, and seismic phase."""
+        """Get the arrival time and takeoff angle for a 1D source/phase pair."""
         raise NotImplementedError("This method should be implemented by subclasses")
 
     def compute_travel_time_params(
@@ -50,6 +47,7 @@ class LayeredPropagationModel(PropagationModel):
         delta: float | None = None,
         derivative_method: str = "analytical",
     ) -> tuple[float, float, tuple[float, float, float, float]]:
+        """Return distance, travel time, and derivatives for a source/receiver pair."""
         arc_distance_km, travel_time_s, takeoff_angle_deg, azimuth_deg = (
             self.get_arrival(
                 source_latitude=source_latitude,
@@ -80,9 +78,7 @@ class LayeredPropagationModel(PropagationModel):
         receiver_latitude: float,
         receiver_longitude: float,
     ) -> tuple[float, float, float]:
-        """
-        Compute the arc distance between source and receiver in kilometers.
-        """
+        """Compute the arc distance between source and receiver in kilometers."""
         dist_m, azimuth, back_azimuth = gps2dist_azimuth_nb(
             source_latitude,
             source_longitude,
@@ -113,10 +109,7 @@ class LayeredPropagationModel(PropagationModel):
         delta: float,
         method: str = "central",
     ) -> tuple[float, float, float, float]:
-        """
-        Compute spatial slowness derivatives (dt/dx, dt/dy, dt/dz) using numerical differentiation
-        of arrival times computed via ray tracing.
-        """
+        """Compute spatial slowness derivatives using finite differences."""
         dt_ddist = finite_difference_derivative(
             lambda d: self.get_arrival_1d(d, source_depth_km, phase)[0],
             arc_distance_km,
@@ -151,24 +144,13 @@ class LayeredPropagationModel(PropagationModel):
         delta: Optional[float] = 0.01,
         mode: str = "analytical",
     ):
-        """
-        Compute spatial slowness derivatives (dt/dx, dt/dy, dt/dz) using numerical differentiation
-        of arrival times computed via ray tracing.
+        """Compute spatial slowness derivatives using the configured mode.
 
-        Args:
-            source_depth: Source depth in km
-            distance: Horizontal distance in km
-            phase: Seismic phase ('P' or 'S')
-            phase_vel: Phase velocity in km/s
-            az_deg: Azimuth from source to receiver in degrees (clockwise from North)
-            delta: Perturbation for numerical differentiation in km
-
-        Returns
-        -------
-            Tuple of (dt_dr, dt_dx, dt_dy, dt_dz) in s/km
+        Parameters are interpreted as source/receiver geometry in the locator
+        coordinate system.
         """
         if mode == "analytical":
-            velocity_km_s = self.velocity_model._get_velocity_1d(source_depth_km, phase)
+            velocity_km_s = self.velocity_model.get_velocity_1d(source_depth_km, phase)
             if takeoff_angle_deg is None:
                 raise ValueError(
                     "Takeoff angle is required for analytical derivative computation."
@@ -184,7 +166,8 @@ class LayeredPropagationModel(PropagationModel):
                 raise ValueError(
                     "Delta must be provided for numerical derivative computation."
                 )
-            # TODO: Expose method to computing numerical derivatives (central, forward, backward, five-point, etc.)
+            # TODO: Expose numerical derivative stencils
+            # (central, forward, backward, five-point, etc.).
             return self._compute_derivatives_numerical(
                 arc_distance_km=arc_distance_km,
                 source_depth_km=source_depth_km,
@@ -194,5 +177,5 @@ class LayeredPropagationModel(PropagationModel):
             )
         else:
             raise ValueError(
-                f"Invalid mode: {mode}. Supported modes are 'analytical' and 'numerical'."
+                f"Invalid mode: {mode}. Supported modes are analytical and numerical."
             )

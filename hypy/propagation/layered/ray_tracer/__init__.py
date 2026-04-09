@@ -1,9 +1,9 @@
 """Layered ray tracing module for seismic wave propagation."""
 
-from hypy.propagation.layered import LayeredPropagationModel
+from hypy.propagation.layered import LayeredPropagationEngine
 
 
-class LayeredRayTracer(LayeredPropagationModel):
+class LayeredRayTracer(LayeredPropagationEngine):
     """
     Ray tracer for layered Earth models.
 
