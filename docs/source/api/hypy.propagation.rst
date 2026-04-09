@@ -13,7 +13,6 @@ Subpackages
    :maxdepth: 4
 
    propagation.layered <hypy.propagation.layered>
-   propagation.planar <hypy.propagation.planar>
    propagation.volumetric <hypy.propagation.volumetric>
 
 Submodules

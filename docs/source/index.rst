@@ -19,6 +19,5 @@ Project documentation generated with Sphinx.
    :maxdepth: 2
    :caption: Architecture
 
-   migration
    addon
 

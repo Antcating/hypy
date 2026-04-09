@@ -13,5 +13,4 @@ Subpackages
    :maxdepth: 4
 
    model.layered <hypy.model.layered>
-   model.planar <hypy.model.planar>
    model.volumetric <hypy.model.volumetric>
