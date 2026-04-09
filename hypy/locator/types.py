@@ -26,15 +26,27 @@ from obspy.core.event.origin import (  # type: ignore[import-untyped]
 from obspy.core.inventory import Inventory  # type: ignore[import-untyped]
 
 DimLiteral = Literal[4]
-ModeLiteral = Literal["table-1d", "ray-1d"]
-EngineLiteral = Literal["taup", "pyrocko"]
+ModeLiteral = Literal["table-1d", "ray-1d", "table-3d"]
+EngineLiteral = Literal["taup", "pyrocko", "fmm"]
 SolverLiteral = Literal["lsqr", "svd"]
 DerivativeMethodLiteral = Literal["numerical", "analytical"]
 
 
 @dataclass
 class InversionResults:
-    """Output of the iterative inversion step."""
+    """Results returned by the iterative inversion step.
+
+    Attributes
+    ----------
+    design_matrix : numpy.ndarray
+        Full weighted design matrix used in the inversion.
+    valid_rows : numpy.ndarray
+        Row indices that correspond to valid observations.
+    residuals_flat : numpy.ndarray
+        Flattened residual vector after weighting.
+    damping : float
+        Final damping factor chosen by the solver.
+    """
 
     design_matrix: np.ndarray  # full weighted design matrix
     valid_rows: np.ndarray  # indices of rows with valid observations
@@ -44,13 +56,61 @@ class InversionResults:
 
 @dataclass
 class ErrorResults:
-    """Output of error ellipsoid computation."""
+    """Results returned by the error-ellipsoid calculation.
+
+    Attributes
+    ----------
+    covariances : numpy.ndarray
+        Full covariance matrices for each event.
+    spatial_covariances : numpy.ndarray
+        Spatial covariance matrices without the origin-time dimension.
+    principal_std : numpy.ndarray
+        Standard deviations along the principal spatial axes.
+    principal_axes : numpy.ndarray
+        Eigenvectors defining the principal spatial axes.
+    erz_erh : numpy.ndarray
+        Vertical and horizontal error estimates for each event.
+    """
 
     covariances: np.ndarray  # (n_events, dim, dim)
     spatial_covariances: np.ndarray  # (n_events, dim-1, dim-1)
     principal_std: np.ndarray  # (n_events, dim-1)
     principal_axes: np.ndarray  # (n_events, dim-1, dim-1)
     erz_erh: np.ndarray  # (n_events, 2)
+
+
+@dataclass
+class PropagationConfig:
+    """Typed configuration payload for propagation backend initialization.
+
+    Attributes
+    ----------
+    mode : ModeLiteral
+        Propagation mode selected for the backend.
+    engine : EngineLiteral
+        Backend engine used to compute travel times.
+    phases : tuple of str
+        Seismic phases requested from the backend.
+    model_path : pathlib.Path
+        Path to the travel-time model or velocity model.
+    max_depth : float or None
+        Maximum modeled depth in kilometers.
+    max_distance : float or None
+        Maximum modeled epicentral distance in kilometers.
+    depth_step : float or None
+        Depth spacing used by table-based backends.
+    distance_step : float or None
+        Distance spacing used by table-based backends.
+    """
+
+    mode: ModeLiteral
+    engine: EngineLiteral
+    phases: Tuple[str, ...]
+    model_path: Path
+    max_depth: Optional[float]
+    max_distance: Optional[float]
+    depth_step: Optional[float]
+    distance_step: Optional[float]
 
 
 # Re-exports for convenience
@@ -77,4 +137,5 @@ __all__ = [
     "SolverLiteral",
     "InversionResults",
     "ErrorResults",
+    "PropagationConfig",
 ]
