@@ -27,10 +27,7 @@ release = "1.1.0"
 extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
 ]
-
-autosummary_generate = True
 
 autodoc_default_options = {
     "members": True,
@@ -65,6 +62,11 @@ def _clean_label(name: str) -> str:
 
 def _rewrite_apidoc_labels(output_dir: Path) -> None:
     """Rewrite generated apidoc .rst titles and toctree labels for readability."""
+    no_index_targets = {
+        "hypy.locator.tracer_setup.rst",
+        "hypy.propagation.layered.grid.rst",
+    }
+
     for rst_file in sorted(output_dir.glob("*.rst")):
         text = rst_file.read_text(encoding="utf-8")
         lines = text.splitlines()
@@ -102,6 +104,20 @@ def _rewrite_apidoc_labels(output_dir: Path) -> None:
                 label = _clean_label(stripped)
                 lines[idx] = f"   {label} <{stripped}>"
 
+        if rst_file.name in no_index_targets:
+            for idx, line in enumerate(lines):
+                if line.strip().startswith(".. automodule::"):
+                    option_idx = idx + 1
+                    while option_idx < len(lines) and lines[option_idx].startswith(
+                        "   :"
+                    ):
+                        if lines[option_idx].strip() == ":no-index:":
+                            break
+                        option_idx += 1
+                    else:
+                        lines.insert(option_idx, "   :no-index:")
+                    break
+
         rst_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -111,11 +127,17 @@ def run_apidoc(app):
     output_dir = docs_source / "api"
     module_dir = ROOT / "hypy"
 
+    # Remove stale generated files so removed/renamed modules do not linger.
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for rst_file in output_dir.glob("*.rst"):
+        rst_file.unlink()
+
     apidoc_main(
         [
             "--force",
             "--separate",
             "--module-first",
+            "--no-toc",
             "--output-dir",
             str(output_dir),
             str(module_dir),
