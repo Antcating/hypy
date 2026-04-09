@@ -17,6 +17,16 @@ from .. import GridSliceData
 class NllGridModel(VelocityModel):
     """3D velocity grid support using NLLGrid or TVEL -> NLLGrid conversion."""
 
+    feature_flags = frozenset(
+        {
+            "model.volumetric",
+            "model.grid.3d",
+            "format.nllgrid",
+            "phase.p",
+            "phase.s",
+        }
+    )
+
     def __init__(self, model_path: Path | str):
         model_path = Path(model_path).expanduser().resolve()
         super().__init__(model_path=model_path, model_name=model_path.stem, dim=3)

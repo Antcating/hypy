@@ -43,6 +43,16 @@ class NCGrid(VelocityModel):
     volumetric propagation code.
     """
 
+    feature_flags = frozenset(
+        {
+            "model.volumetric",
+            "model.grid.3d",
+            "format.netcdf",
+            "phase.p",
+            "phase.s",
+        }
+    )
+
     def __init__(self, model_path: Path | str):
         model_path = Path(model_path).expanduser().resolve()
         super().__init__(model_path=model_path, model_name=model_path.stem, dim=3)

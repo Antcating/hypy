@@ -13,6 +13,16 @@ from hypy.model import VelocityModel
 class TvelModel(VelocityModel):
     """1D velocity model driver for .tvel files via ObsPy TauPyModel."""
 
+    feature_flags = frozenset(
+        {
+            "model.layered",
+            "model.profile.1d",
+            "format.tvel",
+            "phase.p",
+            "phase.s",
+        }
+    )
+
     def __init__(self, model_path: Path | str, dim: int | str = "auto"):
         model_path = Path(model_path).expanduser().resolve()
 
