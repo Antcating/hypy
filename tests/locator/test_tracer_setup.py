@@ -6,6 +6,7 @@ import pytest
 
 from hypy.locator.propagation_setup import init_propagation
 from hypy.locator.types import PropagationConfig
+from hypy.model import VelocityModel
 from hypy.propagation.base import PropagationEngine
 
 
@@ -27,7 +28,7 @@ class _DummyTracer(PropagationEngine):
 
 
 def test_init_propagation_passes_typed_config_to_factory(monkeypatch):
-    """init_propagation should forward fields from PropagationConfig without mutation."""
+    """init_propagation should forward config fields without mutation."""
     captured = {}
 
     def _fake_create_tracer(**kwargs):
@@ -61,6 +62,38 @@ def test_init_propagation_passes_typed_config_to_factory(monkeypatch):
     assert captured["max_distance"] == config.max_distance
     assert captured["depth_step"] == config.depth_step
     assert captured["distance_step"] == config.distance_step
+    assert captured["velocity_model"] is None
+
+
+def test_init_propagation_forwards_explicit_velocity_model(monkeypatch):
+    """init_propagation should forward explicit velocity model instances."""
+    captured = {}
+
+    def _fake_create_tracer(**kwargs):
+        captured.update(kwargs)
+        return _DummyTracer(model_path=kwargs["model_path"].as_posix())
+
+    monkeypatch.setattr(
+        "hypy.locator.propagation_setup.create_propagation_backend",
+        _fake_create_tracer,
+    )
+
+    config = PropagationConfig(
+        mode="table-1d",
+        engine="taup",
+        phases=("P",),
+        model_path=Path("/tmp/test-model.tvel"),
+        max_depth=100.0,
+        max_distance=250.0,
+        depth_step=2.0,
+        distance_step=5.0,
+    )
+    model = VelocityModel(model_path=config.model_path)
+
+    tracer = init_propagation(config, velocity_model=model)
+
+    assert isinstance(tracer, _DummyTracer)
+    assert captured["velocity_model"] is model
 
 
 def test_init_propagation_legacy_kwargs_path_emits_deprecation(monkeypatch):
