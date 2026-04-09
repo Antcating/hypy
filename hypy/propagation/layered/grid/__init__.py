@@ -1,4 +1,9 @@
-from .fmm.fmm_time_tables import SKFMTimeTables
-from .tau.tau_time_tables import TauTimeTables
+"""Layered travel-time grid backends."""
 
-__all__ = ["TauTimeTables", "SKFMTimeTables"]
+from .fmm.grid import FmmTravelTimeGrid1D
+from .tau.grid import TauTravelTimeGrid
+
+__all__ = [
+    "FmmTravelTimeGrid1D",
+    "TauTravelTimeGrid",
+]

@@ -1,6 +1,6 @@
 """Precomputed 1D travel-time tables handler for layered Earth models using t-p.
 
-This module provides the TauTimeTables class, which manages precomputed
+This module provides the TauTravelTimeTable class, which manages precomputed
 travel-time, ray-parameter, and takeoff angle tables for seismic phases
 based on a 1D velocity model.
 
@@ -37,13 +37,13 @@ from typing import Dict, List, Optional
 import numpy as np
 
 from hypy.logger import logger
-from hypy.propagation.layered import LayeredPropagationModel
+from hypy.propagation.layered import LayeredPropagationEngine
 from hypy.utils.geo import gps2dist_azimuth_nb
 from hypy.utils.math import interp_quant
 
 
-class TauTimeTables(LayeredPropagationModel):
-    """Tau time tables for layered Earth models.
+class TauTravelTimeGrid(LayeredPropagationEngine):
+    """Tau travel-time table for layered Earth models.
 
     This class manages precomputed travel-time, ray-parameter, and takeoff angle
     tables for seismic phases based on a 1D velocity model.
@@ -84,7 +84,7 @@ class TauTimeTables(LayeredPropagationModel):
     ):
         super().__init__(model_tvel)
         model_name = Path(model_tvel).stem
-        self.tracer: LayeredPropagationModel
+        self.backend: LayeredPropagationEngine
         self.phases = phases
         self.max_depth = max_depth
         self.max_distance = max_distance
