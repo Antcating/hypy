@@ -1,20 +1,21 @@
-Adding velocity format
-======================
+Adding a custom velocity model class
+====================================
 
-This page documents how to extend ``hypy`` with a custom velocity model backend.
+This page documents how to extend ``hypy`` with a custom velocity model class.
 
-Create a custom model backend
------------------------------
+Create a custom model class
+---------------------------
 
 1. Implement a ``VelocityModel`` subclass.
 2. Set ``feature_flags`` to describe capabilities.
-3. Register a loader for your file extension.
+3. Pass the class to ``EventLocator(..., velocity_model_backend=...)``.
 
 .. code-block:: python
 
    from pathlib import Path
 
-   from hypy.model import VelocityModel, register_model_backend
+    from hypy import EventLocator
+    from hypy.model import VelocityModel
 
 
    class XYZModel(VelocityModel):
@@ -33,12 +34,19 @@ Create a custom model backend
            # Load model data here.
 
 
-   def load_xyz_model(model_path: str | Path, **kwargs) -> VelocityModel:
-       del kwargs
-       return XYZModel(model_path)
+     locator = EventLocator(
+             model_path="/path/to/model.xyz",
+             mode="ray-1d",
+             engine="taup",
+             derivative_method="numerical",
+             velocity_model_backend=XYZModel,
+     )
 
+Notes
+-----
 
-   register_model_backend(".xyz", load_xyz_model)
-
-After registration, any path ending with ``.xyz`` can be loaded through
-``create_model`` or ``VelocityModel.from_file``.
+* Your class constructor must accept ``model_path``.
+* ``feature_flags`` should describe dimensionality and data type
+    (for example ``model.profile.1d`` or ``model.grid.3d``).
+* ``supported_features`` is used during compatibility checks against the
+    selected propagation backend.

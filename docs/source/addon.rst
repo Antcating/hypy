@@ -3,11 +3,11 @@ Addons and Custom Backends
 
 This page documents how to extend ``hypy`` with custom:
 
-* model backends (new velocity model formats)
-* propagation backends (new travel-time engines)
+* model classes (new velocity model formats)
+* propagation classes (new travel-time engines)
 
-The extension system supports runtime registration and plugin discovery through
-Python entry points.
+Extension is constructor-driven: you provide compatible classes directly to
+``EventLocator`` at initialization time.
 
 Addons topics
 -------------
@@ -22,45 +22,43 @@ Addons topics
 Extension points
 ----------------
 
-Model backends
-~~~~~~~~~~~~~~
+Model class injection
+~~~~~~~~~~~~~~~~~~~~~
 
-Model backends are registered by file extension and must return a
-``VelocityModel`` instance.
+Pass a custom ``VelocityModel`` subclass through
+``velocity_model_backend=...`` when creating ``EventLocator``.
 
-Public APIs:
+The class must provide:
 
-* ``register_model_backend``
-* ``get_model_backend_factory``
-* ``list_registered_model_backends``
-* ``load_model_plugins``
-* ``create_model``
+* ``supported_features`` through the ``VelocityModel`` contract
+* compatible constructor input from ``model_path``
 
 
-Propagation backends
-~~~~~~~~~~~~~~~~~~~~
+Propagation class injection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Propagation backends are registered by ``(mode, engine)`` and must return a
-``PropagationEngine`` instance.
+Pass a custom ``PropagationEngine`` subclass through
+``engine_backend=...`` when creating ``EventLocator``.
 
-Public APIs:
+The class must satisfy a strict constructor and runtime contract (see
+``addon_propagation``):
 
-* ``register_propagation_backend``
-* ``get_propagation_backend_factory``
-* ``list_registered_propagation_backends``
-* ``load_propagation_plugins``
-* ``create_propagation_backend``
+* ``default_feature_flags``
+* ``default_required_model_features``
+* ``dim`` property
+* ``compute_travel_time_params(...)``
+
+These contracts are validated before inversion starts.
 
 Compatibility contract
 ----------------------
 
-``hypy`` validates model/propagation compatibility during propagation backend
-creation.
+``hypy`` validates model/propagation compatibility during locator setup.
 
 * Each model exposes ``supported_features``.
-* Each propagation backend exposes ``required_model_features``.
-* Backend creation fails early with ``ValueError`` when required model features
-  are missing.
+* Each propagation backend exposes ``default_required_model_features``.
+* Setup fails early with ``ValueError`` when required model features
+   are missing.
 
 Typical feature flags include:
 
@@ -69,41 +67,28 @@ Typical feature flags include:
 * ``propagation.ray`` / ``propagation.table``
 
 
-Use entry points for install-time discovery
--------------------------------------------
-
-For third-party packages, prefer entry points so registration happens after
-installation without app-level wiring.
-
-.. code-block:: toml
-
-   [project.entry-points."hypy.model.backends"]
-   ".xyz" = "my_package.models:load_xyz_model"
-
-   [project.entry-points."hypy.propagation.backends"]
-   "ray-1d:myengine" = "my_package.backends:create_my_ray_backend"
-
-Optional legacy groups are still supported:
-
-* ``hypy.model.loaders``
-* ``hypy.propagation.tracers``
-
-
 How to use from applications
 ----------------------------
 
-You can explicitly load plugins at startup:
+Create your locator with injected classes:
 
 .. code-block:: python
 
-   from hypy.model import load_model_plugins
-   from hypy.propagation import load_propagation_plugins
+   from hypy import EventLocator
+   from my_package.models import MyVelocityModel
+   from my_package.backends import MyPropagationBackend
 
-   load_model_plugins()
-   load_propagation_plugins()
+   locator = EventLocator(
+       model_path="/path/to/model.custom",
+       mode="ray-1d",
+       engine="taup",
+       derivative_method="numerical",
+       velocity_model_backend=MyVelocityModel,
+       engine_backend=MyPropagationBackend,
+   )
 
-Then create your locator normally. During setup, ``hypy`` validates model and
-propagation feature compatibility before running location.
+During setup, ``hypy`` validates model and propagation feature compatibility
+before running location.
 
 
 Recommended testing
@@ -111,6 +96,9 @@ Recommended testing
 
 For every addon, add tests that cover:
 
-1. Registration (runtime and entry-point load paths).
-2. Backend creation.
-3. Compatibility failures for missing model features.
+1. Constructor compatibility for your custom model and backend classes.
+2. Feature compatibility failures for missing model features.
+3. A full ``EventLocator`` run using your injected classes.
+
+See also: ``examples/custom_backend_contract.py`` for a complete backend
+template that satisfies the required constructor and method contract.
