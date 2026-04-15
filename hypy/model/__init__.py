@@ -162,21 +162,23 @@ class VelocityModel:
     @classmethod
     def _ensure_default_registry(cls) -> None:
         """Populate built-in loaders once, while allowing external overrides."""
-        from .layered.tvel import TvelModel
-        from .volumetric.netcdf import NCGrid
-        from .volumetric.nllgrid import NllGridModel
-
         if cls.get_model_backend_factory(".tvel") is None:
+            from .layered.tvel import TvelModel
+
             cls.register_model_backend(
                 ".tvel",
                 lambda path, **kwargs: TvelModel(path, **kwargs),
             )
         if cls.get_model_backend_factory(".nllgrid") is None:
+            from .volumetric.nllgrid import NllGridModel
+
             cls.register_model_backend(
                 ".nllgrid",
                 lambda path, **kwargs: NllGridModel(path),
             )
         if cls.get_model_backend_factory(".nc") is None:
+            from .volumetric.netcdf import NCGrid
+
             cls.register_model_backend(
                 ".nc",
                 lambda path, **kwargs: NCGrid(path),
