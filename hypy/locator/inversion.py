@@ -216,11 +216,15 @@ class InversionEngine:
         max_damping = 10.0
         residuals_flat = np.array([], dtype=float)
         valid_rows = np.array([], dtype=int)
+        derivatives_built = False
         prev_rms = None
 
         for it in range(max_iterations):
-            # Build derivatives and theoretical travel times for CURRENT model
-            valid_rows = self.derivative_engine.build_derivative_matrix(data, config)
+            if not derivatives_built:
+                valid_rows = self.derivative_engine.build_derivative_matrix(
+                    data, config
+                )
+                derivatives_built = True
             if len(valid_rows) == 0:
                 logger.error("No valid observations available for inversion. Aborting.")
                 break
@@ -390,6 +394,7 @@ class InversionEngine:
                 valid_rows = self.derivative_engine.build_derivative_matrix(
                     data, config
                 )
+                derivatives_built = True
                 if len(valid_rows) == 0:
                     logger.error(
                         "No valid observations available after failed LM trials. "
@@ -437,7 +442,8 @@ class InversionEngine:
             prev_rms = rms_after
 
         # Ensure final derivatives / travel times / valid rows correspond to final state
-        valid_rows = self.derivative_engine.build_derivative_matrix(data, config)
+        if not derivatives_built:
+            valid_rows = self.derivative_engine.build_derivative_matrix(data, config)
         residuals_flat, rms = _compute_residuals_and_rms(valid_rows)
 
         design_matrix = (
