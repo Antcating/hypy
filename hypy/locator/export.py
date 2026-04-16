@@ -101,9 +101,9 @@ class OriginExporter:
                         )
 
             confidence_ellipsoid = ConfidenceEllipsoid(
-                semi_major_axis_length=s1 * 1000.0,
-                semi_minor_axis_length=s3 * 1000.0,
-                semi_intermediate_axis_length=s2 * 1000.0,
+                semi_major_axis_length=s1 * scale95 * 1000.0,
+                semi_minor_axis_length=s3 * scale95 * 1000.0,
+                semi_intermediate_axis_length=s2 * scale95 * 1000.0,
                 major_axis_plunge=plunge,
                 major_axis_azimuth=azimuth,
                 major_axis_rotation=rotation,
