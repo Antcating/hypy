@@ -10,7 +10,7 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 
 from ..model import VelocityModel  # type: ignore[import-not-found]
-from ..propagation import PropagationEngine
+from ..propagation import PropagationEngine, validate_model_backend_compatibility
 from .config import (
     LocatorConfig,
     configure_distance_weighting,
@@ -25,7 +25,7 @@ from .errors import ErrorAnalyzer
 from .export import OriginExporter
 from .inversion import InversionEngine
 from .locations_setup import init_locations
-from .propagation_setup import init_propagation
+from .propagation_setup import init_propagation, resolve_backend_contract
 from .types import (
     Catalog,
     DerivativeMethodLiteral,
@@ -33,8 +33,10 @@ from .types import (
     Event,
     Inventory,
     ModeLiteral,
+    PropagationBackendType,
     PropagationConfig,
     SolverLiteral,
+    VelocityModelBackendType,
 )
 
 
@@ -94,6 +96,12 @@ class EventLocator:
     _precalculate_velocities : bool, optional
         If True, precomputes velocity profiles for all events to speed up travel-time
         calculations. Requires max_depth_km and depth_step_km to be set. Default is False.
+    velocity_model_backend : Optional[type[VelocityModel]], optional
+        Custom velocity model class. If provided, this class is used to create
+        ``self.velocity_model_handler`` from ``model_path``.
+    engine_backend : Optional[type[PropagationEngine]], optional
+        Custom propagation backend class. If provided, this class is used instead of
+        built-in mode/engine resolution.
     """  # noqa: E501
 
     def __init__(
@@ -114,17 +122,27 @@ class EventLocator:
         weight_start: Optional[float] = 0.99,
         weight_end: Optional[float] = 0.01,
         fix_depth_km: Optional[float] = None,
+        velocity_model_backend: Optional[VelocityModelBackendType] = None,
+        engine_backend: Optional[PropagationBackendType] = None,
         _precalculate_velocities: bool = False,
     ):
-        # Validate mode and engine
-        mode, engine, derivative_method = validate_operating_regime(
-            mode, engine, derivative_method
-        )
+        if engine_backend is None:
+            # Validate built-in mode/engine combinations
+            mode, engine, derivative_method = validate_operating_regime(
+                mode, engine, derivative_method
+            )
+        elif derivative_method not in {"numerical", "analytical"}:
+            raise ValueError(
+                "Unsupported derivative method: "
+                f"{derivative_method!r}. Valid values are 'numerical' and 'analytical'."
+            )
 
-        # Validate model file existence and type
-        model_full_path = validate_velocity_model_file(
-            Path(model_path).expanduser().resolve()
-        )
+        model_full_path = Path(model_path).expanduser().resolve()
+        if velocity_model_backend is None:
+            # Validate model file existence and type for built-in model routing.
+            model_full_path = validate_velocity_model_file(model_full_path)
+        elif not model_full_path.exists():
+            raise FileNotFoundError(f"Velocity model file not found: {model_full_path}")
 
         # Calculate distance weighting parameters
         distance_weighting_enabled, k, x0 = configure_distance_weighting(
@@ -150,7 +168,15 @@ class EventLocator:
             x0=x0,
         )
 
-        self.velocity_model_handler = VelocityModel.from_file(model_full_path)
+        if velocity_model_backend is None:
+            self.velocity_model_handler = VelocityModel.from_file(model_full_path)
+        else:
+            self.velocity_model_handler = velocity_model_backend(model_full_path)
+            if not isinstance(self.velocity_model_handler, VelocityModel):
+                raise TypeError(
+                    "velocity_model_backend must return a "
+                    "VelocityModel-compatible instance."
+                )
 
         # Initialize Data handling
         self.data = DataHandler(
@@ -172,9 +198,34 @@ class EventLocator:
             depth_step=depth_step_km,
             distance_step=distance_step_km,
         )
+        (
+            backend_feature_flags,
+            backend_required_model_features,
+        ) = resolve_backend_contract(
+            mode=self.config.mode,
+            engine=self.config.engine,
+            engine_backend=engine_backend,
+        )
+        if f"derivative.{self.config.derivative_method}" not in backend_feature_flags:
+            raise ValueError(
+                "Unsupported derivative method: "
+                f"{self.config.derivative_method!r} for mode {self.config.mode!r} "
+                f"and engine {self.config.engine!r}."
+            )
+
+        validate_model_backend_compatibility(
+            model_instance=self.velocity_model_handler,
+            required_model_features=backend_required_model_features,
+            mode=self.config.mode,
+            engine=self.config.engine,
+        )
+
         self.propagation_backend: PropagationEngine = init_propagation(
             propagation_config,
             velocity_model=self.velocity_model_handler,
+            engine_backend=engine_backend,
+            backend_feature_flags=backend_feature_flags,
+            required_model_features=backend_required_model_features,
         )
         self.tracer = self.propagation_backend
 
