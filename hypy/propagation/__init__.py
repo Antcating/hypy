@@ -1,41 +1,23 @@
-"""Public propagation package API.
-
-This module exposes the base propagation model contract and the backend
-registration/factory entry points used by locator orchestration code.
-"""
+"""Public propagation package API."""
 
 from .base import PropagationEngine
 from .registry import (
+    BACKEND_FEATURE_FLAGS,
+    REQUIRED_MODEL_FEATURE_FLAGS,
     create_propagation_backend,
-    create_tracer,
-    get_propagation_backend_factory,
     get_propagation_backend_features,
-    get_tracer_factory,
-    list_registered_propagation_backends,
-    list_registered_tracers,
     list_valid_operating_regimes_by_features,
-    load_propagation_plugins,
-    load_tracer_plugins,
-    register_propagation_backend,
-    register_propagation_backend_features,
-    register_tracer,
+    validate_model_backend_compatibility,
 )
 
 __all__ = [
     "PropagationEngine",
-    "register_propagation_backend",
-    "get_propagation_backend_factory",
+    "BACKEND_FEATURE_FLAGS",
+    "REQUIRED_MODEL_FEATURE_FLAGS",
     "get_propagation_backend_features",
-    "list_registered_propagation_backends",
     "list_valid_operating_regimes_by_features",
-    "load_propagation_plugins",
+    "validate_model_backend_compatibility",
     "create_propagation_backend",
-    "register_propagation_backend_features",
-    "register_tracer",
-    "get_tracer_factory",
-    "list_registered_tracers",
-    "load_tracer_plugins",
-    "create_tracer",
 ]
 
 
