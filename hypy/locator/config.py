@@ -34,7 +34,7 @@ ValueError
     If weight_start or weight_end are not in (0, 1).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -84,7 +84,6 @@ def validate_operating_regime(
     ValueError if the mode, engine, or derivative method is not valid or not compatible.
     """
     valid_operating_regimes = list_valid_operating_regimes_by_features()
-    print(f"Valid operating regimes: {valid_operating_regimes}")
 
     if mode not in valid_operating_regimes:
         raise ValueError(
@@ -131,9 +130,7 @@ def validate_velocity_model_file(model_path: Path) -> Path:
         raise FileNotFoundError(f"Velocity model file not found: {model_path}")
     from hypy.model import VelocityModel
 
-    VelocityModel._ensure_default_registry()
-    VelocityModel.load_model_plugins()
-    valid_model_file_types = set(VelocityModel.list_registered_model_backends())
+    valid_model_file_types = set(VelocityModel.supported_model_file_types())
     if model_path.suffix.lower() not in valid_model_file_types:
         valid_formats = ", ".join(sorted(valid_model_file_types))
         raise ValueError(
@@ -289,14 +286,8 @@ class LocatorConfig:
     x0: Optional[float]
     derivative_delta_km: float = 0.5
     dim: int = 4
+    n_phases: int = field(init=False)
 
-    @property
-    def n_phases(self) -> int:
-        """Return the number of seismic phases being used in the locator.
-
-        Returns
-        -------
-        int
-            The number of seismic phases.
-        """
-        return len(self.phases)
+    def __post_init__(self) -> None:
+        """Compute number of phases after initialization."""
+        object.__setattr__(self, "n_phases", len(self.phases))
