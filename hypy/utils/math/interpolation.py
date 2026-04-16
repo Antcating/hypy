@@ -4,6 +4,33 @@ import numpy as np
 from numba import njit  # type: ignore[import-untyped]
 
 
+@njit(cache=True)
+def velocity_from_layers(
+    depth: float,
+    top_depth: np.ndarray,
+    bot_depth: np.ndarray,
+    top_velocity: np.ndarray,
+    bot_velocity: np.ndarray,
+) -> float:
+    """Interpolate velocity from layered model parameters."""
+    n = len(top_depth)
+    layer_index = -1
+    for i in range(n):
+        if top_depth[i] <= depth and depth <= bot_depth[i]:
+            layer_index = i
+            break
+    if layer_index == -1:
+        raise ValueError("Depth is not covered by any model layer.")
+
+    top_z = top_depth[layer_index]
+    bot_z = bot_depth[layer_index]
+    top_v = top_velocity[layer_index]
+    bot_v = bot_velocity[layer_index]
+    if bot_z == top_z:
+        return top_v
+    return top_v + (bot_v - top_v) * ((depth - top_z) / (bot_z - top_z))
+
+
 @njit(cache=True, inline="always")
 def linear_interp(x, x0, x1, y0, y1):
     """Perform linear interpolation between two samples.
