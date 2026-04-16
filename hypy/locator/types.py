@@ -3,11 +3,16 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
+    Callable,
+    ClassVar,
     List,
     Literal,
     Optional,
+    Protocol,
     Sequence,
     Tuple,
+    Type,
     Union,
 )
 
@@ -25,11 +30,33 @@ from obspy.core.event.origin import (  # type: ignore[import-untyped]
 )
 from obspy.core.inventory import Inventory  # type: ignore[import-untyped]
 
+if TYPE_CHECKING:
+    from hypy.model import VelocityModel
+    from hypy.propagation import PropagationEngine
+
 DimLiteral = Literal[4]
 ModeLiteral = Literal["table-1d", "ray-1d", "table-3d"]
 EngineLiteral = Literal["taup", "pyrocko", "fmm"]
 SolverLiteral = Literal["lsqr", "svd"]
 DerivativeMethodLiteral = Literal["numerical", "analytical"]
+
+
+class VelocityModelLike(Protocol):
+    """Protocol describing model capability metadata used by locator wiring."""
+
+    supported_features: frozenset[str]
+
+
+class PropagationBackendLike(Protocol):
+    """Protocol describing propagation capability metadata used by locator wiring."""
+
+    default_feature_flags: ClassVar[frozenset[str]]
+    default_required_model_features: ClassVar[frozenset[str]]
+
+
+VelocityModelBackendType = Type["VelocityModel"]
+PropagationBackendType = Type["PropagationEngine"]
+VelocityModelFactory = Callable[[Path], "VelocityModel"]
 
 
 @dataclass
@@ -135,7 +162,13 @@ __all__ = [
     "ModeLiteral",
     "EngineLiteral",
     "SolverLiteral",
+    "DerivativeMethodLiteral",
     "InversionResults",
     "ErrorResults",
     "PropagationConfig",
+    "VelocityModelLike",
+    "PropagationBackendLike",
+    "VelocityModelBackendType",
+    "PropagationBackendType",
+    "VelocityModelFactory",
 ]
