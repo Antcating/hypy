@@ -57,7 +57,7 @@ class InversionEngine:
 
     def _clip_updates(
         self,
-        it: int,
+        iteration_index: int,
         dx: np.ndarray,
         max_horizontal_km: float = 3.0,
         max_vertical_km: float = 1.0,
@@ -68,7 +68,7 @@ class InversionEngine:
 
         Parameters
         ----------
-        it : int
+        iteration_index : int
             Iteration counter (zero-based).
         dx : np.ndarray, shape (n_events, 4)
             Candidate updates in the per-event block format [dx(lat), dy(lon), dz, dt].
@@ -133,7 +133,7 @@ class InversionEngine:
 
         if n_h or n_z or n_t:
             logger.warning(
-                f"Iteration {it + 1}: clipped/scaled updates "
+                f"Iteration {iteration_index + 1}: clipped/scaled updates "
                 f"(horizontal={n_h}, depth={n_z}, time={n_t})"
             )
 
@@ -220,8 +220,9 @@ class InversionEngine:
         valid_rows = np.array([], dtype=int)
         derivatives_built = False
         prev_rms = None
+        iteration_index = 0
 
-        for it in range(max_iterations):
+        for iteration_index in range(max_iterations):
             if not derivatives_built:
                 valid_rows = self.derivative_engine.build_derivative_matrix(
                     data, config
@@ -273,7 +274,7 @@ class InversionEngine:
 
                 # Reshape to event blocks and clip/smooth
                 dx = dx_solution.reshape((data.n_events, config.dim))
-                dx = self._clip_updates(it, dx)
+                dx = self._clip_updates(iteration_index, dx)
 
                 # Depth sanity / constraints on trial step.
                 # Do not mark invalid in trial stage until all trials fail.
@@ -294,7 +295,9 @@ class InversionEngine:
                         trial_oob[event_idx] = True
                         dx[event_idx, :] = 0.0
 
-                    elif it > safe_iteration_limit and new_depth > max_depth:
+                    elif (
+                        iteration_index > safe_iteration_limit and new_depth > max_depth
+                    ):
                         logger.warning(
                             "Event %s depth exceeds max depth (%.3f km > %.3f km),"
                             " rejecting trial %d update.",
@@ -322,7 +325,7 @@ class InversionEngine:
                 )
                 if len(valid_rows_trial) == 0:
                     logger.warning(
-                        f"Iteration {it + 1}, LM trial {lm_trial + 1}: "
+                        f"Iteration {iteration_index + 1}, LM trial {lm_trial + 1}: "
                         "no valid observations after trial update; increasing damping."
                     )
                     damping = update_damping_factor(
@@ -363,7 +366,7 @@ class InversionEngine:
                     break
 
                 logger.warning(
-                    f"Iteration {it + 1}, LM trial {lm_trial + 1}: "
+                    f"Iteration {iteration_index + 1}, LM trial {lm_trial + 1}: "
                     f"RMS={rms_trial:.6f} s, relative improvement={rel_impr_trial:.6e} "
                     "not sufficient to accept trial step; increasing damping.",
                 )
@@ -387,7 +390,7 @@ class InversionEngine:
                     data.invalid_events[best_oob_events] = True
                     logger.warning(
                         "Iteration %s: %s events invalidated after LM failure.",
-                        it + 1,
+                        iteration_index + 1,
                         int(np.sum(best_oob_events)),
                     )
                     logger.warning(
@@ -408,19 +411,19 @@ class InversionEngine:
                 residuals_flat, rms_after = _compute_residuals_and_rms(valid_rows)
 
                 logger.warning(
-                    f"Iteration {it + 1}: no acceptable LM step found after "
-                    f"{max_lm_trials} trials. Keeping previous model state."
+                    f"Iteration {iteration_index + 1}: no acceptable LM step found "
+                    f"after {max_lm_trials} trials. Keeping previous model state."
                 )
 
             logger.debug(
-                f"Iteration {it + 1}: "
+                f"Iteration {iteration_index + 1}: "
                 f"RMS before={rms_before:.6f} s, "
                 f"RMS after={rms_after:.6f} s, "
                 f"Damping={damping:.6f}, "
                 f"accepted={accepted}"
             )
             logger.debug(
-                f"Iteration {it + 1}: Origin for first event: "
+                f"Iteration {iteration_index + 1}: Origin for first event: "
                 f"Lat={data.locations[0, 0]:.4f}, Lon={data.locations[0, 1]:.4f}, "
                 f"Depth={data.locations[0, 2]:.2f} km, "
                 f"t0_rel={data.origin_times[0]:.2f}s, "
@@ -436,7 +439,7 @@ class InversionEngine:
                         f"rms={rms_after:.6f} s, rel_impr={rel_impr:.6e}"
                     )
                     logger.info(
-                        f"Convergence reached at iteration {it + 1}: "
+                        f"Convergence reached at iteration {iteration_index + 1}: "
                         f"RMS={rms_after:.6f} s, "
                         f"Relative improvement={rel_impr:.6e}"
                     )
@@ -455,7 +458,9 @@ class InversionEngine:
             data.jacobian_matrix * data.time_error_W[:, np.newaxis]
         )
 
-        logger.info(f"Location iterations completed in {it + 1} iterations.")
+        logger.info(
+            f"Location iterations completed in {iteration_index + 1} iterations."
+        )
         logger.info(
             f"Located {np.sum(~data.invalid_events)} events, "
             f"{np.sum(data.invalid_events)} events invalid."
