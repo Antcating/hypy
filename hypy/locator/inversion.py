@@ -341,7 +341,6 @@ class InversionEngine:
                     best_rms_trial = rms_trial
                     best_oob_events = trial_oob.copy()
 
-                print(rms_before, rms_trial, best_rms_trial)
                 rel_impr_trial = (rms_before - rms_trial) / max(rms_before, 1e-12)
 
                 if rel_impr_trial > lm_acceptance_tol:
