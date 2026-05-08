@@ -315,9 +315,9 @@ class InversionEngine:
                 dx_apply[:, 0] = kilometer2degrees(dx_apply[:, 0])
                 dx_apply[:, 1] = kilometer2degrees(dx_apply[:, 1])
 
-                valid_mask = ~data.invalid_events
-                data.locations[valid_mask, :3] += dx_apply[valid_mask, :3]
-                data.origin_times[valid_mask] += dx_apply[valid_mask, 3]
+                valid_event_mask = ~data.invalid_events
+                data.locations[valid_event_mask, :3] += dx_apply[valid_event_mask, :3]
+                data.origin_times[valid_event_mask] += dx_apply[valid_event_mask, 3]
 
                 # Rebuild derivatives and recompute RMS AFTER trial update
                 valid_rows_trial = self.derivative_engine.build_derivative_matrix(
