@@ -41,7 +41,7 @@ def distance_weight(distance, **kwargs):
     # https://www.desmos.com/calculator/221eudc8kc
     weight = 1.0 / (1.0 + np.exp(k * (distance - x0)))
 
-    return weight
+    return np.sqrt(weight)
 
 
 def time_error_weight(time_error, **kwargs):
@@ -57,13 +57,11 @@ def time_error_weight(time_error, **kwargs):
     Returns
     -------
     float or numpy.ndarray
-        Weight(s) proportional to ``1 / (time_error + 1)^2``.
-
-    Notes
+        Weight(s) proportional to ``1 / (time_error)^2``.
     -----
-    The offset of ``1`` avoids singular behavior at zero error while still
-    strongly preferring more accurate picks.
     """
-    weight = 1.0 / ((time_error + 1) ** 2)
+    time_error = max(
+        time_error, 1e-6
+    )  # Avoid division by zero or extremely large weights
 
-    return weight
+    return 1 / time_error
