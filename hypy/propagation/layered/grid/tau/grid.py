@@ -146,6 +146,8 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
             save_dict[f"rp_{ph}"] = self.ray_param_tables[ph]
         for ph in self.takeoff_angle_tables:
             save_dict[f"ta_{ph}"] = self.takeoff_angle_tables[ph]
+        if not os.path.exists(os.path.dirname(filename)):
+            os.makedirs(os.path.dirname(filename))
         np.savez_compressed(filename, allow_pickle=True, **save_dict)
 
     def load_from_file(self, filename: str | Path, phase: str) -> None:
@@ -214,6 +216,9 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
                 logger.info(f"Loading travel-time tables from {fname}")
                 self.load_from_file(fname, phase)
                 continue
+            logger.info(
+                f"Building travel-time tables for phase {phase} using engine {engine}"
+            )
 
             # Initialize tracer for table generation
             if engine == "pyrocko":
