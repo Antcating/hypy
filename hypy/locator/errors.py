@@ -9,6 +9,44 @@ from .data import DataHandler
 from .types import ErrorResults, InversionResults
 
 
+def filter_input_rows(
+    jacobian_matrix_weighted: np.ndarray,
+    residuals: np.ndarray,
+    pick_errors: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Filter observation rows with non-finite entries.
+
+    Parameters
+    ----------
+    jacobian_matrix_weighted : ndarray, shape (n_obs, dim)
+        Weighted jacobian matrix for one event.
+    residuals : ndarray, shape (n_obs,)
+        Residual vector for the same rows.
+    pick_errors : ndarray, shape (n_obs,) or (k,)
+        Pick timing uncertainty values.
+
+    Returns
+    -------
+    tuple
+        Filtered (jacobian_matrix_weighted, residuals, pick_errors)
+        containing only finite rows.
+    """
+    row_mask = np.isfinite(residuals) & np.all(
+        np.isfinite(jacobian_matrix_weighted), axis=1
+    )
+    if pick_errors.size == jacobian_matrix_weighted.shape[0]:
+        row_mask &= np.isfinite(pick_errors)
+
+    jacobian_matrix_weighted = jacobian_matrix_weighted[row_mask]
+    residuals = residuals[row_mask]
+    if pick_errors.size == row_mask.size:
+        pick_errors = pick_errors[row_mask]
+    else:
+        pick_errors = pick_errors[np.isfinite(pick_errors)]
+
+    return jacobian_matrix_weighted, residuals, pick_errors
+
+
 class ErrorAnalyzer:
     """Calculate event location covariance and ellipsoid metrics.
 
@@ -25,115 +63,105 @@ class ErrorAnalyzer:
         self.data = data
 
     @staticmethod
-    def _filter_input_rows(
-        design_matrix: np.ndarray,
-        residuals: np.ndarray,
+    def _build_observation_covariance_from_stations(
         pick_errors: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Filter observation rows with non-finite entries.
+        station_indices: np.ndarray,
+        phase_indices: np.ndarray,
+        station_distances_km: np.ndarray,
+        corr_length_km: float,
+        min_pick_error: float = 1e-6,
+        jitter_fraction: float = 1e-6,
+    ) -> Optional[np.ndarray]:
+        """Build correlated observation covariance using station-pair distances."""
+        pick_errors = np.maximum(
+            np.asarray(pick_errors, dtype=float).reshape(-1),
+            float(min_pick_error),
+        )
+        station_indices = np.asarray(station_indices, dtype=int).reshape(-1)
+        phase_indices = np.asarray(phase_indices, dtype=int).reshape(-1)
+        station_distances_km = np.asarray(station_distances_km, dtype=float)
 
-        Parameters
-        ----------
-        design_matrix : ndarray, shape (n_obs, dim)
-            Weighted design matrix for one event.
-        residuals : ndarray, shape (n_obs,)
-            Residual vector for the same rows.
-        pick_errors : ndarray, shape (n_obs,) or (k,)
-            Pick timing uncertainty values.
+        n_obs = pick_errors.size
+        if n_obs == 0 or station_indices.size != n_obs or phase_indices.size != n_obs:
+            return None
+        if corr_length_km <= 0.0:
+            return None
+        if station_distances_km.ndim != 2 or (
+            station_distances_km.shape[0] != station_distances_km.shape[1]
+        ):
+            return None
+        if np.any(station_indices < 0) or np.any(
+            station_indices >= station_distances_km.shape[0]
+        ):
+            return None
 
-        Returns
-        -------
-        tuple
-            Filtered (design_matrix, residuals, pick_errors)
-            containing only finite rows.
+        d = station_distances_km[np.ix_(station_indices, station_indices)]
+        R = np.exp(-d / corr_length_km)
+        same_phase = phase_indices[:, None] == phase_indices[None, :]
+        R = np.where(same_phase, R, 0.0)
+        np.fill_diagonal(R, 1.0)
+
+        sigma = (pick_errors[:, None] * pick_errors[None, :]) * R
+        jitter = float(jitter_fraction) * float(np.nanmedian(pick_errors**2))
+        sigma += jitter * np.eye(n_obs, dtype=float)
+        return 0.5 * (sigma + sigma.T)
+
+    @staticmethod
+    def _compute_sigma2(
+        residuals: np.ndarray,
+        n_params: int,
+    ) -> float:
+        """Estimate residual variance with degrees-of-freedom correction.
+
+        If residuals_are_weighted=True, sigma^2 is dimensionless and should not
+        add pick-error variance again.
         """
-        design_matrix = np.asarray(design_matrix, dtype=float)
         residuals = np.asarray(residuals, dtype=float).reshape(-1)
-        pick_errors = np.asarray(pick_errors, dtype=float).reshape(-1)
+        residuals = residuals[np.isfinite(residuals)]
 
-        row_mask = np.isfinite(residuals) & np.all(np.isfinite(design_matrix), axis=1)
-        if pick_errors.size == design_matrix.shape[0]:
-            row_mask &= np.isfinite(pick_errors)
+        if residuals.size == 0:
+            return np.nan
 
-        design_matrix = design_matrix[row_mask]
-        residuals = residuals[row_mask]
-        if pick_errors.size == row_mask.size:
-            pick_errors = pick_errors[row_mask]
-        else:
-            pick_errors = pick_errors[np.isfinite(pick_errors)]
+        dof = residuals.size - int(n_params)
+        if dof <= 0:
+            return np.nan
 
-        return design_matrix, residuals, pick_errors
+        rss = float(np.sum(residuals**2))
+        return rss / dof
 
     @staticmethod
-    def _compute_sigma2(residuals: np.ndarray, pick_errors: np.ndarray) -> float:
-        """Compute combined variance from residuals and pick uncertainties.
+    def _regularized_inverse(hessian: np.ndarray) -> Optional[np.ndarray]:
+        """Compute inverse of a Hessian/normal matrix.
 
         Parameters
         ----------
-        residuals : ndarray, shape (n_obs,)
-            Residuals for valid observations.
-        pick_errors : ndarray, shape (n_obs,)
-            Pick timing error estimates.
-
-        Returns
-        -------
-        float
-            Combined variance sigma^2 = RMS^2 + RDERR^2.
-        """
-        rms = float(np.sqrt(np.mean(residuals**2))) if residuals.size else np.nan
-        rderr = float(np.nanmedian(pick_errors)) if pick_errors.size else 0.0
-        return float(rms**2 + rderr**2)
-
-    @staticmethod
-    def _regularized_inverse(N: np.ndarray, damping: float) -> Optional[np.ndarray]:
-        """Compute damped inverse of the normal matrix.
-
-        Parameters
-        ----------
-        N : ndarray, shape (dim, dim)
-            Unregularized normal matrix A.T @ A.
-        damping : float
-            Damping factor applied to diagonal.
+        hessian : ndarray, shape (dim, dim)
+            Gauss-Newton Hessian/normal matrix.
 
         Returns
         -------
         ndarray or None
-            Inverse of N_reg or None when inversion fails.
+            Inverse of H + damping**2 I, or pseudo-inverse if singular.
         """
-        N_reg = N + (float(damping) ** 2) * np.eye(N.shape[0], dtype=float)
-        N_reg = 0.5 * (N_reg + N_reg.T)
+        hessian = np.asarray(hessian, dtype=float)
+        hessian = 0.5 * (hessian + hessian.T)
+
+        hessian_reg = 0.5 * (hessian + hessian.T)
 
         try:
-            return np.linalg.inv(N_reg)
+            return np.linalg.inv(hessian_reg)
         except np.linalg.LinAlgError:
-            return np.linalg.pinv(N_reg, rcond=1e-12)
+            return np.linalg.pinv(hessian_reg, rcond=1e-12)
 
     @staticmethod
-    def _ellipsoid_axes(Cxyz: np.ndarray) -> tuple[np.ndarray, float, float]:
-        """Derive principal axes and ERZ/ERH from the spatial covariance block.
-
-        Parameters
-        ----------
-        Cxyz : ndarray, shape (k, k)
-            Spatial covariance matrix (k = 1,2,3).
-
-        Returns
-        -------
-        tuple
-            principal_std : ndarray
-                Root-variances along principal axes.
-            erz : float
-                Equivalent vertical error (1-sigma) or nan if not 3D.
-            erh : float
-                Equivalent horizontal error (1-sigma).
-
-        Raises
-        ------
-        LinAlgError
-            For invalid covariance matrix eigendecomposition.
-        """
+    def _ellipsoid_axes(
+        Cxyz: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, float, float]:
+        """Derive sorted principal axes and ERZ/ERH from spatial covariance."""
         Cxyz = 0.5 * (Cxyz + Cxyz.T)
+
         evals, evecs = np.linalg.eigh(Cxyz)
+
         order = np.argsort(evals)[::-1]
         evals = evals[order]
         evecs = evecs[:, order]
@@ -144,27 +172,33 @@ class ErrorAnalyzer:
             ex, ey, ez = evecs[0, :], evecs[1, :], evecs[2, :]
             proj_vert = np.abs(ez) * std_axes
             proj_horiz = np.sqrt(ex**2 + ey**2) * std_axes
-            return std_axes, float(np.max(proj_vert)), float(np.max(proj_horiz))
+            return std_axes, evecs, float(np.max(proj_vert)), float(np.max(proj_horiz))
 
         if Cxyz.shape[0] == 2:
-            return std_axes, np.nan, float(np.max(std_axes))
+            return std_axes, evecs, np.nan, float(np.max(std_axes))
 
-        return std_axes, np.nan, float(std_axes[0]) if std_axes.size else np.nan
+        return (
+            std_axes,
+            evecs,
+            np.nan,
+            float(std_axes[0]) if std_axes.size else np.nan,
+        )
 
     @staticmethod
     def _compute_event_errors(
-        design_matrix: np.ndarray,
+        jacobian_matrix_weighted: np.ndarray,
         residuals: np.ndarray,
         pick_errors: np.ndarray,
         damping: float,
         dim: int,
+        observation_covariance: Optional[np.ndarray] = None,
     ) -> Optional[dict]:
         """Compute error covariance and ellipsoid metrics for one event.
 
         Parameters
         ----------
-        design_matrix : ndarray, shape (n_obs, dim)
-            Event-specific design matrix rows used in inversion.
+        jacobian_matrix_weighted : ndarray, shape (n_obs, dim)
+            Event-specific jacobian matrix rows used in inversion.
         residuals : ndarray, shape (n_obs,)
             True residuals for the same rows.
         pick_errors : ndarray, shape (n_obs,) or (m,)
@@ -180,32 +214,64 @@ class ErrorAnalyzer:
             Computed error measures, or None when not enough valid data.
         """
         if (
-            design_matrix.ndim != 2
-            or design_matrix.shape[1] != dim
-            or design_matrix.shape[0] == 0
+            jacobian_matrix_weighted.ndim != 2
+            or jacobian_matrix_weighted.shape[1] != dim
+            or jacobian_matrix_weighted.shape[0] == 0
         ):
             return None
 
-        if residuals.shape[0] != design_matrix.shape[0]:
+        if residuals.shape[0] != jacobian_matrix_weighted.shape[0]:
             return None
 
-        design_matrix, residuals, pick_errors = ErrorAnalyzer._filter_input_rows(
-            design_matrix, residuals, pick_errors
+        jacobian_matrix_weighted, residuals, pick_errors = filter_input_rows(
+            jacobian_matrix_weighted, residuals, pick_errors
         )
 
-        if design_matrix.shape[0] == 0:
+        if jacobian_matrix_weighted.shape[0] == 0:
             return None
 
-        sigma2 = ErrorAnalyzer._compute_sigma2(residuals, pick_errors)
-        if not np.isfinite(sigma2):
-            return None
+        if observation_covariance is None:
+            hessian = jacobian_matrix_weighted.T @ jacobian_matrix_weighted
+            hessian_inv = ErrorAnalyzer._regularized_inverse(hessian)
+            if hessian_inv is None:
+                return None
 
-        normal_matrix = design_matrix.T @ design_matrix
-        regularized_normal = ErrorAnalyzer._regularized_inverse(normal_matrix, damping)
-        if regularized_normal is None:
-            return None
+            reduced_chi2 = ErrorAnalyzer._compute_sigma2(residuals, dim)
+            if not np.isfinite(reduced_chi2):
+                return None
+        else:
+            observation_covariance = np.asarray(observation_covariance, dtype=float)
+            if observation_covariance.shape != (
+                jacobian_matrix_weighted.shape[0],
+                jacobian_matrix_weighted.shape[0],
+            ):
+                return None
 
-        covariance_full = sigma2 * regularized_normal
+            try:
+                sigma_inv_J = np.linalg.solve(
+                    observation_covariance, jacobian_matrix_weighted
+                )
+                sigma_inv_r = np.linalg.solve(observation_covariance, residuals)
+            except np.linalg.LinAlgError:
+                sigma_inv = np.linalg.pinv(observation_covariance, rcond=1e-8)
+                sigma_inv_J = sigma_inv @ jacobian_matrix_weighted
+                sigma_inv_r = sigma_inv @ residuals
+
+            hessian = jacobian_matrix_weighted.T @ sigma_inv_J
+            hessian_inv = ErrorAnalyzer._regularized_inverse(hessian)
+            if hessian_inv is None:
+                return None
+
+            dof = residuals.size - int(dim)
+            if dof <= 0:
+                return None
+            reduced_chi2 = float(residuals.T @ sigma_inv_r) / float(dof)
+            if not np.isfinite(reduced_chi2):
+                return None
+
+        scale = max(1.0, reduced_chi2)
+
+        covariance_full = scale * hessian_inv
         covariance_full = 0.5 * (covariance_full + covariance_full.T)
 
         spatial_dim = min(3, dim - 1 if dim > 1 else dim)
@@ -217,8 +283,9 @@ class ErrorAnalyzer:
             return None
 
         try:
-            principal_std, erz, erh = ErrorAnalyzer._ellipsoid_axes(C_xyz)
-            _, principal_axes = np.linalg.eigh(C_xyz)
+            principal_std, principal_axes, erz, erh = ErrorAnalyzer._ellipsoid_axes(
+                C_xyz
+            )
         except np.linalg.LinAlgError:
             return None
 
@@ -233,7 +300,7 @@ class ErrorAnalyzer:
                 float(np.sqrt(np.mean(residuals**2))) if residuals.size else np.nan
             ),
             "RDERR_s": (float(np.nanmedian(pick_errors)) if pick_errors.size else 0.0),
-            "n_obs_used": int(design_matrix.shape[0]),
+            "n_obs_used": int(jacobian_matrix_weighted.shape[0]),
         }
 
     def _validate_inversion_results(self, inversion_results: InversionResults) -> None:
@@ -251,30 +318,38 @@ class ErrorAnalyzer:
             If A_final or residuals_flat_final are malformed or incompatible
             with the expected dimensions from the configuration.
         """
-        global_design = np.asarray(inversion_results.design_matrix, dtype=float)
-        residuals_flat = np.asarray(
-            inversion_results.residuals_flat, dtype=float
-        ).reshape(-1)
+        use_full_covariance = bool(getattr(self.config, "full_data_covariance", False))
+        if use_full_covariance:
+            jacobian_matrix = np.asarray(inversion_results.jacobian_matrix, dtype=float)
+            residuals_flat = np.asarray(inversion_results.residuals_flat, dtype=float)
+        else:
+            jacobian_matrix = np.asarray(
+                inversion_results.jacobian_matrix_weighted, dtype=float
+            )
+            residuals_flat = np.asarray(
+                inversion_results.residuals_flat_weighted, dtype=float
+            )
+        residuals_flat = residuals_flat.reshape(-1)
 
-        if global_design.ndim != 2:
+        if jacobian_matrix.ndim != 2:
             raise ValueError("inversion_results.A_final must be a 2D array")
         if residuals_flat.ndim != 1:
             raise ValueError(
                 "inversion_results.residuals_flat_final must be a 1D array"
             )
-        if residuals_flat.shape[0] != global_design.shape[0]:
+        if residuals_flat.shape[0] != jacobian_matrix.shape[0]:
             raise ValueError(
                 f"residuals_flat_final has length {residuals_flat.shape[0]} but "
-                f"A_final has {global_design.shape[0]} rows"
+                f"A_final has {jacobian_matrix.shape[0]} rows"
             )
 
         dim = int(self.config.dim)
         expected_cols = self.data.n_events * dim
-        if global_design.shape[1] != expected_cols:
+        if jacobian_matrix.shape[1] != expected_cols:
             raise ValueError(
                 "A_final has {ncols} columns but expected {exp} "
                 "(n_events={n_events}, dim={dim})".format(
-                    ncols=global_design.shape[1],
+                    ncols=jacobian_matrix.shape[1],
                     exp=expected_cols,
                     n_events=self.data.n_events,
                     dim=dim,
@@ -283,58 +358,61 @@ class ErrorAnalyzer:
 
     def _aggregate_event_rows(
         self, inversion_results: InversionResults
-    ) -> tuple[list[list[int]], list[list[float]]]:
-        """Aggregate valid row indices and pick-errors for each event.
-
-        Parameters
-        ----------
-        inversion_results : InversionResults
-            Inversion output containing A_final and valid_rows_final.
-
-        Returns
-        -------
-        tuple
-            (rows_per_event, pick_errs_per_event)
-
-            rows_per_event : list of list of int
-                Event-specific global row indices to use for error estimation.
-            pick_errs_per_event : list of list of float
-                Event-specific pick-timing uncertainties corresponding to valid rows.
-        """
+    ) -> tuple[list[list[int]], list[list[float]], list[list[int]], list[list[int]]]:
         n_obs_per_event = int(self.data.n_stations * self.config.n_phases)
-        valid_rows_all = np.unique(
-            np.asarray(inversion_results.valid_rows, dtype=int).reshape(-1)
-        )
-        n_global_rows = int(
-            np.asarray(inversion_results.design_matrix, dtype=float).shape[0]
-        )
 
-        valid_rows_all = valid_rows_all[
-            (valid_rows_all >= 0) & (valid_rows_all < n_global_rows)
-        ]
+        valid_rows_original = np.asarray(
+            inversion_results.valid_rows, dtype=int
+        ).reshape(-1)
+
+        use_full_covariance = bool(getattr(self.config, "full_data_covariance", False))
+        if use_full_covariance:
+            n_jacobian_rows = np.asarray(
+                inversion_results.jacobian_matrix, dtype=float
+            ).shape[0]
+        else:
+            n_jacobian_rows = np.asarray(
+                inversion_results.jacobian_matrix_weighted, dtype=float
+            ).shape[0]
 
         rows_per_event: list[list[int]] = [[] for _ in range(self.data.n_events)]
         pick_errors_per_event: list[list[float]] = [
             [] for _ in range(self.data.n_events)
         ]
+        station_indices_per_event: list[list[int]] = [
+            [] for _ in range(self.data.n_events)
+        ]
+        phase_indices_per_event: list[list[int]] = [
+            [] for _ in range(self.data.n_events)
+        ]
 
         n_err_cols = self.data.arrival_time_errors.shape[1]
 
-        for row in valid_rows_all:
-            ev = row // n_obs_per_event
+        for original_row in valid_rows_original:
+            if original_row < 0 or original_row >= n_jacobian_rows:
+                continue
+
+            ev = int(original_row) // n_obs_per_event
             if ev < 0 or ev >= self.data.n_events:
                 continue
 
-            local_row = row - ev * n_obs_per_event
+            local_row = int(original_row) - ev * n_obs_per_event
             if local_row < 0 or local_row >= n_err_cols:
                 continue
 
-            rows_per_event[ev].append(int(row))
+            rows_per_event[ev].append(int(original_row))
             pick_errors_per_event[ev].append(
                 float(self.data.arrival_time_errors[ev, local_row])
             )
+            station_indices_per_event[ev].append(int(local_row // self.config.n_phases))
+            phase_indices_per_event[ev].append(int(local_row % self.config.n_phases))
 
-        return rows_per_event, pick_errors_per_event
+        return (
+            rows_per_event,
+            pick_errors_per_event,
+            station_indices_per_event,
+            phase_indices_per_event,
+        )
 
     def compute_error_ellipsoids(
         self, inversion_results: InversionResults
@@ -354,10 +432,20 @@ class ErrorAnalyzer:
         """
         self._validate_inversion_results(inversion_results)
 
-        global_design = np.asarray(inversion_results.design_matrix, dtype=float)
-        residuals_flat = np.asarray(
-            inversion_results.residuals_flat, dtype=float
-        ).reshape(-1)
+        use_full_covariance = bool(getattr(self.config, "full_data_covariance", False))
+        if use_full_covariance:
+            jacobian_matrix_weighted = np.asarray(
+                inversion_results.jacobian_matrix, dtype=float
+            )
+            residuals_flat = np.asarray(inversion_results.residuals_flat, dtype=float)
+        else:
+            jacobian_matrix_weighted = np.asarray(
+                inversion_results.jacobian_matrix_weighted, dtype=float
+            )
+            residuals_flat = np.asarray(
+                inversion_results.residuals_flat_weighted, dtype=float
+            )
+        residuals_flat = residuals_flat.reshape(-1)
 
         dim = int(self.config.dim)
         spatial_dim = min(3, dim - 1 if dim > 1 else dim)
@@ -372,9 +460,12 @@ class ErrorAnalyzer:
         )
         erz_erh = np.full((self.data.n_events, 2), np.nan, dtype=float)
 
-        rows_per_event, pick_errors_per_event = self._aggregate_event_rows(
-            inversion_results
-        )
+        (
+            rows_per_event,
+            pick_errors_per_event,
+            station_indices_per_event,
+            phase_indices_per_event,
+        ) = self._aggregate_event_rows(inversion_results)
 
         for ev in range(self.data.n_events):
             if self.data.invalid_events[ev]:
@@ -386,16 +477,37 @@ class ErrorAnalyzer:
 
             col0 = ev * dim
             col1 = (ev + 1) * dim
-            event_design_matrix = global_design[rows, col0:col1]
+            event_jacobian_matrix = jacobian_matrix_weighted[rows, col0:col1]
             event_residuals = residuals_flat[rows]
             event_pick_errors = np.asarray(pick_errors_per_event[ev], dtype=float)
+            observation_covariance = None
+
+            if use_full_covariance:
+                station_indices = np.asarray(station_indices_per_event[ev], dtype=int)
+                phase_indices = np.asarray(phase_indices_per_event[ev], dtype=int)
+                observation_covariance = (
+                    ErrorAnalyzer._build_observation_covariance_from_stations(
+                        pick_errors=event_pick_errors,
+                        station_indices=station_indices,
+                        phase_indices=phase_indices,
+                        station_distances_km=np.asarray(
+                            self.data.station_distances_km, dtype=float
+                        ),
+                        corr_length_km=float(
+                            getattr(self.config, "correlation_length_km", 1.0)
+                        ),
+                    )
+                )
+                if observation_covariance is None:
+                    continue
 
             errinfo = self._compute_event_errors(
-                design_matrix=event_design_matrix,
+                jacobian_matrix_weighted=event_jacobian_matrix,
                 residuals=event_residuals,
                 pick_errors=event_pick_errors,
                 damping=float(inversion_results.damping),
                 dim=dim,
+                observation_covariance=observation_covariance,
             )
             if errinfo is None:
                 continue

@@ -173,7 +173,7 @@ class InversionEngine:
         Returns
         -------
         InversionResults
-            Object containing final design matrix, valid rows, residuals, and damping.
+            Object containing final jacobian matrix, valid rows, residuals, and damping.
 
         Notes
         -----
@@ -212,6 +212,7 @@ class InversionEngine:
         logger.info(f"Fix depth: {config.fix_depth_km}")
         logger.info(f"Precalculate velocities: {config.precalculate_velocities}")
 
+        best_damping = 0.0
         damping = 1.0
         max_damping = 10.0
         residuals_flat = np.array([], dtype=float)
@@ -238,7 +239,7 @@ class InversionEngine:
                 * residuals_flat[valid_rows]
             )
             A = (
-                data.derivative_matrix[valid_rows, :]
+                data.jacobian_matrix[valid_rows, :]
                 * data.time_error_W[valid_rows][:, np.newaxis]
                 * data.distance_W[valid_rows][:, np.newaxis]
             )
@@ -350,6 +351,8 @@ class InversionEngine:
                     residuals_flat = residuals_flat_trial
                     rms_after = rms_trial
 
+                    best_damping = damping
+
                     damping = update_damping_factor(
                         current_factor=float(damping),
                         rms_prev=float(rms_before),
@@ -446,10 +449,10 @@ class InversionEngine:
             valid_rows = self.derivative_engine.build_derivative_matrix(data, config)
         residuals_flat, rms = _compute_residuals_and_rms(valid_rows)
 
-        design_matrix = (
-            data.derivative_matrix
-            * data.time_error_W[:, np.newaxis]
-            * data.distance_W[:, np.newaxis]
+        residuals_flat_weighted = residuals_flat * data.time_error_W
+
+        jacobian_matrix_weighted = (
+            data.jacobian_matrix * data.time_error_W[:, np.newaxis]
         )
 
         logger.info(f"Location iterations completed in {it + 1} iterations.")
@@ -457,11 +460,13 @@ class InversionEngine:
             f"Located {np.sum(~data.invalid_events)} events, "
             f"{np.sum(data.invalid_events)} events invalid."
         )
-        logger.info(f"Final RMS = {rms:.6f} s")
+        logger.info(f"Final RMS = {rms:.6f} s, Final damping = {best_damping:.6f}")
 
         return InversionResults(
-            design_matrix=design_matrix,
+            jacobian_matrix=data.jacobian_matrix,
+            jacobian_matrix_weighted=jacobian_matrix_weighted,
             valid_rows=valid_rows,
             residuals_flat=residuals_flat,
-            damping=damping,
+            residuals_flat_weighted=residuals_flat_weighted,
+            damping=best_damping,
         )

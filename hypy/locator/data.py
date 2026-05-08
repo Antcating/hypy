@@ -12,6 +12,7 @@ from typing import List, Optional, Union
 import numpy as np
 
 from ..logger import logger  # type: ignore[import-not-found]
+from ..utils.geo import gps2dist_azimuth_nb
 from ..utils.weighting import time_error_weight
 from .types import Catalog, Event, Inventory
 
@@ -102,6 +103,7 @@ class DataHandler:
 
         self.stations: list = []  # list[tuple[str, str]]
         self.stations_locations = np.empty((0, 3), dtype=float)
+        self.station_distances_km = np.empty((0, 0), dtype=float)
         self.n_stations = 0
 
         self.invalid_events = np.zeros(0, dtype=bool)
@@ -109,7 +111,7 @@ class DataHandler:
         self.arrivals = np.empty((0, 0))
         self.arrival_time_errors = np.empty((0, 0))
         self.theoretical_travel_times = np.empty((0, 0))
-        self.derivative_matrix = np.empty((0, 0))
+        self.jacobian_matrix = np.empty((0, 0))
         self.time_error_W = np.empty((0,), dtype=float)
         self.distance_W = np.empty((0,), dtype=float)
         self.locations = np.empty((0, 3), dtype=float)
@@ -171,6 +173,7 @@ class DataHandler:
             [inventory_station_map[key] for key in active_station_keys],
             dtype=float,
         )
+        self.station_distances_km = self._compute_station_distances_km()
 
         if self.n_phases * self.n_stations < self.min_picks_per_event:
             raise ValueError(
@@ -195,6 +198,25 @@ class DataHandler:
 
         self._allocate_arrays(self.n_events, self.n_stations, self.n_phases)
         self._fill_data()
+
+    def _compute_station_distances_km(self) -> np.ndarray:
+        """Compute pairwise great-circle distances between active stations."""
+        if self.n_stations == 0:
+            return np.empty((0, 0), dtype=float)
+
+        distances_km = np.zeros((self.n_stations, self.n_stations), dtype=float)
+        for i in range(self.n_stations):
+            lat_i = float(self.stations_locations[i, 0])
+            lon_i = float(self.stations_locations[i, 1])
+            for j in range(i + 1, self.n_stations):
+                lat_j = float(self.stations_locations[j, 0])
+                lon_j = float(self.stations_locations[j, 1])
+                dist_m, _, _ = gps2dist_azimuth_nb(lat_i, lon_i, lat_j, lon_j)
+                dist_km = float(dist_m) / 1000.0
+                distances_km[i, j] = dist_km
+                distances_km[j, i] = dist_km
+
+        return distances_km
 
     def _allocate_arrays(self, n_events: int, n_stations: int, n_phases: int) -> None:
         """
@@ -222,10 +244,10 @@ class DataHandler:
         self.arrival_time_errors = np.full((n_events, n_phases * n_stations), np.nan)
         self.theoretical_travel_times = np.zeros((n_events, n_phases * n_stations))
 
-        # --- Derivative (design) matrix ---
+        # --- Derivative (jacobian) matrix ---
         # Shape: (n_events * n_stations * n_phases, n_events * self.dim)
         # Each event has `self.dim` unknowns. Usually 4: (x, y, z, t0).
-        self.derivative_matrix = np.zeros(
+        self.jacobian_matrix = np.zeros(
             (n_events * n_phases * n_stations, n_events * self.dim),
             dtype=float,
         )

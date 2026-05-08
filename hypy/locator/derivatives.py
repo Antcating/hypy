@@ -73,7 +73,7 @@ class DerivativesHandler:
             Array of row indices corresponding to valid observations used in the matrix.
         """
         # Reset per-iteration inversion state so skipped stations are zeroed out.
-        data.derivative_matrix[:] = 0.0
+        data.jacobian_matrix[:] = 0.0
         data.theoretical_travel_times[:] = 0.0
         if config.distance_weighting_enabled:
             data.distance_W[:] = 0.0
@@ -81,7 +81,7 @@ class DerivativesHandler:
             data.distance_W[:] = 1.0
 
         observed_mask = ~np.isnan(data.arrivals)
-        valid_row_mask = np.zeros(data.derivative_matrix.shape[0], dtype=bool)
+        valid_row_mask = np.zeros(data.jacobian_matrix.shape[0], dtype=bool)
 
         for event_index in range(data.n_events):
             # Skip invalid events
@@ -120,7 +120,7 @@ class DerivativesHandler:
                     )
                     if theoretical_travel_time is None:
                         data.theoretical_travel_times[event_index, obs_col] = 0.0
-                        data.derivative_matrix[row_index, :] = 0.0
+                        data.jacobian_matrix[row_index, :] = 0.0
                         data.distance_W[row_index] = 0.0
                         continue
 
@@ -135,7 +135,7 @@ class DerivativesHandler:
                             phase_name,
                         )
                         data.theoretical_travel_times[event_index, obs_col] = 0.0
-                        data.derivative_matrix[row_index, :] = 0.0
+                        data.jacobian_matrix[row_index, :] = 0.0
                         data.distance_W[row_index] = 0.0
                         continue
 
@@ -148,11 +148,11 @@ class DerivativesHandler:
                             distance_km, k=config.k, x0=config.x0
                         )
 
-                    data.derivative_matrix[row_index, col0 + 0] = dt_dy  # type: ignore[index]
-                    data.derivative_matrix[row_index, col0 + 1] = dt_dx
+                    data.jacobian_matrix[row_index, col0 + 0] = dt_dy  # type: ignore[index]
+                    data.jacobian_matrix[row_index, col0 + 1] = dt_dx
                     if not data.fixed_depth_mask[event_index]:
-                        data.derivative_matrix[row_index, col0 + 2] = dt_dz
-                    data.derivative_matrix[row_index, col0 + 3] = 1.0  # dt/dt
+                        data.jacobian_matrix[row_index, col0 + 2] = dt_dz
+                    data.jacobian_matrix[row_index, col0 + 3] = 1.0  # dt/dt
 
                     valid_row_mask[row_index] = True
 

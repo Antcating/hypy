@@ -284,10 +284,14 @@ class LocatorConfig:
     distance_weighting_enabled: bool
     k: Optional[float]
     x0: Optional[float]
+    full_data_covariance: bool = False
+    correlation_length_km: float = 1.0
     derivative_delta_km: float = 0.5
     dim: int = 4
     n_phases: int = field(init=False)
 
     def __post_init__(self) -> None:
-        """Compute number of phases after initialization."""
+        """Compute derived values and validate post-init constraints."""
+        if self.correlation_length_km <= 0.0:
+            raise ValueError("correlation_length_km must be > 0.")
         object.__setattr__(self, "n_phases", len(self.phases))

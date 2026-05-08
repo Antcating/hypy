@@ -93,6 +93,12 @@ class EventLocator:
         Weight factor at distance_weight_end. Default is 0.01.
     fix_depth_km : Optional[float], optional
         If not None, event depths are fixed during inversion. Default is None.
+    full_data_covariance : bool, optional
+        If True, compute event uncertainty using a correlated observation covariance
+        model instead of diagonal row weighting. Default is False.
+    correlation_length_km : float, optional
+        Correlation length in km used in the exponential observation covariance
+        model when full_data_covariance is enabled. Default is 1.0.
     _precalculate_velocities : bool, optional
         If True, precomputes velocity profiles for all events to speed up travel-time
         calculations. Requires max_depth_km and depth_step_km to be set. Default is False.
@@ -122,6 +128,8 @@ class EventLocator:
         weight_start: Optional[float] = 0.99,
         weight_end: Optional[float] = 0.01,
         fix_depth_km: Optional[float] = None,
+        full_data_covariance: bool = False,
+        correlation_length_km: float = 1.0,
         velocity_model_backend: Optional[VelocityModelBackendType] = None,
         engine_backend: Optional[PropagationBackendType] = None,
         _precalculate_velocities: bool = False,
@@ -166,6 +174,8 @@ class EventLocator:
             distance_weighting_enabled=distance_weighting_enabled,
             k=k,
             x0=x0,
+            full_data_covariance=bool(full_data_covariance),
+            correlation_length_km=float(correlation_length_km),
         )
 
         if velocity_model_backend is None:

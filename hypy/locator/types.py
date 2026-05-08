@@ -65,8 +65,10 @@ class InversionResults:
 
     Attributes
     ----------
-    design_matrix : numpy.ndarray
-        Full weighted design matrix used in the inversion.
+    jacobian_matrix : numpy.ndarray
+        Full jacobian matrix used in the inversion.
+    jacobian_matrix_weighted : numpy.ndarray
+        Full weighted jacobian matrix used in the inversion.
     valid_rows : numpy.ndarray
         Row indices that correspond to valid observations.
     residuals_flat : numpy.ndarray
@@ -75,9 +77,11 @@ class InversionResults:
         Final damping factor chosen by the solver.
     """
 
-    design_matrix: np.ndarray  # full weighted design matrix
+    jacobian_matrix: np.ndarray  # full jacobian matrix
+    jacobian_matrix_weighted: np.ndarray  # full weighted jacobian matrix
     valid_rows: np.ndarray  # indices of rows with valid observations
     residuals_flat: np.ndarray  # flattened residual vector
+    residuals_flat_weighted: np.ndarray  # flattened weighted residual vector
     damping: float  # final damping factor
 
 

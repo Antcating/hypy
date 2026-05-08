@@ -152,10 +152,19 @@ class OriginExporter:
                     )
                     residual = observed_travel_time - travel_time
 
+                    # Compute final weight: time_error_W * distance_W
+                    row_index = (
+                        event_idx * config.n_phases * data.n_stations
+                        + config.n_phases * station_idx
+                        + phase_idx
+                    )
+                    final_weight = data.distance_W[row_index]
+
                     arrival = Arrival(
                         pick_id=pick.resource_id if pick is not None else None,
                         phase=phase,
                         time_residual=float(residual),
+                        time_weight=float(final_weight),
                     )
                     origin.arrivals.append(arrival)
 
