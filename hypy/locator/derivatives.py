@@ -161,7 +161,7 @@ class DerivativesHandler:
         if valid_row_indices_arr.size > 0:
             obs_cols = valid_row_indices_arr % (data.n_stations * config.n_phases)
             station_indices = np.unique(obs_cols // config.n_phases)
-            logger.info(
+            logger.debug(
                 "Using %d stations (%d obs) in current derivative build.",
                 station_indices.size,
                 valid_row_indices_arr.size,
