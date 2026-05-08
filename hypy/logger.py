@@ -63,4 +63,4 @@ def get_logger(
     return logger
 
 
-logger = get_logger(log_file="logs/log", level=logging.DEBUG)
+logger = get_logger(log_file=None, level=logging.DEBUG)
