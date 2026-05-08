@@ -44,7 +44,7 @@ def distance_weight(distance, **kwargs):
     return np.sqrt(weight)
 
 
-def time_error_weight(time_error, **kwargs):
+def time_error_weight(time_error: float | np.ndarray, **kwargs) -> float | np.ndarray:
     """Compute an inverse-square weight from pick-time error.
 
     Parameters

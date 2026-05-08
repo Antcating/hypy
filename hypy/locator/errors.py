@@ -4,13 +4,14 @@ from typing import Optional
 
 import numpy as np
 
+from ..utils.weighting import time_error_weight
 from .config import LocatorConfig
 from .data import DataHandler
 from .types import ErrorResults, InversionResults
 
 
 def filter_input_rows(
-    jacobian_matrix_weighted: np.ndarray,
+    jacobian_matrix: np.ndarray,
     residuals: np.ndarray,
     pick_errors: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -18,8 +19,8 @@ def filter_input_rows(
 
     Parameters
     ----------
-    jacobian_matrix_weighted : ndarray, shape (n_obs, dim)
-        Weighted jacobian matrix for one event.
+    jacobian_matrix : ndarray, shape (n_obs, dim)
+        Unweighted jacobian matrix for one event.
     residuals : ndarray, shape (n_obs,)
         Residual vector for the same rows.
     pick_errors : ndarray, shape (n_obs,) or (k,)
@@ -28,23 +29,21 @@ def filter_input_rows(
     Returns
     -------
     tuple
-        Filtered (jacobian_matrix_weighted, residuals, pick_errors)
+        Filtered (jacobian_matrix, residuals, pick_errors)
         containing only finite rows.
     """
-    row_mask = np.isfinite(residuals) & np.all(
-        np.isfinite(jacobian_matrix_weighted), axis=1
-    )
-    if pick_errors.size == jacobian_matrix_weighted.shape[0]:
+    row_mask = np.isfinite(residuals) & np.all(np.isfinite(jacobian_matrix), axis=1)
+    if pick_errors.size == jacobian_matrix.shape[0]:
         row_mask &= np.isfinite(pick_errors)
 
-    jacobian_matrix_weighted = jacobian_matrix_weighted[row_mask]
+    jacobian_matrix = jacobian_matrix[row_mask]
     residuals = residuals[row_mask]
     if pick_errors.size == row_mask.size:
         pick_errors = pick_errors[row_mask]
     else:
         pick_errors = pick_errors[np.isfinite(pick_errors)]
 
-    return jacobian_matrix_weighted, residuals, pick_errors
+    return jacobian_matrix, residuals, pick_errors
 
 
 class ErrorAnalyzer:
@@ -186,7 +185,7 @@ class ErrorAnalyzer:
 
     @staticmethod
     def _compute_event_errors(
-        jacobian_matrix_weighted: np.ndarray,
+        jacobian_matrix: np.ndarray,
         residuals: np.ndarray,
         pick_errors: np.ndarray,
         damping: float,
@@ -197,8 +196,8 @@ class ErrorAnalyzer:
 
         Parameters
         ----------
-        jacobian_matrix_weighted : ndarray, shape (n_obs, dim)
-            Event-specific jacobian matrix rows used in inversion.
+        jacobian_matrix : ndarray, shape (n_obs, dim)
+            Event-specific unweighted jacobian matrix rows used in inversion.
         residuals : ndarray, shape (n_obs,)
             True residuals for the same rows.
         pick_errors : ndarray, shape (n_obs,) or (m,)
@@ -214,50 +213,55 @@ class ErrorAnalyzer:
             Computed error measures, or None when not enough valid data.
         """
         if (
-            jacobian_matrix_weighted.ndim != 2
-            or jacobian_matrix_weighted.shape[1] != dim
-            or jacobian_matrix_weighted.shape[0] == 0
+            jacobian_matrix.ndim != 2
+            or jacobian_matrix.shape[1] != dim
+            or jacobian_matrix.shape[0] == 0
         ):
             return None
 
-        if residuals.shape[0] != jacobian_matrix_weighted.shape[0]:
+        if residuals.shape[0] != jacobian_matrix.shape[0]:
             return None
 
-        jacobian_matrix_weighted, residuals, pick_errors = filter_input_rows(
-            jacobian_matrix_weighted, residuals, pick_errors
+        jacobian_matrix, residuals, pick_errors = filter_input_rows(
+            jacobian_matrix, residuals, pick_errors
         )
 
-        if jacobian_matrix_weighted.shape[0] == 0:
+        if jacobian_matrix.shape[0] == 0:
             return None
 
         if observation_covariance is None:
-            hessian = jacobian_matrix_weighted.T @ jacobian_matrix_weighted
+            if pick_errors.size != residuals.size:
+                return None
+
+            weights = np.asarray(time_error_weight(pick_errors))
+            hessian = jacobian_matrix.T @ (weights[:, np.newaxis] * jacobian_matrix)
             hessian_inv = ErrorAnalyzer._regularized_inverse(hessian)
             if hessian_inv is None:
                 return None
 
-            reduced_chi2 = ErrorAnalyzer._compute_sigma2(residuals, dim)
+            sigma_inv_r = weights * residuals
+            reduced_chi2 = float(residuals.T @ sigma_inv_r) / float(
+                residuals.size - int(dim)
+            )
             if not np.isfinite(reduced_chi2):
                 return None
         else:
             observation_covariance = np.asarray(observation_covariance, dtype=float)
             if observation_covariance.shape != (
-                jacobian_matrix_weighted.shape[0],
-                jacobian_matrix_weighted.shape[0],
+                jacobian_matrix.shape[0],
+                jacobian_matrix.shape[0],
             ):
                 return None
 
             try:
-                sigma_inv_J = np.linalg.solve(
-                    observation_covariance, jacobian_matrix_weighted
-                )
+                sigma_inv_J = np.linalg.solve(observation_covariance, jacobian_matrix)
                 sigma_inv_r = np.linalg.solve(observation_covariance, residuals)
             except np.linalg.LinAlgError:
                 sigma_inv = np.linalg.pinv(observation_covariance, rcond=1e-8)
-                sigma_inv_J = sigma_inv @ jacobian_matrix_weighted
+                sigma_inv_J = sigma_inv @ jacobian_matrix
                 sigma_inv_r = sigma_inv @ residuals
 
-            hessian = jacobian_matrix_weighted.T @ sigma_inv_J
+            hessian = jacobian_matrix.T @ sigma_inv_J
             hessian_inv = ErrorAnalyzer._regularized_inverse(hessian)
             if hessian_inv is None:
                 return None
@@ -300,7 +304,7 @@ class ErrorAnalyzer:
                 float(np.sqrt(np.mean(residuals**2))) if residuals.size else np.nan
             ),
             "RDERR_s": (float(np.nanmedian(pick_errors)) if pick_errors.size else 0.0),
-            "n_obs_used": int(jacobian_matrix_weighted.shape[0]),
+            "n_obs_used": int(jacobian_matrix.shape[0]),
         }
 
     def _validate_inversion_results(self, inversion_results: InversionResults) -> None:
@@ -318,17 +322,8 @@ class ErrorAnalyzer:
             If A_final or residuals_flat_final are malformed or incompatible
             with the expected dimensions from the configuration.
         """
-        use_full_covariance = bool(getattr(self.config, "full_data_covariance", False))
-        if use_full_covariance:
-            jacobian_matrix = np.asarray(inversion_results.jacobian_matrix, dtype=float)
-            residuals_flat = np.asarray(inversion_results.residuals_flat, dtype=float)
-        else:
-            jacobian_matrix = np.asarray(
-                inversion_results.jacobian_matrix_weighted, dtype=float
-            )
-            residuals_flat = np.asarray(
-                inversion_results.residuals_flat_weighted, dtype=float
-            )
+        jacobian_matrix = np.asarray(inversion_results.jacobian_matrix, dtype=float)
+        residuals_flat = np.asarray(inversion_results.residuals_flat, dtype=float)
         residuals_flat = residuals_flat.reshape(-1)
 
         if jacobian_matrix.ndim != 2:
@@ -365,15 +360,9 @@ class ErrorAnalyzer:
             inversion_results.valid_rows, dtype=int
         ).reshape(-1)
 
-        use_full_covariance = bool(getattr(self.config, "full_data_covariance", False))
-        if use_full_covariance:
-            n_jacobian_rows = np.asarray(
-                inversion_results.jacobian_matrix, dtype=float
-            ).shape[0]
-        else:
-            n_jacobian_rows = np.asarray(
-                inversion_results.jacobian_matrix_weighted, dtype=float
-            ).shape[0]
+        n_jacobian_rows = np.asarray(
+            inversion_results.jacobian_matrix, dtype=float
+        ).shape[0]
 
         rows_per_event: list[list[int]] = [[] for _ in range(self.data.n_events)]
         pick_errors_per_event: list[list[float]] = [
@@ -433,18 +422,8 @@ class ErrorAnalyzer:
         self._validate_inversion_results(inversion_results)
 
         use_full_covariance = bool(getattr(self.config, "full_data_covariance", False))
-        if use_full_covariance:
-            jacobian_matrix_weighted = np.asarray(
-                inversion_results.jacobian_matrix, dtype=float
-            )
-            residuals_flat = np.asarray(inversion_results.residuals_flat, dtype=float)
-        else:
-            jacobian_matrix_weighted = np.asarray(
-                inversion_results.jacobian_matrix_weighted, dtype=float
-            )
-            residuals_flat = np.asarray(
-                inversion_results.residuals_flat_weighted, dtype=float
-            )
+        jacobian_matrix = np.asarray(inversion_results.jacobian_matrix, dtype=float)
+        residuals_flat = np.asarray(inversion_results.residuals_flat, dtype=float)
         residuals_flat = residuals_flat.reshape(-1)
 
         dim = int(self.config.dim)
@@ -477,7 +456,7 @@ class ErrorAnalyzer:
 
             col0 = ev * dim
             col1 = (ev + 1) * dim
-            event_jacobian_matrix = jacobian_matrix_weighted[rows, col0:col1]
+            event_jacobian_matrix = jacobian_matrix[rows, col0:col1]
             event_residuals = residuals_flat[rows]
             event_pick_errors = np.asarray(pick_errors_per_event[ev], dtype=float)
             observation_covariance = None
@@ -502,7 +481,7 @@ class ErrorAnalyzer:
                     continue
 
             errinfo = self._compute_event_errors(
-                jacobian_matrix_weighted=event_jacobian_matrix,
+                jacobian_matrix=event_jacobian_matrix,
                 residuals=event_residuals,
                 pick_errors=event_pick_errors,
                 damping=float(inversion_results.damping),
