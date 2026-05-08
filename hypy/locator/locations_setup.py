@@ -2,7 +2,8 @@
 
 from typing import Optional
 
-from ..logger import logger  # type: ignore[import-not-found]
+from hypy.logger import logger  # type: ignore[import-not-found]
+
 from .config import LocatorConfig
 from .data import DataHandler
 from .derivatives import DerivativesHandler

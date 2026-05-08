@@ -9,6 +9,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
+from ..logger import get_logger
 from ..model import VelocityModel  # type: ignore[import-not-found]
 from ..propagation import PropagationEngine, validate_model_backend_compatibility
 from .config import (
@@ -27,6 +28,7 @@ from .inversion import InversionEngine
 from .locations_setup import init_locations
 from .propagation_setup import init_propagation, resolve_backend_contract
 from .types import (
+    INFO,
     Catalog,
     DerivativeMethodLiteral,
     EngineLiteral,
@@ -132,8 +134,12 @@ class EventLocator:
         correlation_length_km: float = 1.0,
         velocity_model_backend: Optional[VelocityModelBackendType] = None,
         engine_backend: Optional[PropagationBackendType] = None,
+        log_level: int = INFO,
+        log_file: Optional[str] = None,
         _precalculate_velocities: bool = False,
     ):
+        get_logger("hypy", level=log_level, log_file=log_file)
+
         if engine_backend is None:
             # Validate built-in mode/engine combinations
             mode, engine, derivative_method = validate_operating_regime(

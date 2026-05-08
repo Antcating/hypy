@@ -4,7 +4,8 @@ from typing import Union
 
 import numpy as np
 
-from ..logger import logger  # type: ignore[import-not-found]
+from hypy.logger import logger  # type: ignore[import-not-found]
+
 from ..propagation import PropagationEngine
 from ..utils.weighting import distance_weight
 from .config import LocatorConfig

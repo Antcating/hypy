@@ -20,7 +20,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import skfmm
 
-from hypy.logger import logger
+from hypy.logger import logger  # type: ignore[import-not-found]
 from hypy.propagation.layered import LayeredPropagationEngine
 from hypy.utils.geo import gps2dist_azimuth_nb
 from hypy.utils.math import interp_quant

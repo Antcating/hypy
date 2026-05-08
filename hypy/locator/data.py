@@ -11,7 +11,8 @@ from typing import List, Optional, Union
 
 import numpy as np
 
-from ..logger import logger  # type: ignore[import-not-found]
+from hypy.logger import logger
+
 from ..utils.geo import gps2dist_azimuth_nb
 from ..utils.weighting import time_error_weight
 from .types import Catalog, Event, Inventory

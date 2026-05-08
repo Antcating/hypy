@@ -1,6 +1,7 @@
 """Type declarations for locator components."""
 
 from dataclasses import dataclass
+from logging import INFO
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -175,4 +176,5 @@ __all__ = [
     "VelocityModelBackendType",
     "PropagationBackendType",
     "VelocityModelFactory",
+    "INFO",
 ]
