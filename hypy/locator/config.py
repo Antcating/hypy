@@ -46,7 +46,7 @@ from .types import DerivativeMethodLiteral, EngineLiteral, ModeLiteral, SolverLi
 
 VALID_OPERATING_REGIMES = list_valid_operating_regimes_by_features()
 
-VALID_VElOCITY_MODEL_FTYPES = {".tvel", ".nllgrid", ".nc"}
+SUPPORTED_VELOCITY_MODEL_FILE_TYPES = {".tvel", ".nllgrid", ".nc"}
 
 VALID_SOLVERS = {"lsqr", "svd"}
 
