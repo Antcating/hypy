@@ -269,7 +269,7 @@ class ErrorAnalyzer:
             if not np.isfinite(reduced_chi2):
                 return None
 
-        scale = max(1.0, reduced_chi2)
+        scale = reduced_chi2
 
         covariance_full = scale * hessian_inv
         covariance_full = 0.5 * (covariance_full + covariance_full.T)
