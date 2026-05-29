@@ -60,7 +60,7 @@ def time_error_weight(time_error: float | np.ndarray, **kwargs) -> float | np.nd
         Weight(s) proportional to ``1 / (time_error)^2``.
     -----
     """
-    time_error = max(
+    time_error = np.maximum(
         time_error, 1e-6
     )  # Avoid division by zero or extremely large weights
 
