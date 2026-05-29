@@ -5,31 +5,43 @@ Concrete propagation backends can implement ray-tracing or precomputed
 table strategies while conforming to this API.
 """
 
-from pathlib import Path
 from typing import ClassVar, Collection, Optional
+
+from hypy.model import VelocityModel
 
 
 class PropagationEngine:
     """Common base for propagation backends used by the locator."""
 
-    default_feature_flags: ClassVar[frozenset[str]] = frozenset()
-    default_required_model_features: ClassVar[frozenset[str]] = frozenset()
+    feature_flags: ClassVar[frozenset[str]] = frozenset()
+    required_model_features: ClassVar[frozenset[str]] = frozenset()
 
     def __init__(
         self,
-        model_path: str,
+        model: VelocityModel,
         *,
         mode: str | None = None,
         engine: str | None = None,
+        max_depth_km: Optional[float] = None,
+        max_distance_km: Optional[float] = None,
+        depth_step_km: Optional[float] = None,
+        distance_step_km: Optional[float] = None,
     ):
-        self.model_path = model_path
-        self.model_name = Path(model_path).stem
+        self.velocity_model = model
         self.mode = mode
         self.engine = engine
-        self.feature_flags: frozenset[str] = self.default_feature_flags
-        self.required_model_features: frozenset[str] = (
-            self.default_required_model_features
-        )
+
+        self.max_depth_km = max_depth_km
+        self.max_distance_km = max_distance_km
+        self.depth_step_km = depth_step_km
+        self.distance_step_km = distance_step_km
+
+        self.validate_model(model)
+
+    @property
+    def name(self) -> str:
+        """Return a human-readable name for this propagation engine."""
+        return f"PropagationEngine({self.velocity_model.model_name})"
 
     @property
     def supported_features(self) -> frozenset[str]:
@@ -88,3 +100,13 @@ class PropagationEngine:
     def compute_derivatives(self, *args, **kwargs):
         """Return spatial slowness derivatives for a source/receiver pair."""
         raise NotImplementedError("This method should be overridden by subclasses")
+
+    def validate_model(self, model: VelocityModel) -> bool:
+        """Check if the provided velocity model is compatible with this backend."""
+        if not self.required_model_features.issubset(model.feature_flags):
+            missing = self.required_model_features - model.feature_flags
+            raise ValueError(
+                f"Velocity model {model.model_name!r} is "
+                f"missing required features: {missing}"
+            )
+        return True

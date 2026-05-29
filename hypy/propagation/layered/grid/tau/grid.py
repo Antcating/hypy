@@ -37,6 +37,7 @@ from typing import Dict, List, Optional
 import numpy as np
 
 from hypy.logger import logger
+from hypy.model import VelocityModel
 from hypy.propagation.layered import LayeredPropagationEngine
 from hypy.utils.geo import gps2dist_azimuth_nb
 from hypy.utils.math import interp_quant
@@ -71,9 +72,20 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         Whether to overwrite existing travel-time tables. by default False
     """  # noqa: E501
 
+    feature_flags = frozenset(
+        {
+            "propagation.layered",
+            "propagation.table",
+            "derivative.analytical",
+            "derivative.numerical",
+        }
+    )
+
+    required_model_features = frozenset({"model.profile.1d", "model.profile.1d"})
+
     def __init__(
         self,
-        model_tvel: str,
+        model: VelocityModel,
         phases: List[str],
         max_depth: float,
         max_distance: float,
@@ -82,9 +94,9 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         engine: str = "pyrocko",
         overwrite: bool = False,
     ):
-        super().__init__(model_tvel)
-        model_name = Path(model_tvel).stem
-        self.backend: LayeredPropagationEngine
+        super().__init__(model)
+        model_name = Path(model.model_path).stem
+        self.tracer: LayeredPropagationEngine
         self.phases = phases
         self.max_depth = max_depth
         self.max_distance = max_distance
@@ -95,6 +107,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         self.travel_time_tables: Dict[str, np.ndarray] = {}
         self.ray_param_tables: Dict[str, np.ndarray] = {}
         self.takeoff_angle_tables: Dict[str, np.ndarray] = {}
+
         self.load_tables(model_name=model_name, engine=engine, overwrite=overwrite)
 
     def _table_filename(self, model_name: str, engine: str, phase: str) -> str:
@@ -220,15 +233,18 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
                 f"Building travel-time tables for phase {phase} using engine {engine}"
             )
 
+            # FIXME: Add ray tracer as an input to the constructor of TauTravelTimeGrid
+            # and use it here instead of initializing a new tracer for table generation.
+            # This would allow for more flexibility in choosing the ray tracer.
             # Initialize tracer for table generation
             if engine == "pyrocko":
                 from hypy.propagation.layered.ray_tracer.pyrocko import PyrockoRayTracer
 
-                self.tracer = PyrockoRayTracer(self.model_path)
+                self.tracer = PyrockoRayTracer(self.velocity_model)
             elif engine == "taup":
                 from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
 
-                self.tracer = TauPRayTracer(self.model_path)
+                self.tracer = TauPRayTracer(self.velocity_model)
             else:
                 raise ValueError(f"Unsupported engine: {engine}")
 

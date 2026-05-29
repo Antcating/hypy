@@ -19,6 +19,8 @@ Returns
 
 from typing import List
 
+from hypy.model import VelocityModel
+
 try:
     from pyrocko import cake  # type: ignore[import-untyped]
     from pyrocko.cake import Ray  # type: ignore[import-untyped]
@@ -45,9 +47,19 @@ class PyrockoRayTracer(LayeredRayTracer):
         Base class for layered ray tracing.
     """
 
-    def __init__(self, model_path: str):
-        super().__init__(model_path)
-        self.model: cake.LayeredModel = cake.load_model(model_path)
+    feature_flags = frozenset(
+        {
+            "propagation.layered",
+            "propagation.ray",
+            "derivative.analytical",
+            "derivative.numerical",
+        }
+    )
+    required_model_features = frozenset({"model.profile.1d", "model.profile.1d"})
+
+    def __init__(self, model: VelocityModel):
+        super().__init__(model)
+        self.model: cake.LayeredModel = cake.load_model(model.model_path.as_posix())
 
     def get_arrival_1d(
         self,

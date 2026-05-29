@@ -1,5 +1,6 @@
 """Layered ray tracing module for seismic wave propagation."""
 
+from hypy.model import VelocityModel
 from hypy.propagation.layered import LayeredPropagationEngine
 
 
@@ -12,5 +13,5 @@ class LayeredRayTracer(LayeredPropagationEngine):
     for given source-receiver configurations and seismic phases.
     """
 
-    def __init__(self, model_path: str):
-        super().__init__(model_path)
+    def __init__(self, model: VelocityModel):
+        super().__init__(model)

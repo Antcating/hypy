@@ -24,6 +24,7 @@ from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 from obspy.taup.tau import Arrival  # type: ignore[import-untyped]
 
 from hypy.logger import logger
+from hypy.model import VelocityModel
 from hypy.propagation.layered.ray_tracer import LayeredRayTracer
 
 
@@ -39,9 +40,19 @@ class TauPRayTracer(LayeredRayTracer):
         Base class for layered ray tracing.
     """
 
-    def __init__(self, model_path: str):
-        super().__init__(model_path)
-        self.model: TauPyModel = TauPyModel(self.model_name)
+    feature_flags = frozenset(
+        {
+            "propagation.layered",
+            "propagation.ray",
+            "derivative.analytical",
+            "derivative.numerical",
+        }
+    )
+    required_model_features = frozenset({"model.profile.1d", "model.profile.1d"})
+
+    def __init__(self, model: VelocityModel):
+        super().__init__(model)
+        self.model: TauPyModel = TauPyModel(model.model_name)
 
     def get_arrival_1d(
         self,

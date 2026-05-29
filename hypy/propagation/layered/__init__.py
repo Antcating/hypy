@@ -1,11 +1,10 @@
 """Layered propagation model base classes."""
 
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
 
-from hypy.model import TvelModel
+from hypy.model import VelocityModel
 from hypy.propagation.base import PropagationEngine
 from hypy.utils.geo import get_analytical_derivative_1d, gps2dist_azimuth_nb
 from hypy.utils.math import finite_difference_derivative
@@ -14,9 +13,8 @@ from hypy.utils.math import finite_difference_derivative
 class LayeredPropagationEngine(PropagationEngine):
     """Base class for layered 1D propagation backends."""
 
-    def __init__(self, model_path: str):
-        super().__init__(model_path)
-        self.velocity_model = TvelModel(Path(model_path))
+    def __init__(self, model: VelocityModel):
+        super().__init__(model)
 
     @property
     def dim(self) -> int:
@@ -25,6 +23,11 @@ class LayeredPropagationEngine(PropagationEngine):
         For a layered 1D model, this is typically ``1``.
         """
         return 1
+
+    @property
+    def name(self) -> str:
+        """Return a human-readable name for this propagation engine."""
+        return f"LayeredPropagationEngine({self.velocity_model.model_name})"
 
     def get_arrival_1d(
         self,

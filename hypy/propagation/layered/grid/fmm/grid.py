@@ -20,7 +20,8 @@ from typing import Dict, List, Optional
 import numpy as np
 import skfmm
 
-from hypy.logger import logger  # type: ignore[import-not-found]
+from hypy.logger import logger
+from hypy.model import TvelModel
 from hypy.propagation.layered import LayeredPropagationEngine
 from hypy.utils.geo import gps2dist_azimuth_nb
 from hypy.utils.math import interp_quant
@@ -35,9 +36,18 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
         - distance_index corresponds to epicentral distance
     """
 
+    feature_flags = frozenset(
+        {
+            "propagation.layered",
+            "propagation.ray",
+            "derivative.numerical",
+        }
+    )
+    required_model_features = frozenset({"model.profile.1d", "model.profile.1d"})
+
     def __init__(
         self,
-        model_tvel: str,
+        model: TvelModel,
         phases: List[str],
         max_depth: float,
         max_distance: float,
@@ -45,10 +55,11 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
         distance_step: float,
         overwrite: bool = False,
     ):
-        super().__init__(model_tvel)
+        super().__init__(model)
 
         self.engine = "skfmm"
-        self.model_name = Path(model_tvel).stem
+        self.model = model
+        self.model_name = model.model_name
         self.phases = phases
         self.max_depth = max_depth
         self.max_distance = max_distance
@@ -112,9 +123,8 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
         vp_profile = np.full(depths.shape, np.nan, dtype=float)
         vs_profile = np.full(depths.shape, np.nan, dtype=float)
 
-        # Same layer structure you used in your prototype:
         # layer = [depth_start, depth_end, vp_start, vp_end, vs_start, vs_end, ...]
-        for layer in self.velocity_model.model.model.s_mod.v_mod.layers:
+        for layer in self.model.model.model.s_mod.v_mod.layers:
             z_start = float(layer[0])
             z_end = float(layer[1])
 
@@ -293,7 +303,7 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
             source_longitude,
             receiver_latitude,
             receiver_longitude,
-            R=self.velocity_model.model.model.radius_of_planet * 1000.0,
+            R=self.velocity_model.radius_of_planet_km * 1000.0,
         )
         arc_distance_km = dist_m / 1000.0
 
