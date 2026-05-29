@@ -212,6 +212,7 @@ class DataHandler:
             for j in range(i + 1, self.n_stations):
                 lat_j = float(self.stations_locations[j, 0])
                 lon_j = float(self.stations_locations[j, 1])
+                # TODO: Add ability to specify radius of planet
                 dist_m, _, _ = gps2dist_azimuth_nb(lat_i, lon_i, lat_j, lon_j)
                 dist_km = float(dist_m) / 1000.0
                 distances_km[i, j] = dist_km
