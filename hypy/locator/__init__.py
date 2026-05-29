@@ -4,21 +4,16 @@ Public API for hypy.locator.
 Exposes EventLocator as a composition-based orchestrator.
 """
 
-from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
 from ..logger import get_logger
-from ..model import VelocityModel  # type: ignore[import-not-found]
-from ..propagation import PropagationEngine, validate_model_backend_compatibility
+from ..propagation import PropagationEngine
 from .config import (
     LocatorConfig,
     configure_distance_weighting,
-    validate_operating_regime,
-    validate_precompute_args,
     validate_solver,
-    validate_velocity_model_file,
 )
 from .data import DataHandler
 from .derivatives import DerivativesHandler
@@ -26,19 +21,13 @@ from .errors import ErrorAnalyzer
 from .export import OriginExporter
 from .inversion import InversionEngine
 from .locations_setup import init_locations
-from .propagation_setup import init_propagation, resolve_backend_contract
 from .types import (
     INFO,
     Catalog,
     DerivativeMethodLiteral,
-    EngineLiteral,
     Event,
     Inventory,
-    ModeLiteral,
-    PropagationBackendType,
-    PropagationConfig,
     SolverLiteral,
-    VelocityModelBackendType,
 )
 
 
@@ -48,8 +37,11 @@ class EventLocator:
 
     Parameters
     ----------
-    model_tvel_path : str
-        Path to the 1D velocity model file in .tvel format.
+    propagation_engine : PropagationEngine
+        Travel-time calculation engine. This is a required argument that specifies the
+        backend to use for travel-time calculations and derivative assembly. The provided
+        engine must be compatible with the specified derivative_method and support the
+        required model features.
     phases : Sequence[str], optional
         List of seismic phases to use for travel-time calculations. Default is ("P",).
         Alowed phases, for now, are "P" and "S".
@@ -57,32 +49,6 @@ class EventLocator:
         Minimum number of picks required per event to attempt location. Default is 4.
     default_time_error : float, optional
         Minimum pick time error (in seconds). Used if pick error is not given. Default is 0.1 s.
-    mode : Literal["table-1d", "ray-1d"], optional
-        Travel-time calculation mode. "table-1d" uses precomputed travel-time tables (faster,
-        less accurate), "ray-1d" computes travel-times on-the-fly using ray-tracing (slower,
-        more accurate). Default is "table-1d".
-
-        Note: "table-1d" mode has to calculate travel-times for the entire distance/depth
-        grid on the first call, which can take a while for large grids. Subsequent calls
-        are fast.
-    engine : Literal["taup", "pyrocko"], optional
-        Travel-time calculation engine. "taup" uses Obspy's TauPyModel, "pyrocko" uses
-        Pyrocko's travel-time calculator. Default is "taup".
-    max_depth_km : Optional[float], optional
-        Maximum depth (in km) for travel-time tables. Required if mode is "table-1d" or if
-        using precomputed velocity profiles. Optional if mode is "ray-1d", as ray-tracing
-        can handle arbitrary depths.
-    max_distance_km : Optional[float], optional
-        Maximum epicentral distance (in degrees) for travel-time tables. Required if
-        mode is "table-1d" or if using precomputed velocity profiles.
-        Optional if mode is "ray-1d", as ray-tracing can handle arbitrary
-        distances.
-    depth_step_km : Optional[float], optional
-        Depth sampling interval (in km) for travel-time tables. Required if mode is
-        "table-1d". Optional if mode is "ray-1d".
-    distance_step_km : Optional[float], optional
-        Distance sampling interval (in degrees) for travel-time tables. Required if mode
-        is "table-1d". Optional if mode is "ray-1d".
     distance_weight_start : Optional[float], optional
         Distance (in km) at which distance-based weighting starts to be applied. If None,
         no distance weighting is applied. Default is None.
@@ -104,27 +70,13 @@ class EventLocator:
     _precalculate_velocities : bool, optional
         If True, precomputes velocity profiles for all events to speed up travel-time
         calculations. Requires max_depth_km and depth_step_km to be set. Default is False.
-    velocity_model_backend : Optional[type[VelocityModel]], optional
-        Custom velocity model class. If provided, this class is used to create
-        ``self.velocity_model_handler`` from ``model_path``.
-    engine_backend : Optional[type[PropagationEngine]], optional
-        Custom propagation backend class. If provided, this class is used instead of
-        built-in mode/engine resolution.
     """  # noqa: E501
 
     def __init__(
         self,
-        model_path: str,
+        propagation_engine: PropagationEngine,
         phases: Tuple[str, ...] = ("P", "S"),
-        min_picks_per_event: int = 4,
-        default_time_error: float = 0.1,
-        mode: ModeLiteral = "table-1d",
-        engine: EngineLiteral = "taup",
         derivative_method: DerivativeMethodLiteral = "numerical",
-        max_depth_km: Optional[float] = None,
-        max_distance_km: Optional[float] = None,
-        depth_step_km: Optional[float] = None,
-        distance_step_km: Optional[float] = None,
         distance_weight_start_km: Optional[float] = None,
         distance_weight_end_km: Optional[float] = None,
         weight_start: Optional[float] = 0.99,
@@ -132,31 +84,19 @@ class EventLocator:
         fix_depth_km: Optional[float] = None,
         full_data_covariance: bool = False,
         correlation_length_km: float = 1.0,
-        velocity_model_backend: Optional[VelocityModelBackendType] = None,
-        engine_backend: Optional[PropagationBackendType] = None,
+        min_picks_per_event: int = 4,
+        default_time_error: float = 0.1,
         log_level: int = INFO,
         log_file: Optional[str] = None,
         _precalculate_velocities: bool = False,
     ):
         get_logger("hypy", level=log_level, log_file=log_file)
 
-        if engine_backend is None:
-            # Validate built-in mode/engine combinations
-            mode, engine, derivative_method = validate_operating_regime(
-                mode, engine, derivative_method
-            )
-        elif derivative_method not in {"numerical", "analytical"}:
+        if derivative_method not in {"numerical", "analytical"}:
             raise ValueError(
                 "Unsupported derivative method: "
                 f"{derivative_method!r}. Valid values are 'numerical' and 'analytical'."
             )
-
-        model_full_path = Path(model_path).expanduser().resolve()
-        if velocity_model_backend is None:
-            # Validate model file existence and type for built-in model routing.
-            model_full_path = validate_velocity_model_file(model_full_path)
-        elif not model_full_path.exists():
-            raise FileNotFoundError(f"Velocity model file not found: {model_full_path}")
 
         # Calculate distance weighting parameters
         distance_weighting_enabled, k, x0 = configure_distance_weighting(
@@ -168,13 +108,7 @@ class EventLocator:
             phases=tuple(phases),
             min_picks_per_event=min_picks_per_event,
             default_time_error=default_time_error,
-            mode=mode,
-            engine=engine,
             derivative_method=derivative_method,
-            max_depth_km=max_depth_km,
-            max_distance_km=max_distance_km,
-            depth_step_km=depth_step_km,
-            distance_step_km=distance_step_km,
             fix_depth_km=fix_depth_km,
             precalculate_velocities=bool(_precalculate_velocities),
             distance_weighting_enabled=distance_weighting_enabled,
@@ -183,16 +117,6 @@ class EventLocator:
             full_data_covariance=bool(full_data_covariance),
             correlation_length_km=float(correlation_length_km),
         )
-
-        if velocity_model_backend is None:
-            self.velocity_model_handler = VelocityModel.from_file(model_full_path)
-        else:
-            self.velocity_model_handler = velocity_model_backend(model_full_path)
-            if not isinstance(self.velocity_model_handler, VelocityModel):
-                raise TypeError(
-                    "velocity_model_backend must return a "
-                    "VelocityModel-compatible instance."
-                )
 
         # Initialize Data handling
         self.data = DataHandler(
@@ -203,47 +127,17 @@ class EventLocator:
             fix_depth_km=self.config.fix_depth_km,
         )
 
-        # Initialize the travel-time calculator.
-        propagation_config = PropagationConfig(
-            mode=self.config.mode,
-            engine=self.config.engine,
-            phases=self.config.phases,
-            model_path=self.velocity_model_handler.model_path,  # type: ignore[arg-type]
-            max_depth=max_depth_km,
-            max_distance=max_distance_km,
-            depth_step=depth_step_km,
-            distance_step=distance_step_km,
-        )
-        (
-            backend_feature_flags,
-            backend_required_model_features,
-        ) = resolve_backend_contract(
-            mode=self.config.mode,
-            engine=self.config.engine,
-            engine_backend=engine_backend,
-        )
+        backend_feature_flags = propagation_engine.feature_flags
+        # backend_required_model_features = forward_engine.required_model_features
+
         if f"derivative.{self.config.derivative_method}" not in backend_feature_flags:
             raise ValueError(
                 "Unsupported derivative method: "
-                f"{self.config.derivative_method!r} for mode {self.config.mode!r} "
-                f"and engine {self.config.engine!r}."
+                f"{self.config.derivative_method!r} "
+                f"for {propagation_engine.__class__.__name__!r} backend."
             )
 
-        validate_model_backend_compatibility(
-            model_instance=self.velocity_model_handler,
-            required_model_features=backend_required_model_features,
-            mode=self.config.mode,
-            engine=self.config.engine,
-        )
-
-        self.propagation_backend: PropagationEngine = init_propagation(
-            propagation_config,
-            velocity_model=self.velocity_model_handler,
-            engine_backend=engine_backend,
-            backend_feature_flags=backend_feature_flags,
-            required_model_features=backend_required_model_features,
-        )
-        self.tracer = self.propagation_backend
+        self.propagation_backend = propagation_engine
 
         # Derivative engine - bridges config, data, model, and propagation backend
         self.derivative_engine = DerivativesHandler(
@@ -263,18 +157,18 @@ class EventLocator:
                 "Precomputing velocity profiles is not yet implemented. "
                 "This feature is planned for a future release."
             )
-            validate_precompute_args(max_depth_km, depth_step_km)
-            precompute_velocity_profiles = getattr(
-                self.velocity_model_handler,
-                "_precompute_velocity_profiles_1d",
-                None,
-            )
-            if callable(precompute_velocity_profiles):
-                precompute_velocity_profiles(
-                    self.config.phases,
-                    max_depth_km,
-                    depth_step_km,
-                )
+            # validate_precompute_args(max_depth_km, depth_step_km)
+            # precompute_velocity_profiles = getattr(
+            #     self.velocity_model,
+            #     "_precompute_velocity_profiles_1d",
+            #     None,
+            # )
+            # if callable(precompute_velocity_profiles):
+            #     precompute_velocity_profiles(
+            #         self.config.phases,
+            #         max_depth_km,
+            #         depth_step_km,
+            #     )
 
     def load_data(self, inv: Inventory, catalog: Union[List[Event], Catalog]) -> None:
         """
@@ -339,7 +233,8 @@ class EventLocator:
             self.config,
             self.derivative_engine,
             trial_depth_km,
-            self.config.max_depth_km,
+            self.propagation_backend.distance_step_km,
+            self.propagation_backend.max_depth_km,
         )
 
         inversion_engine = InversionEngine(

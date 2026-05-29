@@ -15,6 +15,7 @@ def init_locations(
     config: LocatorConfig,
     derivative_engine: DerivativesHandler,
     trial_depth_km: float,
+    depth_step_km: Optional[float],
     max_depth_km: Optional[float],
 ) -> None:
     """Initialize event locations and origin-time seeds.
@@ -133,15 +134,17 @@ def init_locations(
             candidate_depths = [float(config.fix_depth_km)]
             return unique_seeds, candidate_depths
 
+        # TODO: Document hardcoded upper bound
+        min_depth = max(1, depth_step_km) if depth_step_km is not None else 1
         # FIXME: This random sampling sometimes produces candidates with no valid tt.
         depth_grid_candidates = {
             round(x, 2)
             for x in np.random.normal(loc=initial_depth_km, scale=5.0, size=10)
-            if 0.0 < x < max_depth_km
+            if min_depth < x < max_depth_km
         }
 
         candidate_depths = sorted(
-            [d for d in depth_grid_candidates if 0.0 <= d <= max_depth_km]
+            [d for d in depth_grid_candidates if min_depth <= d <= max_depth_km]
         ) or [initial_depth_km]
         return unique_seeds, candidate_depths
 
