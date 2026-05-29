@@ -240,7 +240,6 @@ class EventLocator:
         inversion_engine = InversionEngine(
             config=self.config,
             data=self.data,
-            model_handler=self.velocity_model_handler,
             derivative_engine=self.derivative_engine,
         )
         inversion_results = inversion_engine.run_iterations(

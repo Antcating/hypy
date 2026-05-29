@@ -8,7 +8,6 @@ from scipy.sparse.linalg import lsmr
 
 from hypy.logger import logger
 
-from ..model import VelocityModel
 from ..utils.damping import update_damping_factor
 from .config import LocatorConfig
 from .data import DataHandler
@@ -49,12 +48,10 @@ class InversionEngine:
         self,
         config: LocatorConfig,
         data: DataHandler,
-        model_handler: VelocityModel,
         derivative_engine: DerivativesHandler,
     ) -> None:
         self.config = config
         self.data = data
-        self.model_handler = model_handler
         self.derivative_engine = derivative_engine
 
     def _clip_updates(
@@ -210,7 +207,10 @@ class InversionEngine:
         logger.info(f"Locating {data.n_events} events with {data.n_stations} stations.")
         logger.info(f"Using phases: {config.phases}")
         logger.info(f"Using {solver} solver.")
-        logger.info(f"Using {config.mode} mode for travel-time calculations.")
+        logger.info(
+            f"Using {self.derivative_engine.tracer.name} forward engine "
+            f"for travel-time calculations."
+        )
         logger.info(f"Distance weighting: {config.distance_weighting_enabled}")
         logger.info(f"Fix depth: {config.fix_depth_km}")
         logger.info(f"Precalculate velocities: {config.precalculate_velocities}")
