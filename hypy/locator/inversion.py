@@ -1,5 +1,7 @@
 """Inversion routines for seismic event relocation."""
 
+from typing import Optional
+
 import numpy as np
 from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
 from scipy.sparse.linalg import lsmr
@@ -145,7 +147,7 @@ class InversionEngine:
         max_iterations: int = 1000,
         conv_threshold: float = 1e-3,
         solve_airquakes: bool = False,
-        max_depth: float = 50.0,
+        max_depth: Optional[float] = None,
         safe_iteration_limit: int = 20,
         max_lm_trials: int = 8,
         lm_acceptance_tol: float = 1e-6,

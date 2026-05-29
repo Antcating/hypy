@@ -353,7 +353,7 @@ class EventLocator:
             max_iterations=max_iterations,
             conv_threshold=conv_threshold,
             solve_airquakes=solve_airquakes,
-            max_depth=self.config.max_depth_km or 300.0,
+            max_depth=self.propagation_backend.max_depth_km,
             safe_iteration_limit=safe_iteration_limit,
         )
 
