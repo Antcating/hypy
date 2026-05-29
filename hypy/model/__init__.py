@@ -29,10 +29,12 @@ class VelocityModel:
         model_path: Union[str, Path],
         model_name: Optional[str] = None,
         dim: Optional[int] = None,
+        radius_of_planet_km: float = 6371.0,
     ):
         self.model_path = Path(model_path).expanduser().resolve()
         self.model_name = model_name or self.model_path.stem
         self.dim = dim if dim is not None else -1
+        self.radius_of_planet_km = radius_of_planet_km
 
     @property
     def supported_features(self) -> frozenset[str]:

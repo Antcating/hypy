@@ -84,7 +84,7 @@ class LayeredPropagationEngine(PropagationEngine):
             source_longitude,
             receiver_latitude,
             receiver_longitude,
-            R=self.velocity_model.model.model.radius_of_planet * 1000.0,
+            R=self.velocity_model.radius_of_planet_km * 1000.0,
         )
         return dist_m / 1000.0, azimuth, back_azimuth
 

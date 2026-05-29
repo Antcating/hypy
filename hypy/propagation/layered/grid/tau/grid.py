@@ -403,7 +403,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
             source_longitude,
             receiver_latitude,
             receiver_longitude,
-            R=self.velocity_model.model.model.radius_of_planet * 1000.0,
+            R=self.velocity_model.radius_of_planet_km * 1000.0,
         )
         arc_distance_km = dist_m / 1000.0
 

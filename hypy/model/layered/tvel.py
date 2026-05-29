@@ -24,10 +24,20 @@ class TvelModel(VelocityModel):
         }
     )
 
-    def __init__(self, model_path: Path | str, dim: int | str = "auto"):
+    def __init__(
+        self,
+        model_path: Path | str,
+        dim: int | str = "auto",
+        radius_of_planet_km: float = 6371.0,
+    ):
         model_path = Path(model_path).expanduser().resolve()
 
-        super().__init__(model_path=model_path, model_name=model_path.stem, dim=1)
+        super().__init__(
+            model_path=model_path,
+            model_name=model_path.stem,
+            dim=1,
+            radius_of_planet_km=radius_of_planet_km,
+        )
 
         if not model_path.exists():
             raise FileNotFoundError(f"Velocity model file not found: {model_path}")
