@@ -233,18 +233,24 @@ class ErrorAnalyzer:
             if pick_errors.size != residuals.size:
                 return None
 
-            weights = np.asarray(time_error_weight(pick_errors))
+            weights = time_error_weight(pick_errors)
             hessian = jacobian_matrix.T @ (weights[:, np.newaxis] * jacobian_matrix)
             hessian_inv = ErrorAnalyzer._regularized_inverse(hessian)
             if hessian_inv is None:
                 return None
 
-            sigma_inv_r = weights * residuals
-            reduced_chi2 = float(residuals.T @ sigma_inv_r) / float(
-                residuals.size - int(dim)
-            )
-            if not np.isfinite(reduced_chi2):
+            dof = residuals.size - int(dim)
+            if dof < 0:
                 return None
+            if dof == 0:
+                # TODO: find sources in literature for how to handle this case,
+                #  e.g. when number of picks equals number of parameters
+                reduced_chi2 = 1.0
+            else:
+                sigma_inv_r = weights * residuals
+                reduced_chi2 = float(residuals.T @ sigma_inv_r) / float(dof)
+                if not np.isfinite(reduced_chi2):
+                    return None
         else:
             observation_covariance = np.asarray(observation_covariance, dtype=float)
             if observation_covariance.shape != (
@@ -267,11 +273,14 @@ class ErrorAnalyzer:
                 return None
 
             dof = residuals.size - int(dim)
-            if dof <= 0:
+            if dof < 0:
                 return None
-            reduced_chi2 = float(residuals.T @ sigma_inv_r) / float(dof)
-            if not np.isfinite(reduced_chi2):
-                return None
+            if dof == 0:
+                reduced_chi2 = 1.0
+            else:
+                reduced_chi2 = float(residuals.T @ sigma_inv_r) / float(dof)
+                if not np.isfinite(reduced_chi2):
+                    return None
 
         scale = reduced_chi2
 
