@@ -87,10 +87,10 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         self,
         model: VelocityModel,
         phases: List[str],
-        max_depth: float,
-        max_distance: float,
-        depth_step: float,
-        distance_step: float,
+        max_depth_km: float,
+        max_distance_km: float,
+        depth_step_km: float,
+        distance_step_km: float,
         engine: str = "pyrocko",
         overwrite: bool = False,
     ):
@@ -98,10 +98,10 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         model_name = Path(model.model_path).stem
         self.tracer: LayeredPropagationEngine
         self.phases = phases
-        self.max_depth = max_depth
-        self.max_distance = max_distance
-        self.depth_step = depth_step
-        self.distance_step = distance_step
+        self.max_depth_km = max_depth_km
+        self.max_distance_km = max_distance_km
+        self.depth_step_km = depth_step_km
+        self.distance_step_km = distance_step_km
         self.depth_grid: np.ndarray
         self.distance_grid: np.ndarray
         self.travel_time_tables: Dict[str, np.ndarray] = {}
@@ -112,7 +112,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
 
     def _table_filename(self, model_name: str, engine: str, phase: str) -> str:
         table_root_dir = Path(__file__).parent
-        table_name = f"travel_time_tables_{model_name}_{engine}_{phase}_d{self.max_depth}_r{self.max_distance}_dz{self.depth_step}_dr{self.distance_step}.npz"  # noqa: E501
+        table_name = f"travel_time_tables_{model_name}_{engine}_{phase}_d{self.max_depth_km}_r{self.max_distance_km}_dz{self.depth_step_km}_dr{self.distance_step_km}.npz"  # noqa: E501
         return os.path.join(table_root_dir, "data", table_name)
 
     def save(self, filename: str | Path) -> None:
@@ -255,7 +255,9 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
             # issues with table generation. This is a workaround and should be revisited
             # in the future to ensure that the tables can cover the full depth range
             # starting from 0 km if needed.
-            depth_values = np.arange(0.1, self.max_depth + 0.1 + 1e-6, self.depth_step)
+            depth_values = np.arange(
+                0.1, self.max_depth_km + 0.1 + 1e-6, self.depth_step_km
+            )
             # FIXME: Distance values should start from 0, not from 0.1,
             # but TauP and Pyrocko do not return valid travel times for
             # very short distances (e.g., 0 km),
@@ -264,7 +266,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
             # in the future to ensure that the tables can cover the full distance range
             # starting from 0 km if needed.
             distance_values = np.arange(
-                0.1, self.max_distance + 0.1 + 1e-6, self.distance_step
+                0.1, self.max_distance_km + 0.1 + 1e-6, self.distance_step_km
             )
             self.depth_grid = depth_values
             self.distance_grid = distance_values
