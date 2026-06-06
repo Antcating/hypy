@@ -1,11 +1,17 @@
-# test_station_geometries.py
+# test_station_geometries_new_api.py
+
 import logging
 import os
 from pathlib import Path
 
 import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from matplotlib.patches import Ellipse
 from obspy import UTCDateTime  # type: ignore[import-untyped]
 from obspy.core.event import (  # type: ignore[import-untyped]
     Catalog,
@@ -26,13 +32,13 @@ from obspy.geodetics import (  # type: ignore[import-untyped]
 )
 from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
-
-# -------------------------------------------------------
 from hypy.locator import EventLocator
-from hypy.locator.config import VALID_OPERATING_REGIMES
+from hypy.model.layered.tvel import TvelModel
+from hypy.propagation.layered.grid.fmm import FmmTravelTimeGrid1D
+from hypy.propagation.layered.grid.tau import TauTravelTimeGrid
+from hypy.propagation.layered.ray_tracer.pyrocko import PyrockoRayTracer
+from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
+from hypy.propagation.layered.ray_tracer.tracer import Local1DRayTracer
 from tests.solver.syntetic.utils.geometry_generator import (
     _circle_geometry,
     _circle_offset_center,
@@ -54,6 +60,7 @@ from tests.solver.syntetic.utils.geometry_generator import (
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
 
 # -------------------- Fixtures & helpers --------------------
 
@@ -83,6 +90,7 @@ def _iasp91_tvel_path():
 
 def build_inventory(station_dict):
     net = Network(code="NET", start_date=UTCDateTime("2020-01-01"))
+
     for code, (lat, lon, elev) in station_dict.items():
         net.stations.append(
             Station(
@@ -94,6 +102,7 @@ def build_inventory(station_dict):
                 site=Site(name=code),
             )
         )
+
     return Inventory(networks=[net], source="synthetic-geom")
 
 
@@ -101,6 +110,7 @@ def make_single_event(model, stations, phases, true_loc, true_t, pick_uncertaint
     """Create a single Event with synthetic P/S picks for provided stations."""
     lat, lon, depth = true_loc
     ev = Event()
+
     phase_map = []
     if "P" in phases:
         phase_map.extend(["p", "P"])
@@ -116,21 +126,30 @@ def make_single_event(model, stations, phases, true_loc, true_t, pick_uncertaint
             receiver_longitude_in_deg=sta_lon,
             phase_list=phase_map,
         )
+
         for arr in [a for a in arrivals if a.name in ["p", "s", "P", "S"]]:
             pick_time = true_t + arr.time
+
             ev.picks.append(
                 Pick(
                     time=pick_time,
-                    time_errors=QuantityError(uncertainty=0.01, confidence_level=100.0),
+                    time_errors=QuantityError(
+                        uncertainty=pick_uncertainty,
+                        confidence_level=100.0,
+                    ),
                     phase_hint=arr.name,
                     waveform_id=WaveformStreamID(
-                        network_code="NET", station_code=sta, channel_code="HHZ"
+                        network_code="NET",
+                        station_code=sta,
+                        channel_code="HHZ",
                     ),
                 )
             )
-    # store truth for assertion
+
+    # Store truth for assertions.
     ev.true_location = np.array([lat, lon, depth])
     ev.true_origin_time = true_t
+
     cat = Catalog()
     cat.append(ev)
     return cat
@@ -139,48 +158,50 @@ def make_single_event(model, stations, phases, true_loc, true_t, pick_uncertaint
 def assert_single_event(loc, t0, event, tol_arc_km, tol_depth_km, tol_time_s):
     true_loc = event.true_location
     true_t = event.true_origin_time.timestamp
+
     arc_m, _, _ = gps2dist_azimuth(true_loc[0], true_loc[1], loc[0], loc[1])
     arc_km = arc_m / 1000.0
     depth_err = abs(true_loc[2] - loc[2])
     time_err = abs(true_t - t0)
+
     logger.info(
-        f"Geo error: {arc_km:.3f} km, depth err: {depth_err:.3f} km, time err: {time_err:.3f} s"
+        "Geo error: %.3f km, depth err: %.3f km, time err: %.3f s",
+        arc_km,
+        depth_err,
+        time_err,
     )
+
     assert arc_km <= tol_arc_km
     assert depth_err <= tol_depth_km
     assert time_err <= tol_time_s
 
 
-# --- NEW: plotting helper -----------------------------------------------------
 def _save_geom_plot(
     stations,
     true_loc,
     est_loc,
     geometry_name,
     phases,
-    mode,
-    engine,
+    forward_engine_name,
+    derivative_method,
     geo_err_km,
     depth_err_km,
     time_err_s,
     origin_uncertainty=None,
 ):
-    """
-    Save a 2D lat/lon plot showing station geometry, true epicenter, solution, and uncertainty ellipse.
-    """
+    """Save a 2D lat/lon plot showing station geometry, solution, and uncertainty ellipse."""
     outdir = Path("test_artifacts") / "station_geometries"
     outdir.mkdir(parents=True, exist_ok=True)
 
-    # Prepare figure
     fig, ax = plt.subplots(figsize=(6, 6), dpi=150)
 
-    # Stations
     st_lats = [v[0] for v in stations.values()]
     st_lons = [v[1] for v in stations.values()]
+
     ax.scatter(st_lons, st_lats, marker="^", s=30, label="Stations", zorder=2)
 
-    # True and estimated
     ax.scatter([true_loc[1]], [true_loc[0]], marker="*", s=80, label="True", zorder=4)
+
     ax.scatter(
         [est_loc[1]],
         [est_loc[0]],
@@ -192,7 +213,6 @@ def _save_geom_plot(
         zorder=5,
     )
 
-    # Error ellipse (if available)
     if (
         origin_uncertainty is not None
         and getattr(origin_uncertainty, "confidence_ellipsoid", None) is not None
@@ -205,6 +225,7 @@ def _save_geom_plot(
         if semi_major_m > 0 and semi_minor_m > 0:
             width_deg = 2 * kilometers2degrees(semi_major_m / 1000.0)
             height_deg = 2 * kilometers2degrees(semi_minor_m / 1000.0)
+
             ellipse = Ellipse(
                 (est_loc[1], est_loc[0]),
                 width=width_deg,
@@ -218,7 +239,6 @@ def _save_geom_plot(
             )
             ax.add_patch(ellipse)
 
-    # Connect true to estimated
     ax.plot(
         [true_loc[1], est_loc[1]],
         [true_loc[0], est_loc[0]],
@@ -236,30 +256,115 @@ def _save_geom_plot(
         max([est_loc[0], true_loc[0], max(st_lats)]) + 0.1,
     )
 
-    # Cosmetics
     ax.set_xlabel("Longitude (°)")
     ax.set_ylabel("Latitude (°)")
     ax.grid(True, linestyle=":")
     ax.set_aspect("equal", adjustable="box")
-    phase_tag = "".join(phases)
+
+    phase_tag = "+".join(phases)
+
     ax.set_title(
-        f"{geometry_name} | phases={phase_tag} | {mode}/{engine}\n"
-        f"geo={geo_err_km:.2f} km, depth={depth_err_km:.2f} km, time={time_err_s:.2f} s"
+        f"{geometry_name} | phases={phase_tag} | "
+        f"{forward_engine_name}/{derivative_method}\n"
+        f"geo={geo_err_km:.2f} km, depth={depth_err_km:.2f} km, "
+        f"time={time_err_s:.2f} s"
     )
+
     ax.legend(loc="best", frameon=True)
 
-    # Save
-    fname = f"{geometry_name}_phases-{phase_tag}_{mode}_{engine}.png"
+    fname = (
+        f"{geometry_name}_phases-{phase_tag}_"
+        f"{forward_engine_name}_{derivative_method}.png"
+    )
     fig.tight_layout()
     fig.savefig(outdir / fname)
     plt.close(fig)
-    logger.info(f"Saved plot to {outdir / fname}")
+
+    logger.info("Saved plot to %s", outdir / fname)
 
 
-# -----------------------------------------------------------------------------
+# -------------------- New API forward-engine helpers --------------------
 
 
-# -------------------- Parametrization --------------------
+def make_local_1d_ray_tracer(model_path, phases):
+    model = TvelModel(model_path)
+    return Local1DRayTracer(model)
+
+
+def make_taup_ray_tracer(model_path, phases):
+    model = TvelModel(model_path)
+    return TauPRayTracer(model)
+
+
+def make_taup_travel_time_grid(model_path, phases):
+    model = TvelModel(model_path)
+
+    return TauTravelTimeGrid(
+        model=model,
+        phases=phases,
+        max_depth_km=50.0,
+        max_distance_km=300.0,
+        depth_step_km=1.0,
+        distance_step_km=1.0,
+        engine="taup",
+    )
+
+
+def make_pyrocko_ray_tracer(model_path, phases):
+    model = TvelModel(model_path)
+    return PyrockoRayTracer(model)
+
+
+def make_pyrocko_travel_time_grid(model_path, phases):
+    model = TvelModel(model_path)
+
+    return TauTravelTimeGrid(
+        model=model,
+        phases=phases,
+        max_depth_km=50.0,
+        max_distance_km=300.0,
+        depth_step_km=1.0,
+        distance_step_km=1.0,
+        engine="pyrocko",
+    )
+
+
+def make_fmm_travel_time_grid(model_path, phases):
+    model = TvelModel(model_path)
+
+    return FmmTravelTimeGrid1D(
+        model=model,
+        phases=phases,
+        max_depth=50.0,
+        max_distance=300.0,
+        depth_step=1.0,
+        distance_step=1.0,
+    )
+
+
+FORWARD_ENGINE_FACTORIES = {
+    "local_ray_tracer": make_local_1d_ray_tracer,
+    "taup_ray_tracer": make_taup_ray_tracer,
+    "taup_travel_time_grid": make_taup_travel_time_grid,
+    "pyrocko_ray_tracer": make_pyrocko_ray_tracer,
+    "pyrocko_travel_time_grid": make_pyrocko_travel_time_grid,
+    "fmm_travel_time_grid": make_fmm_travel_time_grid,
+}
+
+
+DERIVATIVE_METHODS_BY_FORWARD_ENGINE = {
+    # Adjust this if your implementation supports fewer/more combinations.
+    "local_ray_tracer": ["numerical", "analytical"],
+    "taup_ray_tracer": ["numerical", "analytical"],
+    "taup_travel_time_grid": ["numerical"],
+    "pyrocko_ray_tracer": ["numerical", "analytical"],
+    "pyrocko_travel_time_grid": ["numerical"],
+    "fmm_travel_time_grid": ["numerical"],
+}
+
+
+# -------------------- Geometry parameter definitions --------------------
+
 
 GEOMETRIES = {
     "uniform_grid_3x3": (
@@ -277,7 +382,6 @@ GEOMETRIES = {
         dict(n=6, radius_km=20.0, prefix="EL"),
         (3.0, 2.0, 0.7),
     ),
-    # name: (builder_fn, kwargs, tolerances (arc_km, depth_km, time_s))
     "ring_20km_8sta": (
         _circle_geometry,
         dict(radius_km=20.0, n=8, prefix="R"),
@@ -306,13 +410,11 @@ GEOMETRIES = {
     "L_shape_offset_gap10_outside": (
         _L_shape_offset_around,
         dict(arm_km=40.0, step_km=10.0, gap_km=10.0, prefix="LSO"),
-        # tolerances roughly similar to the standard L-shape; adjust as you like
         (4.5, 3.0, 0.8),
     ),
     "L_shape_offset_gap10_inside": (
         _L_shape_offset_around,
         dict(arm_km=40.0, step_km=10.0, gap_km=-10.0, prefix="LSO"),
-        # tolerances roughly similar to the standard L-shape; adjust as you like
         (4.5, 3.0, 0.8),
     ),
     "one_sided_east": (
@@ -336,12 +438,12 @@ GEOMETRIES = {
             n=10,
             r_min_km=8.0,
             r_max_km=45.0,
-            bearing_center_deg=90.0,  # cluster to the EAST of the event
-            aperture_deg=120.0,  # 120° wide sector
+            bearing_center_deg=90.0,
+            aperture_deg=120.0,
             seed=42,
             prefix="CSE",
         ),
-        (6.5, 5.0, 1.0),  # tolerances: tune as you see fit
+        (6.5, 5.0, 1.0),
     ),
     "cluster_one_side_east_far": (
         _cluster_one_side,
@@ -349,12 +451,12 @@ GEOMETRIES = {
             n=10,
             r_min_km=100.0,
             r_max_km=200.0,
-            bearing_center_deg=90.0,  # cluster to the EAST of the event
-            aperture_deg=120.0,  # 120° wide sector
+            bearing_center_deg=90.0,
+            aperture_deg=120.0,
             seed=42,
             prefix="CSEF",
         ),
-        (6.5, 5.0, 1.0),  # tolerances: tune as you see fit
+        (6.5, 5.0, 1.0),
     ),
     "pair_opposite_20km_az0": (
         _pair_opposite,
@@ -386,108 +488,132 @@ GEOMETRIES = {
 }
 
 
-# build parameter grid and nice IDs
 ALL_PHASE_SETS = [["P"], ["S"], ["P", "S"]]
 
-# Which geometries are exactly 2-station?
 TWO_STATION_GEOMS = {
     "pair_opposite_20km_az0",
     "pair_same_az_near_far_E",
     "pair_orthogonal_equal_20km",
     "pair_one_side_random_E_sector",
 }
+
 THREE_STATION_GEOMS = {
     "sparse_3sta",
 }
 
 
-def _phase_id(phs):
-    return "+".join(phs)
+def _phase_id(phases):
+    return "+".join(phases)
 
 
-_PARAMS = []
-for geom_name in GEOMETRIES.keys():
-    allowed_phase_sets = (
-        [["P", "S"]]
-        if (geom_name in TWO_STATION_GEOMS or geom_name in THREE_STATION_GEOMS)
-        else ALL_PHASE_SETS
-    )
+PARAMS = []
+
+for geometry_name in GEOMETRIES.keys():
+    if geometry_name in TWO_STATION_GEOMS or geometry_name in THREE_STATION_GEOMS:
+        allowed_phase_sets = [["P", "S"]]
+    else:
+        allowed_phase_sets = ALL_PHASE_SETS
+
     for phases in allowed_phase_sets:
-        for mode in VALID_OPERATING_REGIMES.keys():
-            for eng in VALID_OPERATING_REGIMES[mode]:
-                for derivative_method in VALID_OPERATING_REGIMES[mode][eng]:
-                    _PARAMS.append((geom_name, phases, mode, eng, derivative_method))
+        for forward_engine_name in FORWARD_ENGINE_FACTORIES.keys():
+            for derivative_method in DERIVATIVE_METHODS_BY_FORWARD_ENGINE[
+                forward_engine_name
+            ]:
+                PARAMS.append(
+                    (
+                        geometry_name,
+                        phases,
+                        forward_engine_name,
+                        derivative_method,
+                    )
+                )
 
-_IDS = [
-    f"{geom}|phases={_phase_id(phs)}|{mode}/{eng}/{derivative_method}"
-    for (geom, phs, mode, eng, derivative_method) in _PARAMS
+
+IDS = [
+    f"{geometry_name}|phases={_phase_id(phases)}|"
+    f"{forward_engine_name}/{derivative_method}"
+    for (
+        geometry_name,
+        phases,
+        forward_engine_name,
+        derivative_method,
+    ) in PARAMS
 ]
 
 
 # -------------------- The Test Itself --------------------
+
+
 @pytest.mark.parametrize(
-    "geometry_name, phases, mode, engine, derivative_method", _PARAMS, ids=_IDS
+    "geometry_name, phases, forward_engine_name, derivative_method",
+    PARAMS,
+    ids=IDS,
 )
 def test_event_location_vs_geometry(
     taup_model,
     true_event_params,
     geometry_name,
     phases,
-    mode,
-    engine,
+    forward_engine_name,
     derivative_method,
 ):
-    (true_loc, true_t) = true_event_params
-    builder, kwargs, (tol_arc_km, tol_depth_km, tol_time_s) = GEOMETRIES[geometry_name]
+    true_loc, true_t = true_event_params
 
-    # build stations for this geometry
+    builder, kwargs, tolerances = GEOMETRIES[geometry_name]
+    tol_arc_km, tol_depth_km, tol_time_s = tolerances
+
+    # Build stations for this geometry.
     stations = builder(true_loc, **kwargs)
     inventory = build_inventory(stations)
 
-    # synthesize single event with picks
-    catalog = make_single_event(taup_model, stations, phases, true_loc, true_t)
+    # Synthesize one event with picks.
+    catalog = make_single_event(
+        model=taup_model,
+        stations=stations,
+        phases=phases,
+        true_loc=true_loc,
+        true_t=true_t,
+    )
 
-    # configure locator
+    # New API: build forward engine explicitly and inject it.
     model_path = _iasp91_tvel_path()
-    if mode == "ray-1d":
-        locator = EventLocator(
-            model_path,
-            phases=phases,
-            mode="ray-1d",
-            engine=engine,
-            derivative_method=derivative_method,
-        )
-    else:
-        locator = EventLocator(
-            model_path,
-            phases=phases,
-            mode="table-1d",
-            engine=engine,
-            derivative_method=derivative_method,
-            max_distance_km=250.0,
-            distance_step_km=1.0,
-            max_depth_km=50.0,
-            depth_step_km=1.0,
-        )
+    forward_engine_factory = FORWARD_ENGINE_FACTORIES[forward_engine_name]
+    forward_engine = forward_engine_factory(model_path, phases)
 
-    # run
+    locator = EventLocator(
+        propagation_engine=forward_engine,
+        derivative_method=derivative_method,
+        distance_weight_start_km=100.0,
+        distance_weight_end_km=200.0,
+        full_data_covariance=False,
+        correlation_length_km=1.0,
+        log_level="INFO",
+    )
+
     locator.load_data(inventory, catalog)
-    out, _ = locator.locate(max_iterations=1000, trial_depth_km=5.0, solver="lsqr")
 
-    # extract final origin
+    out, invalid = locator.locate(
+        max_iterations=1000,
+        trial_depth_km=5.0,
+        solver="lsqr",
+    )
+
+    assert invalid.size == 0
+
     e = out[0]
-    est_lat = e.origins[-1].latitude
-    est_lon = e.origins[-1].longitude
-    est_depth_km = e.origins[-1].depth / 1000.0
-    est_time = e.origins[-1].time.timestamp
+    origin = e.origins[-1]
+
+    est_lat = origin.latitude
+    est_lon = origin.longitude
+    est_depth_km = origin.depth / 1000.0
+    est_time = origin.time.timestamp
 
     arc_m, _, _ = gps2dist_azimuth(true_loc[0], true_loc[1], est_lat, est_lon)
     geo_err_km = arc_m / 1000.0
     depth_err_km = abs(true_loc[2] - est_depth_km)
     time_err_s = abs(catalog[0].true_origin_time.timestamp - est_time)
 
-    origin = e.origins[-1] if e.origins else None
-    origin_unc = origin.origin_uncertainty if origin is not None else None
+    origin_uncertainty = origin.origin_uncertainty if origin is not None else None
 
     _save_geom_plot(
         stations=stations,
@@ -495,21 +621,19 @@ def test_event_location_vs_geometry(
         est_loc=(est_lat, est_lon),
         geometry_name=geometry_name,
         phases=phases,
-        mode=mode,
-        engine=engine,
+        forward_engine_name=forward_engine_name,
+        derivative_method=derivative_method,
         geo_err_km=geo_err_km,
         depth_err_km=depth_err_km,
         time_err_s=time_err_s,
-        origin_uncertainty=origin_unc,
+        origin_uncertainty=origin_uncertainty,
     )
-    # ----------------------------------------------------------
 
-    # assertions (tolerances reflect geometry strength)
     assert_single_event(
-        (est_lat, est_lon, est_depth_km),
-        est_time,
-        catalog[0],
-        tol_arc_km,
-        tol_depth_km,
-        tol_time_s,
+        loc=(est_lat, est_lon, est_depth_km),
+        t0=est_time,
+        event=catalog[0],
+        tol_arc_km=tol_arc_km,
+        tol_depth_km=tol_depth_km,
+        tol_time_s=tol_time_s,
     )
