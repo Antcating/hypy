@@ -156,7 +156,7 @@ def test_load_event_data_shapes():
     assert handler.arrivals.shape == (1, 6)
     assert handler.arrival_time_errors.shape == (1, 6)
     assert handler.theoretical_travel_times.shape == (1, 6)
-    assert handler.derivative_matrix.shape == (6, 4)
+    assert handler.jacobian_matrix.shape == (6, 4)
     assert handler.time_error_W.shape == (6,)
     assert handler.distance_W.shape == (6,)
     assert handler.locations.shape == (1, 3)

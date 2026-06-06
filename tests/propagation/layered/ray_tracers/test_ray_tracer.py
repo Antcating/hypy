@@ -5,6 +5,7 @@ import os
 import obspy
 import pytest
 
+from hypy.model.layered.tvel import TvelModel
 from hypy.propagation.layered.ray_tracer import LayeredRayTracer
 from hypy.propagation.layered.ray_tracer.pyrocko import PyrockoRayTracer
 from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
@@ -16,10 +17,11 @@ def tracer(request):
     model = "iasp91"
     obspy_path = os.path.dirname(obspy.__file__)
     model_path = os.path.join(obspy_path, "taup", "data", f"{model}.tvel")
+    model = TvelModel(model_path)
     if request.param == "taup":
-        return TauPRayTracer(model_path=model_path)
+        return TauPRayTracer(model=model)
     elif request.param == "pyrocko":
-        return PyrockoRayTracer(model_path=model_path)
+        return PyrockoRayTracer(model=model)
 
 
 def test_get_arrival_1d(tracer: LayeredRayTracer):

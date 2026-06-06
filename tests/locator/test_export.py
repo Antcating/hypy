@@ -45,8 +45,10 @@ def build_test_event_data(validity):
     data.time_refs = np.array([1000.0 for _ in validity], dtype=float)
     data.fixed_depth_mask = np.array([False for _ in validity], dtype=bool)
     data.stations = [("NW", "ST")]
+    data.n_stations = len(data.stations)
     data.arrivals = np.array([[12.0] for _ in validity], dtype=float)
     data.theoretical_travel_times = np.array([[1.0] for _ in validity], dtype=float)
+    data.distance_W = np.ones(len(validity) * data.n_stations, dtype=float)
     return data
 
 
@@ -54,7 +56,6 @@ def test_exporter_outputs_catalog():
     config = type("C", (), {"phases": ["P"], "n_phases": 1})()
     data = build_test_event_data([False])
     error_results = ErrorResults(
-        covariances=np.zeros((1, 3, 3)),
         spatial_covariances=np.zeros((1, 2, 2)),
         principal_std=np.array([[1.0, 0.8, 0.5]], dtype=float),
         principal_axes=np.eye(3)[None, :, :],
@@ -81,7 +82,6 @@ def test_exporter_outputs_catalog():
 def test_exporter_outputs_events_list():
     config = type("C", (), {"phases": ["P"], "n_phases": 1})()
     error_results = ErrorResults(
-        covariances=np.zeros((1, 3, 3)),
         spatial_covariances=np.zeros((1, 2, 2)),
         principal_std=np.array([[1.0, 0.8, 0.5]], dtype=float),
         principal_axes=np.eye(3)[None, :, :],
@@ -108,7 +108,6 @@ def test_origin_exporter_event_validation():
     config = type("C", (), {"phases": ["P"], "n_phases": 1})()
     data = build_test_event_data([True, False])
     error_results = ErrorResults(
-        covariances=np.zeros((2, 3, 3)),
         spatial_covariances=np.zeros((2, 2, 2)),
         principal_std=np.array([[1.0, 0.8, 0.5], [1.0, 0.8, 0.5]], dtype=float),
         principal_axes=np.repeat(np.eye(3)[None, :, :], 2, axis=0),

@@ -1,4 +1,4 @@
-"""Tests for locator error covariance and uncertainty trends."""
+"""Tests for locator error covariance and uncertainty calculations."""
 
 from types import SimpleNamespace
 from typing import cast
@@ -6,14 +6,23 @@ from typing import cast
 import numpy as np
 import pytest
 
+import hypy.locator.errors as error_module
 from hypy.locator.config import LocatorConfig
 from hypy.locator.data import DataHandler
-from hypy.locator.errors import ErrorAnalyzer
+from hypy.locator.errors import (
+    build_observation_covariance_from_stations,
+    compute_error_ellipsoids,
+    compute_event_errors,
+    covariance_from_design,
+    data_variance,
+    ellipsoid_axes,
+    filter_input_rows,
+    whiten_design,
+)
 from hypy.locator.types import InversionResults
 
 
 def _build_diagonal_design(counts: list[int]) -> np.ndarray:
-    """Build a design matrix whose normal matrix is diagonal with known entries."""
     rows = []
     dim = len(counts)
     for col, n_repeat in enumerate(counts):
@@ -23,372 +32,372 @@ def _build_diagonal_design(counts: list[int]) -> np.ndarray:
     return np.vstack(rows)
 
 
-def _build_analyzer_for_single_event(
-    n_stations: int, n_phases: int = 1
-) -> ErrorAnalyzer:
-    config = cast(LocatorConfig, SimpleNamespace(dim=4, n_phases=n_phases))
-    data = SimpleNamespace(
-        n_events=1,
-        n_stations=n_stations,
-        invalid_events=np.array([False], dtype=bool),
-        arrival_time_errors=np.full((1, n_stations * n_phases), 0.1, dtype=float),
+def _build_single_event_inputs(
+    n_stations: int,
+    n_phases: int = 1,
+    full_data_covariance: bool = False,
+) -> tuple[LocatorConfig, DataHandler]:
+    config = cast(
+        LocatorConfig,
+        SimpleNamespace(
+            dim=4,
+            n_phases=n_phases,
+            full_data_covariance=full_data_covariance,
+            correlation_length_km=1.0,
+        ),
     )
-    return ErrorAnalyzer(config=config, data=cast(DataHandler, data))
-
-
-def test_compute_event_errors_matches_theoretical_closed_form() -> None:
-    """Match event covariance against a closed-form diagonal solution."""
-    # Choose per-parameter row counts so A^T A is diagonal with unique values.
-    counts = [9, 4, 1, 25]
-    dim = 4
-    damping = 0.5
-
-    A_e = _build_diagonal_design(counts)
-    r_e = np.full(A_e.shape[0], 0.3, dtype=float)
-    pick_errs_e = np.full(A_e.shape[0], 0.4, dtype=float)
-
-    err = ErrorAnalyzer._compute_event_errors(
-        design_matrix=A_e,
-        residuals=r_e,
-        pick_errors=pick_errs_e,
-        damping=damping,
-        dim=dim,
+    data = cast(
+        DataHandler,
+        SimpleNamespace(
+            n_events=1,
+            n_stations=n_stations,
+            invalid_events=np.array([False], dtype=bool),
+            arrival_time_errors=np.full((1, n_stations * n_phases), 0.1, dtype=float),
+            station_distances_km=np.zeros((n_stations, n_stations), dtype=float),
+        ),
     )
-
-    assert err is not None
-
-    sigma2 = 0.3**2 + 0.4**2
-    expected_diag = sigma2 / (np.asarray(counts, dtype=float) + damping**2)
-    expected_c = np.diag(expected_diag)
-
-    assert np.allclose(err["C_full"], expected_c, atol=1e-12)
-    assert np.allclose(err["C_xyz"], expected_c[:3, :3], atol=1e-12)
-
-    # Principal std are sorted descending by variance from Cxyz.
-    expected_std_sorted = np.sqrt(np.sort(expected_diag[:3])[::-1])
-    assert np.allclose(err["principal_std_km_1sigma"], expected_std_sorted, atol=1e-12)
-
-    # With diagonal Cxyz, ERZ and ERH reduce to z-std and max(x,y)-std.
-    expected_erz = float(np.sqrt(expected_diag[2]))
-    expected_erh = float(np.sqrt(max(expected_diag[0], expected_diag[1])))
-    assert np.isclose(err["ERZ_km_1sigma"], expected_erz, atol=1e-12)
-    assert np.isclose(err["ERH_km_1sigma"], expected_erh, atol=1e-12)
-    assert err["n_obs_used"] == int(np.sum(counts))
+    return config, data
 
 
-def test_ellipsoid_axes_returns_expected_principal_std_and_scale() -> None:
-    """Check error ellipse principal axes and radius for anisotropic covariance."""
-    Cxyz = np.array([[5.0, 3.0], [3.0, 5.0]], dtype=float)
+def test_filter_input_rows_with_row_level_pick_errors() -> None:
+    A = np.array([[1.0, 0.0], [np.nan, 1.0], [0.0, 1.0]], dtype=float)
+    residuals = np.array([0.1, 0.2, np.nan], dtype=float)
+    pick_errors = np.array([0.1, 0.2, 0.3], dtype=float)
 
-    std_axes, erz, erh = ErrorAnalyzer._ellipsoid_axes(Cxyz)
+    A_filt, r_filt, p_filt = filter_input_rows(A, residuals, pick_errors)
 
-    # Eigenvalues are [8, 2], so 1-sigma std are [sqrt(8), sqrt(2)] sorted descending.
-    expected_std = np.array([np.sqrt(8.0), np.sqrt(2.0)], dtype=float)
-    assert np.allclose(std_axes, expected_std, atol=1e-12)
-
-    assert np.isnan(erz)
-    assert np.isclose(erh, expected_std[0], atol=1e-12)
+    assert A_filt.shape == (1, 2)
+    assert np.allclose(r_filt, np.array([0.1], dtype=float))
+    assert np.allclose(p_filt, np.array([0.1], dtype=float))
 
 
-def test_ellipsoids_1sigma_variance_checks() -> None:
-    """Check that output uncertainties match closed-form expected values."""
-    config = cast(LocatorConfig, SimpleNamespace(dim=4, n_phases=1))
-    data = SimpleNamespace(
-        n_events=1,
-        n_stations=4,
-        invalid_events=np.array([False], dtype=bool),
-        arrival_time_errors=np.full((1, 4), 0.1, dtype=float),
+def test_filter_input_rows_with_global_pick_error_array() -> None:
+    A = np.array([[1.0, 0.0], [np.nan, 1.0], [0.0, 1.0]], dtype=float)
+    residuals = np.array([0.1, 0.2, np.nan], dtype=float)
+    pick_errors = np.array([0.1, np.nan, 0.2], dtype=float)
+
+    _, _, p_filt = filter_input_rows(A, residuals, pick_errors)
+
+    assert np.allclose(p_filt, np.array([0.1], dtype=float))
+
+
+def test_build_observation_covariance_from_stations_returns_valid_covariance() -> None:
+    pick_errors = np.array([0.4, 0.6], dtype=float)
+    station_indices = np.array([0, 1], dtype=int)
+    phase_indices = np.array([0, 0], dtype=int)
+    station_distances_km = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=float)
+
+    covariance = build_observation_covariance_from_stations(
+        pick_errors=pick_errors,
+        station_indices=station_indices,
+        phase_indices=phase_indices,
+        station_distances_km=station_distances_km,
+        corr_length_km=1.0,
+        jitter_fraction=1e-6,
     )
 
-    analyzer = ErrorAnalyzer(config=config, data=cast(DataHandler, data))
+    assert covariance is not None
+    assert covariance.shape == (2, 2)
+    assert np.allclose(covariance, covariance.T)
+    assert covariance[0, 0] > covariance[0, 1]
+    assert covariance[0, 1] > 0.0
 
-    # design matrix *without* cross correlation: 4 obs for 4 parameters.
-    A_final = np.eye(4, dtype=float)
-    residuals_flat = np.full(4, 0.2, dtype=float)
 
-    inv = InversionResults(
-        design_matrix=A_final,
-        valid_rows=np.arange(4, dtype=int),
-        residuals_flat=residuals_flat,
-        damping=0.5,
+def test_build_observation_covariance_from_stations_returns_none_for_invalid_inputs() -> (
+    None
+):
+    invalid_args = [
+        (
+            np.array([], dtype=float),
+            np.array([], dtype=int),
+            np.array([], dtype=int),
+            np.zeros((0, 0), dtype=float),
+            1.0,
+        ),
+        (
+            np.array([0.1], dtype=float),
+            np.array([0, 1], dtype=int),
+            np.array([0], dtype=int),
+            np.zeros((1, 1), dtype=float),
+            1.0,
+        ),
+        (
+            np.array([0.1], dtype=float),
+            np.array([0], dtype=int),
+            np.array([0, 0], dtype=int),
+            np.zeros((1, 1), dtype=float),
+            1.0,
+        ),
+        (
+            np.array([0.1], dtype=float),
+            np.array([0], dtype=int),
+            np.array([0], dtype=int),
+            np.ones((2, 1), dtype=float),
+            1.0,
+        ),
+        (
+            np.array([0.1], dtype=float),
+            np.array([1], dtype=int),
+            np.array([0], dtype=int),
+            np.eye(1, dtype=float),
+            1.0,
+        ),
+        (
+            np.array([0.1], dtype=float),
+            np.array([0], dtype=int),
+            np.array([0], dtype=int),
+            np.eye(1, dtype=float),
+            0.0,
+        ),
+    ]
+
+    for (
+        pick_errors,
+        station_indices,
+        phase_indices,
+        station_distances_km,
+        corr_length_km,
+    ) in invalid_args:
+        assert (
+            build_observation_covariance_from_stations(
+                pick_errors=pick_errors,
+                station_indices=station_indices,
+                phase_indices=phase_indices,
+                station_distances_km=station_distances_km,
+                corr_length_km=corr_length_km,
+            )
+            is None
+        )
+
+
+def test_hypoinverse_data_variance_uses_rderr_and_rms() -> None:
+    residuals = np.array([0.1, -0.2, 0.3], dtype=float)
+    pick_errors = np.array([0.1, 0.2, 0.3], dtype=float)
+
+    sigma2, rms, rderr = data_variance(
+        residuals=residuals,
+        pick_errors=pick_errors,
+        error_coefficient=2.0,
     )
 
-    out = analyzer.compute_error_ellipsoids(inv)
+    expected_rms = float(np.sqrt(np.mean(residuals**2)))
+    assert np.isclose(rms, expected_rms, atol=1e-12)
+    assert np.isclose(rderr, 0.2, atol=1e-12)
+    assert np.isclose(sigma2, 0.2**2 + (2.0 * expected_rms) ** 2, atol=1e-12)
 
-    # Analytical values from C = sigma2 * inv(A^T A + lambda^2 I)
-    sigma2 = 0.2**2 + 0.1**2
-    expected_var = sigma2 / (1.0 + 0.5**2)
 
-    expected_cov_full = np.diag(
-        [expected_var, expected_var, expected_var, expected_var]
+def test_whiten_design_uses_relative_observation_covariance() -> None:
+    design = np.eye(2, dtype=float)
+    observation_covariance = np.diag(np.array([0.04, 0.16], dtype=float))
+
+    whitened = whiten_design(
+        jacobian_matrix=design,
+        observation_covariance=observation_covariance,
+        reference_variance=0.04,
     )
-    expected_cov_xyz = np.diag([expected_var, expected_var, expected_var])
 
-    assert np.allclose(out.covariances[0], expected_cov_full, atol=1e-12)
-    assert np.allclose(out.spatial_covariances[0], expected_cov_xyz, atol=1e-12)
+    assert whitened is not None
+    assert np.allclose(whitened, np.diag([1.0, 0.5]), atol=1e-12)
 
-    expected_std = np.sqrt(expected_var)
+
+def test_hypoinverse_covariance_from_design_uses_svd() -> None:
+    design = _build_diagonal_design([2, 2])
+    covariance = covariance_from_design(
+        design_matrix=design,
+        sigma2=0.5,
+    )
+
+    assert covariance is not None
+    assert np.allclose(covariance, np.diag([0.25, 0.25]), atol=1e-12)
+
+
+def test_ellipsoid_axes_returns_expected_principal_std_and_errors() -> None:
+    Cxyz2 = np.array([[5.0, 3.0], [3.0, 5.0]], dtype=float)
+    std_axes2, _, erz2, erh2 = ellipsoid_axes(Cxyz2)
     assert np.allclose(
-        out.principal_std[0],
-        np.array([expected_std, expected_std, expected_std]),
-        atol=1e-12,
+        std_axes2, np.array([np.sqrt(8.0), np.sqrt(2.0)], dtype=float), atol=1e-12
     )
-    assert np.isclose(out.erz_erh[0, 0], expected_std, atol=1e-12)
-    assert np.isclose(out.erz_erh[0, 1], expected_std, atol=1e-12)
+    assert np.isnan(erz2)
+    assert np.isclose(erh2, std_axes2[0], atol=1e-12)
+
+    Cxyz3 = np.diag(np.array([4.0, 1.0, 0.25], dtype=float))
+    std_axes3, _, erz3, erh3 = ellipsoid_axes(Cxyz3)
+    assert np.allclose(std_axes3, np.array([2.0, 1.0, 0.5]), atol=1e-12)
+    assert np.isclose(erz3, 0.5, atol=1e-12)
+    assert np.isclose(erh3, 2.0, atol=1e-12)
+
+    Cxyz1 = np.array([[0.16]], dtype=float)
+    std_axes1, _, erz1, erh1 = ellipsoid_axes(Cxyz1)
+    assert np.allclose(std_axes1, np.array([0.4]), atol=1e-12)
+    assert np.isnan(erz1)
+    assert np.isclose(erh1, 0.4, atol=1e-12)
 
 
-def test_error_decreases_with_more_stations() -> None:
-    """Show uncertainty decreases as station count increases."""
-    damping = 0.2
-    residual_level = 0.3
-    pick_error = 0.1
+def test_compute_event_errors_with_diagonal_design_computes_expected_covariance() -> (
+    None
+):
+    A = _build_diagonal_design([2, 2, 2, 2])
+    residuals = np.full(A.shape[0], 0.2, dtype=float)
+    pick_errors = np.full(A.shape[0], 0.1, dtype=float)
 
-    mean_std = []
-    expected_mean_std = []
+    result = compute_event_errors(
+        jacobian_matrix=A,
+        residuals=residuals,
+        pick_errors=pick_errors,
+        dim=4,
+    )
 
-    # Use multiples of 4 so each parameter gets the same number of constraints.
-    for n_stations in (4, 8, 12):
-        analyzer = _build_analyzer_for_single_event(n_stations=n_stations)
-
-        counts = [n_stations // 4] * 4
-        design_matrix = _build_diagonal_design(counts)
-        residuals = np.full(design_matrix.shape[0], residual_level, dtype=float)
-        analyzer.data.arrival_time_errors[:] = pick_error
-
-        inv = InversionResults(
-            design_matrix=design_matrix,
-            valid_rows=np.arange(design_matrix.shape[0], dtype=int),
-            residuals_flat=residuals,
-            damping=damping,
-        )
-        out = analyzer.compute_error_ellipsoids(inv)
-
-        mean_std.append(float(np.mean(out.principal_std[0])))
-
-        sigma2 = residual_level**2 + pick_error**2
-        per_axis_std = np.sqrt(sigma2 / (counts[0] + damping**2))
-        expected_mean_std.append(float(per_axis_std))
-
-    assert mean_std[0] > mean_std[1] > mean_std[2]
-    assert np.allclose(mean_std, expected_mean_std, atol=1e-12)
+    assert result is not None
+    expected_var = (0.1**2 + 0.2**2) / 2.0
+    assert np.allclose(result["C_xyz"], np.diag([expected_var] * 3), atol=1e-12)
+    assert np.isclose(result["RMS_s"], 0.2, atol=1e-12)
+    assert np.isclose(result["RDERR_s"], 0.1, atol=1e-12)
+    assert np.isclose(result["SIGMA2_s2"], 0.1**2 + 0.2**2, atol=1e-12)
+    assert result["n_obs_used"] == A.shape[0]
 
 
-def test_error_decreases_with_smaller_residuals() -> None:
-    """Show uncertainty decreases as residual level decreases."""
-    damping = 0.2
-    n_stations = 8
-    pick_error = 0.05
+def test_event_error_handling_with_identity_covariance() -> None:
+    A = _build_diagonal_design([2, 2, 2, 2])
+    residuals = np.full(A.shape[0], 0.2, dtype=float)
+    pick_errors = np.full(A.shape[0], 0.1, dtype=float)
 
-    analyzer = _build_analyzer_for_single_event(n_stations=n_stations)
-    counts = [n_stations // 4] * 4
-    design_matrix = _build_diagonal_design(counts)
-    analyzer.data.arrival_time_errors[:] = pick_error
+    identity_cov = np.eye(A.shape[0], dtype=float)
+    result_identity = compute_event_errors(
+        jacobian_matrix=A,
+        residuals=residuals,
+        pick_errors=pick_errors,
+        dim=4,
+        observation_covariance=identity_cov,
+    )
+    assert result_identity is not None
 
-    mean_std = []
-    expected_mean_std = []
-
-    for residual_level in (0.4, 0.2, 0.1):
-        residuals = np.full(design_matrix.shape[0], residual_level, dtype=float)
-        inv = InversionResults(
-            design_matrix=design_matrix,
-            valid_rows=np.arange(design_matrix.shape[0], dtype=int),
-            residuals_flat=residuals,
-            damping=damping,
-        )
-        out = analyzer.compute_error_ellipsoids(inv)
-
-        mean_std.append(float(np.mean(out.principal_std[0])))
-
-        sigma2 = residual_level**2 + pick_error**2
-        per_axis_std = np.sqrt(sigma2 / (counts[0] + damping**2))
-        expected_mean_std.append(float(per_axis_std))
-
-    assert mean_std[0] > mean_std[1] > mean_std[2]
-    assert np.allclose(mean_std, expected_mean_std, atol=1e-12)
+    singular_cov = np.ones((A.shape[0], A.shape[0]), dtype=float)
+    result_singular = compute_event_errors(
+        jacobian_matrix=A,
+        residuals=residuals,
+        pick_errors=pick_errors,
+        dim=4,
+        observation_covariance=singular_cov,
+    )
+    assert result_singular is not None
 
 
-def test_compute_event_errors_returns_none_on_input_shape_guards() -> None:
-    """Return None for invalid matrix/vector shapes before algebra starts."""
+def test_compute_event_errors_with_invalid_shapes() -> None:
     assert (
-        ErrorAnalyzer._compute_event_errors(
-            design_matrix=np.ones((4, 1), dtype=float),
+        compute_event_errors(
+            jacobian_matrix=np.ones((4, 1), dtype=float),
             residuals=np.ones(3, dtype=float),
             pick_errors=np.ones(3, dtype=float),
-            damping=0.1,
             dim=1,
         )
         is None
     )
     assert (
-        ErrorAnalyzer._compute_event_errors(
-            design_matrix=np.zeros((0, 4), dtype=float),
+        compute_event_errors(
+            jacobian_matrix=np.zeros((0, 4), dtype=float),
             residuals=np.zeros(0, dtype=float),
             pick_errors=np.zeros(0, dtype=float),
-            damping=0.1,
             dim=4,
         )
         is None
     )
-    out = ErrorAnalyzer._compute_event_errors(
-        design_matrix=np.eye(4, dtype=float),
-        residuals=np.ones(4, dtype=float),
-        pick_errors=np.array([np.nan], dtype=float),
-        damping=0.1,
-        dim=4,
-    )
-    assert out is not None
-
-
-def test_compute_event_errors_row_filter_and_sigma_guards() -> None:
-    """Cover finite-row filtering and non-finite sigma guard paths."""
-    # All rows become invalid -> returns None.
     assert (
-        ErrorAnalyzer._compute_event_errors(
-            design_matrix=np.full((3, 4), np.nan, dtype=float),
-            residuals=np.array([1.0, 2.0, 3.0], dtype=float),
-            pick_errors=np.array([0.1, 0.1, 0.1], dtype=float),
-            damping=0.1,
-            dim=4,
-        )
-        is None
-    )
-
-    # Mismatched pick_errs_e length goes through else branch.
-    out = ErrorAnalyzer._compute_event_errors(
-        design_matrix=np.eye(4, dtype=float),
-        residuals=np.ones(4, dtype=float),
-        pick_errors=np.array([np.nan], dtype=float),
-        damping=0.1,
-        dim=4,
-    )
-    assert out is not None
-
-
-def test_compute_event_errors_handles_linalg_fallbacks(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Exercise inverse pseudo-inverse fallback and eigh failure handling."""
-    A_e = np.eye(4, dtype=float)
-    r_e = np.full(4, 0.2, dtype=float)
-    pick_errs_e = np.full(4, 0.1, dtype=float)
-
-    original_inv = np.linalg.inv
-
-    def raising_inv(x: np.ndarray) -> np.ndarray:
-        raise np.linalg.LinAlgError("forced")
-
-    monkeypatch.setattr(np.linalg, "inv", raising_inv)
-    out = ErrorAnalyzer._compute_event_errors(A_e, r_e, pick_errs_e, damping=0.3, dim=4)
-    assert out is not None
-    monkeypatch.setattr(np.linalg, "inv", original_inv)
-
-    def raising_eigh(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        raise np.linalg.LinAlgError("forced")
-
-    monkeypatch.setattr(np.linalg, "eigh", raising_eigh)
-    assert (
-        ErrorAnalyzer._compute_event_errors(A_e, r_e, pick_errs_e, damping=0.3, dim=4)
-        is None
-    )
-
-
-def test_compute_event_errors_additional_guards(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cover sigma2 non-finite, spatial_dim<=0, and non-finite Cxyz branches."""
-    A_e = np.eye(4, dtype=float)
-    r_e = np.full(4, 0.2, dtype=float)
-    pick_errs_e = np.full(4, 0.1, dtype=float)
-
-    original_nanmedian = np.nanmedian
-    monkeypatch.setattr(np, "nanmedian", lambda x: np.nan)
-    assert ErrorAnalyzer._compute_event_errors(A_e, r_e, pick_errs_e, 0.1, 4) is None
-
-    assert (
-        ErrorAnalyzer._compute_event_errors(
-            design_matrix=np.zeros((1, 0), dtype=float),
+        compute_event_errors(
+            jacobian_matrix=np.zeros((1, 0), dtype=float),
             residuals=np.zeros(1, dtype=float),
             pick_errors=np.zeros(1, dtype=float),
-            damping=0.1,
             dim=0,
         )
         is None
     )
 
-    monkeypatch.setattr(np, "nanmedian", original_nanmedian)
-    monkeypatch.setattr(
-        np.linalg,
-        "inv",
-        lambda x: np.full((4, 4), np.nan, dtype=float),
+
+def test_compute_event_errors_returns_none_when_no_degrees_of_freedom() -> None:
+    A = _build_diagonal_design([1, 1, 1, 1])
+    residuals = np.full(A.shape[0], 0.2, dtype=float)
+    pick_errors = np.full(A.shape[0], 0.1, dtype=float)
+
+    assert (
+        compute_event_errors(
+            jacobian_matrix=A,
+            residuals=residuals,
+            pick_errors=pick_errors,
+            dim=5,
+        )
+        is None
     )
-    assert ErrorAnalyzer._compute_event_errors(A_e, r_e, pick_errs_e, 0.1, 4) is None
 
 
-def test_compute_event_errors_spatial_dim_2_and_1_branches() -> None:
-    """Cover ERZ/ERH behavior for 2D and 1D spatial blocks."""
-    out2 = ErrorAnalyzer._compute_event_errors(
-        design_matrix=np.eye(3, dtype=float),
-        residuals=np.full(3, 0.2, dtype=float),
-        pick_errors=np.full(3, 0.1, dtype=float),
-        damping=0.0,
-        dim=3,
+def test_compute_event_errors_supports_exactly_determined_solution() -> None:
+    A = _build_diagonal_design([1, 1, 1, 1])
+    residuals = np.full(A.shape[0], 0.2, dtype=float)
+    pick_errors = np.full(A.shape[0], 0.1, dtype=float)
+
+    result = compute_event_errors(
+        jacobian_matrix=A,
+        residuals=residuals,
+        pick_errors=pick_errors,
+        dim=4,
     )
-    assert out2 is not None
-    assert np.isnan(out2["ERZ_km_1sigma"])
-    assert np.isfinite(out2["ERH_km_1sigma"])
 
-    out1 = ErrorAnalyzer._compute_event_errors(
-        design_matrix=np.eye(1, dtype=float),
-        residuals=np.full(1, 0.2, dtype=float),
-        pick_errors=np.full(1, 0.1, dtype=float),
-        damping=0.0,
-        dim=1,
-    )
-    assert out1 is not None
-    assert np.isnan(out1["ERZ_km_1sigma"])
-    assert np.isfinite(out1["ERH_km_1sigma"])
+    assert result is not None
+    assert result["n_obs_used"] == 4
+    assert np.allclose(result["C_xyz"], np.diag([0.05] * 3), atol=1e-12)
 
 
-def test_compute_error_ellipsoids_validation_errors() -> None:
-    """Raise ValueError for malformed global inversion array shapes."""
-    analyzer = _build_analyzer_for_single_event(n_stations=4)
+def test_compute_error_ellipsoids_raises_for_malformed_inversion_results() -> None:
+    config, data = _build_single_event_inputs(n_stations=4)
 
     with pytest.raises(ValueError, match="A_final must be a 2D array"):
-        analyzer.compute_error_ellipsoids(
+        compute_error_ellipsoids(
+            config,
+            data,
             InversionResults(
-                design_matrix=np.zeros(4, dtype=float),
+                jacobian_matrix=np.zeros(4, dtype=float),
+                jacobian_matrix_weighted=np.zeros(4, dtype=float),
                 valid_rows=np.arange(4, dtype=int),
                 residuals_flat=np.zeros(4, dtype=float),
+                residuals_flat_weighted=np.zeros(4, dtype=float),
                 damping=0.1,
-            )
+            ),
         )
 
     with pytest.raises(ValueError, match="columns but expected"):
-        analyzer.compute_error_ellipsoids(
+        compute_error_ellipsoids(
+            config,
+            data,
             InversionResults(
-                design_matrix=np.zeros((4, 5), dtype=float),
+                jacobian_matrix=np.zeros((4, 5), dtype=float),
+                jacobian_matrix_weighted=np.zeros((4, 5), dtype=float),
                 valid_rows=np.arange(4, dtype=int),
                 residuals_flat=np.zeros(4, dtype=float),
+                residuals_flat_weighted=np.zeros(4, dtype=float),
                 damping=0.1,
-            )
+            ),
         )
 
     with pytest.raises(ValueError, match="has length"):
-        analyzer.compute_error_ellipsoids(
+        compute_error_ellipsoids(
+            config,
+            data,
             InversionResults(
-                design_matrix=np.eye(4, dtype=float),
+                jacobian_matrix=np.eye(4, dtype=float),
+                jacobian_matrix_weighted=np.eye(4, dtype=float),
                 valid_rows=np.arange(4, dtype=int),
                 residuals_flat=np.zeros(3, dtype=float),
+                residuals_flat_weighted=np.zeros(3, dtype=float),
                 damping=0.1,
-            )
+            ),
         )
 
 
 def test_compute_error_ellipsoids_skips_invalid_rows_and_events(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Cover out-of-range rows, invalid events, empty rows, and errinfo None branch."""
-    config = cast(LocatorConfig, SimpleNamespace(dim=4, n_phases=1))
+    config = cast(
+        LocatorConfig,
+        SimpleNamespace(dim=4, n_phases=1, full_data_covariance=False),
+    )
     data = cast(
         DataHandler,
         SimpleNamespace(
@@ -396,51 +405,122 @@ def test_compute_error_ellipsoids_skips_invalid_rows_and_events(
             n_stations=2,
             invalid_events=np.array([True, False], dtype=bool),
             arrival_time_errors=np.full((2, 2), 0.1, dtype=float),
+            station_distances_km=np.zeros((2, 2), dtype=float),
         ),
     )
-    analyzer = ErrorAnalyzer(config=config, data=data)
-
-    # Global rows: 4, cols: 8 (2 events * dim 4)
-    design_matrix = np.zeros((4, 8), dtype=float)
-    design_matrix[2, 4] = 1.0
-    design_matrix[3, 5] = 1.0
+    jacobian_matrix_weighted = np.zeros((4, 8), dtype=float)
+    jacobian_matrix_weighted[2, 4] = 1.0
+    jacobian_matrix_weighted[3, 5] = 1.0
     inv = InversionResults(
-        design_matrix=design_matrix,
+        jacobian_matrix=np.zeros_like(jacobian_matrix_weighted),
+        jacobian_matrix_weighted=jacobian_matrix_weighted,
         valid_rows=np.array([-1, 0, 2, 3, 99], dtype=int),
         residuals_flat=np.full(4, 0.2, dtype=float),
+        residuals_flat_weighted=np.full(4, 0.2, dtype=float),
         damping=0.1,
     )
 
-    # Force errinfo None only for the non-invalid event branch.
-    monkeypatch.setattr(analyzer, "_compute_event_errors", lambda **_: None)
-    out = analyzer.compute_error_ellipsoids(inv)
+    monkeypatch.setattr(error_module, "compute_event_errors", lambda **_: None)
+    out = compute_error_ellipsoids(config, data, inv)
 
-    assert np.allclose(out.covariances, 0.0)
+    assert np.allclose(out.spatial_covariances, 0.0)
     assert np.isnan(out.erz_erh).all()
 
 
-def test_compute_error_ellipsoids_row_partition_branches() -> None:
-    """Cover event-index and local-row bounds plus empty-row event branch."""
-    config = cast(LocatorConfig, SimpleNamespace(dim=4, n_phases=1))
+def test_compute_error_ellipsoids_uses_full_design_row_indices(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = cast(
+        LocatorConfig,
+        SimpleNamespace(dim=4, n_phases=1, full_data_covariance=False),
+    )
     data = cast(
         DataHandler,
         SimpleNamespace(
             n_events=1,
-            n_stations=2,
+            n_stations=4,
             invalid_events=np.array([False], dtype=bool),
-            # n_err_cols=1 so local_row==1 is out of bounds.
-            arrival_time_errors=np.full((1, 1), 0.1, dtype=float),
+            arrival_time_errors=np.full((1, 4), 0.1, dtype=float),
+            station_distances_km=np.zeros((4, 4), dtype=float),
         ),
     )
-    analyzer = ErrorAnalyzer(config=config, data=data)
-
-    design_matrix = np.zeros((4, 4), dtype=float)
+    jacobian_matrix_weighted = np.zeros((4, 4), dtype=float)
+    jacobian_matrix_weighted[0, 0] = 1.0
+    jacobian_matrix_weighted[2, 1] = 1.0
     inv = InversionResults(
-        design_matrix=design_matrix,
-        # row 3 -> ev=1 out-of-range for n_events=1, row 1 -> local_row=1 out-of-range
-        valid_rows=np.array([1, 3], dtype=int),
-        residuals_flat=np.zeros(4, dtype=float),
+        jacobian_matrix=jacobian_matrix_weighted.copy(),
+        jacobian_matrix_weighted=jacobian_matrix_weighted,
+        valid_rows=np.array([0, 2], dtype=int),
+        residuals_flat=np.array([0.1, np.nan, 0.2, np.nan], dtype=float),
+        residuals_flat_weighted=np.array([0.1, np.nan, 0.2, np.nan], dtype=float),
         damping=0.1,
     )
-    out = analyzer.compute_error_ellipsoids(inv)
-    assert np.allclose(out.covariances, 0.0)
+
+    captured: dict[str, np.ndarray] = {}
+
+    def fake_compute_event_errors(
+        jacobian_matrix: np.ndarray,
+        residuals: np.ndarray,
+        pick_errors: np.ndarray,
+        **kwargs,
+    ) -> dict:
+        captured["jacobian"] = jacobian_matrix.copy()
+        captured["residuals"] = residuals.copy()
+        captured["pick_errors"] = pick_errors.copy()
+        return {
+            "C_xyz": np.zeros((3, 3), dtype=float),
+            "principal_std_km_1sigma": np.zeros(3, dtype=float),
+            "principal_axes_unit_vectors": np.zeros((3, 3), dtype=float),
+            "ERZ_km_1sigma": np.nan,
+            "ERH_km_1sigma": np.nan,
+            "RMS_s": 0.0,
+            "RDERR_s": 0.0,
+            "n_obs_used": 2,
+        }
+
+    monkeypatch.setattr(error_module, "compute_event_errors", fake_compute_event_errors)
+    out = compute_error_ellipsoids(config, data, inv)
+
+    assert np.allclose(captured["jacobian"], jacobian_matrix_weighted[[0, 2], :])
+    assert np.allclose(captured["residuals"], np.array([0.1, 0.2], dtype=float))
+    assert np.allclose(captured["pick_errors"], np.array([0.1, 0.1], dtype=float))
+    assert np.allclose(out.spatial_covariances, 0.0)
+
+
+def test_error_ellipsoids_full_covariance_observation() -> None:
+    config = cast(
+        LocatorConfig,
+        SimpleNamespace(
+            dim=4,
+            n_phases=2,
+            full_data_covariance=True,
+            correlation_length_km=10.0,
+        ),
+    )
+    data = cast(
+        DataHandler,
+        SimpleNamespace(
+            n_events=1,
+            n_stations=3,
+            invalid_events=np.array([False], dtype=bool),
+            arrival_time_errors=np.array([[0.1, 0.2, 0.1, 0.2, 0.1, 0.2]], dtype=float),
+            station_distances_km=np.array(
+                [[0.0, 1.0, 2.0], [1.0, 0.0, 1.5], [2.0, 1.5, 0.0]],
+                dtype=float,
+            ),
+        ),
+    )
+    jacobian_matrix = _build_diagonal_design([2, 2, 1, 1])
+    inv = InversionResults(
+        jacobian_matrix=jacobian_matrix,
+        jacobian_matrix_weighted=jacobian_matrix.copy(),
+        valid_rows=np.arange(jacobian_matrix.shape[0], dtype=int),
+        residuals_flat=np.full(jacobian_matrix.shape[0], 0.1, dtype=float),
+        residuals_flat_weighted=np.full(jacobian_matrix.shape[0], 0.1, dtype=float),
+        damping=0.1,
+    )
+
+    out = compute_error_ellipsoids(config, data, inv)
+    assert out.spatial_covariances.shape == (1, 3, 3)
+    assert out.principal_std.shape == (1, 3)
+    assert np.isfinite(out.erz_erh[0, 1])

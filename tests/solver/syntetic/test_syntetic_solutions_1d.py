@@ -36,9 +36,9 @@ from hypy.locator import EventLocator
 from hypy.model.layered.tvel import TvelModel
 from hypy.propagation.layered.grid.fmm import FmmTravelTimeGrid1D
 from hypy.propagation.layered.grid.tau import TauTravelTimeGrid
+from hypy.propagation.layered.ray_tracer.hypo import HypoRayTracer
 from hypy.propagation.layered.ray_tracer.pyrocko import PyrockoRayTracer
 from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
-from hypy.propagation.layered.ray_tracer.tracer import Local1DRayTracer
 from tests.solver.syntetic.utils.geometry_generator import (
     _circle_geometry,
     _circle_offset_center,
@@ -288,7 +288,7 @@ def _save_geom_plot(
 
 def make_local_1d_ray_tracer(model_path, phases):
     model = TvelModel(model_path)
-    return Local1DRayTracer(model)
+    return HypoRayTracer(model)
 
 
 def make_taup_ray_tracer(model_path, phases):

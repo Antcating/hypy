@@ -8,6 +8,7 @@ import numpy as np
 import obspy
 import pytest
 
+from hypy.model.layered.tvel import TvelModel
 from hypy.propagation.layered.grid import TauTravelTimeGrid
 
 
@@ -25,13 +26,14 @@ def travel_time_tables(
     engine = request.param
 
     def _create_tables(phases, overwrite=False) -> TauTravelTimeGrid:
+        model = TvelModel(model_path)
         return TauTravelTimeGrid(
-            model_tvel=model_path,
+            model=model,
             phases=phases,
-            max_depth=max_depth,
-            max_distance=max_distance,
-            depth_step=depth_step,
-            distance_step=distance_step,
+            max_depth_km=max_depth,
+            max_distance_km=max_distance,
+            depth_step_km=depth_step,
+            distance_step_km=distance_step,
             engine=engine,
             overwrite=overwrite,
         )
@@ -89,8 +91,9 @@ def test_invalid_engine():
     with pytest.raises(ValueError):
         obspy_path = Path(obspy.__file__).parents[0].as_posix()
         model_path = os.path.join(obspy_path, "taup/data/iasp91.tvel")
+        model = TvelModel(model_path)
         TauTravelTimeGrid(
-            model_tvel=model_path,
+            model=model,
             phases=["P"],
             max_depth=100.0,
             max_distance=1000.0,
