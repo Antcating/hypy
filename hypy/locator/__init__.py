@@ -17,7 +17,7 @@ from .config import (
 )
 from .data import DataHandler
 from .derivatives import DerivativesHandler
-from .errors import ErrorAnalyzer
+from .errors import compute_error_ellipsoids
 from .export import OriginExporter
 from .inversion import InversionEngine
 from .locations_setup import init_locations
@@ -67,6 +67,9 @@ class EventLocator:
     correlation_length_km : float, optional
         Correlation length in km used in the exponential observation covariance
         model when full_data_covariance is enabled. Default is 1.0.
+    error_coefficient : float, optional
+        HYPOINVERSE-style coefficient applied to RMS in the error variance
+        estimate ``RDERR^2 + (error_coefficient * RMS)^2``. Default is 1.0.
     _precalculate_velocities : bool, optional
         If True, precomputes velocity profiles for all events to speed up travel-time
         calculations. Requires max_depth_km and depth_step_km to be set. Default is False.
@@ -84,6 +87,7 @@ class EventLocator:
         fix_depth_km: Optional[float] = None,
         full_data_covariance: bool = False,
         correlation_length_km: float = 1.0,
+        error_coefficient: float = 1.0,
         min_picks_per_event: int = 4,
         default_time_error: float = 0.1,
         log_level: int = INFO,
@@ -116,6 +120,7 @@ class EventLocator:
             x0=x0,
             full_data_covariance=bool(full_data_covariance),
             correlation_length_km=float(correlation_length_km),
+            error_coefficient=float(error_coefficient),
         )
 
         # Initialize Data handling
@@ -251,8 +256,11 @@ class EventLocator:
             safe_iteration_limit=safe_iteration_limit,
         )
 
-        error_analyzer = ErrorAnalyzer(config=self.config, data=self.data)
-        error_results = error_analyzer.compute_error_ellipsoids(inversion_results)
+        error_results = compute_error_ellipsoids(
+            self.config,
+            self.data,
+            inversion_results,
+        )
 
         exporter = OriginExporter(config=self.config, data=self.data)
         events = exporter.finalize_origins(error_results, as_catalog=True)
