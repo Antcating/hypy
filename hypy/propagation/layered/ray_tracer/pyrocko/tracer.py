@@ -17,7 +17,7 @@ Returns
     (float, float): The arrival time and takeoff angle.
 """
 
-from typing import List
+from typing import Any, List
 
 from hypy.model import VelocityModel
 
@@ -45,6 +45,10 @@ class PyrockoRayTracer(LayeredRayTracer):
     ----------
     LayeredRayTracer : LayeredPropagationModel
         Base class for layered ray tracing.
+
+    Additional keyword arguments are forwarded to ``LayeredRayTracer``.  Use
+    ``arrival_cache_size`` and ``arrival_cache_precision_km`` there to configure
+    the shared layered-arrival cache
     """
 
     feature_flags = frozenset(
@@ -57,8 +61,8 @@ class PyrockoRayTracer(LayeredRayTracer):
     )
     required_model_features = frozenset({"model.profile.1d", "model.profile.1d"})
 
-    def __init__(self, model: VelocityModel):
-        super().__init__(model)
+    def __init__(self, model: VelocityModel, **kwargs: Any):
+        super().__init__(model, **kwargs)
         self.model: cake.LayeredModel = cake.load_model(model.model_path.as_posix())
 
     def get_arrival_1d(
@@ -99,19 +103,31 @@ class PyrockoRayTracer(LayeredRayTracer):
         """
         if phase.lower() == "p":
             phases = ["p", "P"]
+            phase_key = "p"
         elif phase.lower() == "s":
             phases = ["s", "S"]
+            phase_key = "s"
         else:
             raise ValueError(
                 f"Unsupported phase: {phase}. Supported phases are 'P' and 'S'."
             )
+
+        distance_km = float(abs(arc_distance_km))
+        cache_key = self._arrival_cache_key(
+            phase_key,
+            distance_km,
+            float(source_depth_km),
+        )
+        cached = self._arrival_cache_get(cache_key)
+        if cached is not None:
+            return cached
 
         # Convert distance from km to degrees
         try:
             arrivals: List[Ray] = self.model.arrivals(
                 zstart=source_depth_km * 1000,
                 zstop=0,
-                distances=[kilometer2degrees(abs(arc_distance_km))],
+                distances=[kilometer2degrees(distance_km)],
                 phases=phases,
             )
         except Exception as e:
@@ -125,7 +141,9 @@ class PyrockoRayTracer(LayeredRayTracer):
                 f"at distance {arc_distance_km} and depth {source_depth_km}."
             )
 
-        return arrivals[0].t, arrivals[0].takeoff_angle()
+        result = (float(arrivals[0].t), float(arrivals[0].takeoff_angle()))
+        self._arrival_cache_put(cache_key, result)
+        return result
 
     def get_arrival(
         self,

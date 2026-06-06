@@ -17,7 +17,7 @@ Returns
 
 """
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
 from obspy.taup import TauPyModel  # type: ignore[import-untyped]
@@ -38,6 +38,10 @@ class TauPRayTracer(LayeredRayTracer):
     ----------
     LayeredRayTracer : LayeredPropagationModel
         Base class for layered ray tracing.
+
+    Additional keyword arguments are forwarded to ``LayeredRayTracer``.  Use
+    ``arrival_cache_size`` and ``arrival_cache_precision_km`` there to configure
+    the shared layered-arrival cache
     """
 
     feature_flags = frozenset(
@@ -50,8 +54,8 @@ class TauPRayTracer(LayeredRayTracer):
     )
     required_model_features = frozenset({"model.profile.1d", "model.profile.1d"})
 
-    def __init__(self, model: VelocityModel):
-        super().__init__(model)
+    def __init__(self, model: VelocityModel, **kwargs: Any):
+        super().__init__(model, **kwargs)
         self.model: TauPyModel = TauPyModel(model.model_name)
 
     def get_arrival_1d(
@@ -92,12 +96,23 @@ class TauPRayTracer(LayeredRayTracer):
         """
         if phase.lower() == "p":
             phases = ["p", "P"]
+            phase_key = "p"
         elif phase.lower() == "s":
             phases = ["s", "S"]
+            phase_key = "s"
         else:
             raise ValueError(
                 f"Unsupported phase: {phase}. Supported phases are 'P' and 'S'."
             )
+
+        cache_key = self._arrival_cache_key(
+            phase_key,
+            float(arc_distance_km),
+            float(source_depth_km),
+        )
+        cached = self._arrival_cache_get(cache_key)
+        if cached is not None:
+            return cached
 
         # Convert distance from km to degrees
         try:
@@ -116,7 +131,9 @@ class TauPRayTracer(LayeredRayTracer):
                 f"No arrivals found for phase {phase} "
                 f"at distance {arc_distance_km} and depth {source_depth_km}."
             )
-        return arrivals[0].time, arrivals[0].takeoff_angle
+        result = (float(arrivals[0].time), float(arrivals[0].takeoff_angle))
+        self._arrival_cache_put(cache_key, result)
+        return result
 
     def get_arrival(
         self,
