@@ -92,8 +92,6 @@ class ErrorResults:
 
     Attributes
     ----------
-    covariances : numpy.ndarray
-        Full covariance matrices for each event.
     spatial_covariances : numpy.ndarray
         Spatial covariance matrices without the origin-time dimension.
     principal_std : numpy.ndarray
@@ -104,7 +102,6 @@ class ErrorResults:
         Vertical and horizontal error estimates for each event.
     """
 
-    covariances: np.ndarray  # (n_events, dim, dim)
     spatial_covariances: np.ndarray  # (n_events, dim-1, dim-1)
     principal_std: np.ndarray  # (n_events, dim-1)
     principal_axes: np.ndarray  # (n_events, dim-1, dim-1)
