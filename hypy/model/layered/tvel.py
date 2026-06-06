@@ -73,6 +73,17 @@ class TvelModel(VelocityModel):
             build_taup_model(tvel_file_path.as_posix())
             return TauPyModel(model_name)
 
+    @staticmethod
+    def _phase_key(phase: str) -> str:
+        phase_lower = phase.strip().lower()
+        if phase_lower.startswith("p"):
+            return "p"
+        if phase_lower.startswith("s"):
+            return "s"
+        raise ValueError(
+            f"Unsupported phase: {phase}. Supported phases are 'P' and 'S'."
+        )
+
     def _precompute_velocity_profiles_1d(
         self,
         phases: Sequence[str],
@@ -90,7 +101,7 @@ class TvelModel(VelocityModel):
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         for phase in phases:
-            phase_lower = phase.lower()[-1]
+            phase_lower = self._phase_key(phase)
             cache_file = cache_dir / (
                 f"tvel_profile_{self.model_name}_{phase_lower}_"
                 f"{max_depth}_{depth_step}.npz"
@@ -161,12 +172,6 @@ class TvelModel(VelocityModel):
 
     def _velocity_from_layers(self, depth: float, phase_lower: str) -> float:
         self._initialize_layer_arrays()
-        assert self._layer_top_depth is not None
-        assert self._layer_bot_depth is not None
-        assert self._layer_top_p_velocity is not None
-        assert self._layer_bot_p_velocity is not None
-        assert self._layer_top_s_velocity is not None
-        assert self._layer_bot_s_velocity is not None
 
         top_depth = self._layer_top_depth
         bot_depth = self._layer_bot_depth
@@ -177,25 +182,85 @@ class TvelModel(VelocityModel):
             top_velocity = self._layer_top_s_velocity
             bot_velocity = self._layer_bot_s_velocity
 
-        if depth < top_depth[0] or depth > bot_depth[-1]:
+        if depth < top_depth[0] or depth > bot_depth[-1]:  # type: ignore
             raise ValueError(
                 f"Depth {depth} km is outside model bounds "
-                f"[{top_depth[0]}, {bot_depth[-1]}]."
+                f"[{top_depth[0]}, {bot_depth[-1]}]."  # type: ignore
             )
 
         return float(
             velocity_from_layers(
                 depth,
-                top_depth,
-                bot_depth,
-                top_velocity,
-                bot_velocity,
+                top_depth,  # type: ignore
+                bot_depth,  # type: ignore
+                top_velocity,  # type: ignore
+                bot_velocity,  # type: ignore
             )
         )
 
+    def get_layer_top_profile_1d(
+        self,
+        phase: str,
+        *,
+        drop_non_positive_velocity: bool = True,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return layer-top depths and velocities for fast local ray tracing.
+
+        The returned arrays are derived from the already-loaded TauP velocity
+        model.  Velocities are sampled from
+        the top of each TauP layer, i.e. the value just below each interface.
+        """
+        phase_lower = self._phase_key(phase)
+        self._initialize_layer_arrays()
+
+        if phase_lower == "p":
+            velocity = self._layer_top_p_velocity
+        else:
+            velocity = self._layer_top_s_velocity
+
+        top_depth = np.asarray(self._layer_top_depth, dtype=float)
+        velocity = np.asarray(velocity, dtype=float)
+
+        finite_mask = np.isfinite(top_depth) & np.isfinite(velocity)
+        top_depth = top_depth[finite_mask]
+        velocity = velocity[finite_mask]
+
+        if top_depth.size == 0:
+            raise ValueError(
+                f"No finite {phase.upper()} layers found in {self.model_path}."
+            )
+
+        if drop_non_positive_velocity:
+            bad = np.flatnonzero(velocity <= 0.0)
+            if bad.size:
+                first_bad = int(bad[0])
+                if first_bad == 0:
+                    raise ValueError(
+                        f"The first {phase.upper()} layer has non-positive velocity."
+                    )
+                top_depth = top_depth[:first_bad]
+                velocity = velocity[:first_bad]  # type: ignore
+
+        if np.any(np.diff(top_depth) <= 0.0):
+            raise ValueError(
+                "TauP layer top depths must be strictly increasing for fast "
+                f"local tracing: {self.model_path}"
+            )
+        if abs(float(top_depth[0])) > 1.0e-6:
+            raise ValueError(
+                f"The first TauP layer top depth must be 0 km. Got "
+                f"{top_depth[0]:g} km in {self.model_path}."
+            )
+        if np.any(velocity <= 0.0):
+            raise ValueError(
+                f"All retained {phase.upper()} velocities must be positive."
+            )
+
+        return top_depth.copy(), velocity.copy()  # type: ignore
+
     def get_velocity_1d(self, depth: float, phase: str) -> float:
         """Return velocity (km/s) at depth for signed phase."""
-        phase_lower = phase.lower()[-1]
+        phase_lower = self._phase_key(phase)
 
         if self.velocity_profiles and phase_lower in self.velocity_profiles:
             depths, v_profile = self.velocity_profiles[phase_lower]
