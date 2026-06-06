@@ -22,4 +22,3 @@ Submodules
    :maxdepth: 4
 
    propagation.base <hypy.propagation.base>
-   propagation.registry <hypy.propagation.registry>

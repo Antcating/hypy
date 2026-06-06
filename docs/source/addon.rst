@@ -62,7 +62,7 @@ Compatibility contract
 
 Typical feature flags include:
 
-* ``dimension.1d`` / ``dimension.3d``
+* ``model.profile.1d`` / ``dimension.3d``
 * ``model.profile.1d`` / ``model.grid.3d``
 * ``propagation.ray`` / ``propagation.table``
 
