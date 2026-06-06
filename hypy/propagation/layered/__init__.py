@@ -5,6 +5,7 @@ from typing import Optional
 import numpy as np
 
 from hypy.model import VelocityModel
+from hypy.model.layered.tvel import TvelModel
 from hypy.propagation.base import PropagationEngine
 from hypy.utils.geo import get_analytical_derivative_1d, gps2dist_azimuth_nb
 from hypy.utils.math import finite_difference_derivative
@@ -153,6 +154,7 @@ class LayeredPropagationEngine(PropagationEngine):
         coordinate system.
         """
         if mode == "analytical":
+            self.velocity_model: TvelModel  # type hint for velocity lookup
             velocity_km_s = self.velocity_model.get_velocity_1d(source_depth_km, phase)
             if takeoff_angle_deg is None:
                 raise ValueError(
