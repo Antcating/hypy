@@ -31,11 +31,7 @@ dependencies = [
 # Extra for development and testing
 
 [dependency-groups]
-3d = [
-    "netcdf4>=1.7.3",
-    "nllgrid>=1.6",
-    "pyekfmm>=0.0.9.0",
-]
+# Dev group
 dev = [
     "austin-dist>=4.0.0",
     "hatchling>=1.29.0",
@@ -46,9 +42,19 @@ dev = [
     "sphinx>=9.0.4",
     "sphinx-rtd-theme>=3.1.0",
 ]
+
+# 3D support group
+3d = [
+    "netcdf4>=1.7.3",
+    "nllgrid>=1.6",
+    "pyekfmm>=0.0.9.0",
+]
+
+# 1D fast marching support group
 fmm = [
     "scikit-fmm>=2025.6.23",
 ]
+# 1D pyrocko support group
 pyrocko = [
     "pyrocko>=2025.12.4",
 ]
@@ -61,7 +67,8 @@ exclude = [
 [tool.hatch.build.targets.sdist]
 packages = ["hypy"]
 exclude = [
-    "test_artifacts/**"
+    "test_artifacts/**",
+    "tests/**"
 ]
 
 [tool.uv.sources]
