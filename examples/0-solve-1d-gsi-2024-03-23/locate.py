@@ -23,10 +23,6 @@ grid = TauTravelTimeGrid(
 locator = EventLocator(
     propagation_engine=grid,
     derivative_method="analytical",
-    distance_weight_start_km=100.0,
-    distance_weight_end_km=200.0,
-    full_data_covariance=False,
-    correlation_length_km=1.0,
 )
 
 inv = obspy.read_inventory(
@@ -37,7 +33,13 @@ catalog = obspy.read_events(
 )
 
 locator.load_data(inv, catalog)
-out, invalid = locator.locate(max_iterations=1000, trial_depth_km=5.0, solver="lsqr")
+out, invalid = locator.locate(
+    max_iterations=1000,
+    trial_depth_km=5.0,
+    solver="lsqr",
+    distance_weight_start_km=100.0,
+    distance_weight_end_km=200.0,
+)
 
 print(out[0].origins[-1])
 
