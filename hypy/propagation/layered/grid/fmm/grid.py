@@ -15,7 +15,7 @@ Notes
 
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, Optional
 
 import numpy as np
 import skfmm
@@ -48,7 +48,7 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
     def __init__(
         self,
         model: TvelModel,
-        phases: List[str],
+        phases: Iterable[str],
         max_depth: float,
         max_distance: float,
         depth_step: float,
