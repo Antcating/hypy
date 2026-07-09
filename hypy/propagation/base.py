@@ -26,11 +26,12 @@ class PropagationEngine:
         max_distance_km: Optional[float] = None,
         depth_step_km: Optional[float] = None,
         distance_step_km: Optional[float] = None,
+        phases: Optional[tuple[str, ...]] = ("p", "s"),
     ):
         self.velocity_model = model
         self.mode = mode
         self.engine = engine
-
+        self.phases = tuple(phases) if phases is not None else ("p", "s")
         self.max_depth_km = max_depth_km
         self.max_distance_km = max_distance_km
         self.depth_step_km = depth_step_km
