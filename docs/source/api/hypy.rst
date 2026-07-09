@@ -1,5 +1,5 @@
-hypy
-====
+hypy package
+============
 
 .. automodule:: hypy
    :members:
@@ -12,9 +12,10 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   locator <hypy.locator>
-   propagation <hypy.propagation>
-   utils <hypy.utils>
+   hypy.locator
+   hypy.model
+   hypy.propagation
+   hypy.utils
 
 Submodules
 ----------
@@ -22,4 +23,4 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   logger <hypy.logger>
+   hypy.logger

@@ -1,3 +1,5 @@
-from .fmm import PyekfmmTimeTables
+"""Volumetric travel-time grid backend using pyekfmm on a 3D velocity grid."""
 
-__all__ = ["PyekfmmTimeTables"]
+from .grid import FmmTravelTimeGrid3D
+
+__all__ = ["FmmTravelTimeGrid3D"]

@@ -1,5 +1,5 @@
-propagation.layered
-===================
+hypy.propagation.layered package
+================================
 
 .. automodule:: hypy.propagation.layered
    :members:
@@ -12,5 +12,5 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   propagation.layered.grid <hypy.propagation.layered.grid>
-   propagation.layered.ray_tracer <hypy.propagation.layered.ray_tracer>
+   hypy.propagation.layered.grid
+   hypy.propagation.layered.ray_tracer

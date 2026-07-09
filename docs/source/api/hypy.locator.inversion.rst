@@ -1,5 +1,5 @@
-locator.inversion
-=================
+hypy.locator.inversion module
+=============================
 
 .. automodule:: hypy.locator.inversion
    :members:

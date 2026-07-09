@@ -1,5 +1,5 @@
-propagation
-===========
+hypy.propagation package
+========================
 
 .. automodule:: hypy.propagation
    :members:
@@ -12,5 +12,13 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   propagation.layered <hypy.propagation.layered>
-   propagation.planar <hypy.propagation.planar>
+   hypy.propagation.layered
+   hypy.propagation.volumetric
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 4
+
+   hypy.propagation.base

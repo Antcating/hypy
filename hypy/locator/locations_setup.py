@@ -1,25 +1,76 @@
+"""Seed and initialize event locations before inversion."""
+
 from typing import Optional
 
-from ..logger import logger  # type: ignore[import-not-found]
+from hypy.logger import logger  # type: ignore[import-not-found]
+
 from .config import LocatorConfig
 from .data import DataHandler
-from .derivatives import DerivativeEngine
+from .derivatives import DerivativesHandler
 from .types import Event, np
 
 
 def init_locations(
     data: DataHandler,
     config: LocatorConfig,
-    derivative_engine: DerivativeEngine,
+    derivative_engine: DerivativesHandler,
     trial_depth_km: float,
+    depth_step_km: Optional[float],
     max_depth_km: Optional[float],
 ) -> None:
+    """Initialize event locations and origin-time seeds.
+
+    Parameters
+    ----------
+    data : DataHandler
+        Shared event data container that receives initial locations.
+    config : LocatorConfig
+        Locator configuration controlling depth handling and pick filtering.
+    derivative_engine : DerivativesHandler
+        Travel-time derivative helper used to score candidate hypocenters.
+    trial_depth_km : float
+        Initial depth guess in kilometers.
+    max_depth_km : float or None
+        Upper bound for candidate depths. When ``None``, a heuristic bound is
+        derived from ``trial_depth_km``.
+
+    Returns
+    -------
+    None
+        The input ``data`` object is updated in place.
+
+    Notes
+    -----
+    The initialization intentionally uses a small set of deterministic seed
+    locations plus a lightweight randomized depth sample so the first inversion
+    pass starts from reasonable event hypotheses. The random depth sampling is
+    drawn from a local generator seeded with ``config.seed``, so a fixed seed
+    makes the whole location run reproducible.
+    """
+    # Local random generator so runs are reproducible when config.seed is set,
+    # without mutating NumPy's global random state.
+    rng = np.random.default_rng(config.seed)
 
     def _seed_candidates_for_event(
         event: Event, trial_depth_km: float, max_depth_km: Optional[float]
     ):
-        """
-        Build candidate epicenter seeds and a small depth grid for a given event.
+        """Build candidate epicenter seeds and a small depth grid.
+
+        Parameters
+        ----------
+        event : obspy.core.event.Event
+            Event whose picks are used to derive spatial seeds.
+        trial_depth_km : float
+            Initial depth guess in kilometers.
+        max_depth_km : float or None
+            Upper depth bound for the candidate grid.
+
+        Returns
+        -------
+        list of tuple of float
+            Candidate latitude/longitude seed pairs.
+        list of float
+            Candidate depths in kilometers.
         """
         seeds = []
         selected_station_indices: list[int] = []
@@ -42,17 +93,17 @@ def init_locations(
             dtype=float,
         )
 
-        # 1) centroid
+        # centroid
         lat_centroid = float(np.mean(station_latlon[:, 0]))
         lon_centroid = float(np.mean(station_latlon[:, 1]))
         seeds.append((lat_centroid, lon_centroid))
 
-        # 2) component-wise median
+        # component-wise median
         lat_median = float(np.median(station_latlon[:, 0]))
         lon_median = float(np.median(station_latlon[:, 1]))
         seeds.append((lat_median, lon_median))
 
-        # 3) earliest-pick station (by full scan)
+        # earliest-pick station (by full scan)
         earliest_station_index = min(
             selected_station_indices,
             key=lambda idx: min(
@@ -79,8 +130,8 @@ def init_locations(
         # Depth grid around trial depth
         initial_depth_km = max(0.0, float(trial_depth_km))
         if max_depth_km is None:
-            # FIXME: It is a very dodgy assumption to set max_depth_km = initial_depth_km + 20.0,
-            # should be based on the velocity model and typical depth distribution of events in the region instead.
+            # FIXME: This heuristic should be derived from the velocity model
+            # and regional event-depth statistics instead of a fixed offset.
             max_depth_km = initial_depth_km + 20.0
 
         if config.fix_depth_km is not None:
@@ -88,22 +139,46 @@ def init_locations(
             candidate_depths = [float(config.fix_depth_km)]
             return unique_seeds, candidate_depths
 
+        # TODO: Document hardcoded upper bound
+        min_depth = max(1, depth_step_km) if depth_step_km is not None else 1
+        # FIXME: This random sampling sometimes produces candidates with no valid tt.
         depth_grid_candidates = {
             round(x, 2)
-            for x in np.random.normal(loc=initial_depth_km, scale=5.0, size=10)
+            for x in rng.normal(loc=initial_depth_km, scale=5.0, size=10)
+            if min_depth < x < max_depth_km
         }
 
         candidate_depths = sorted(
-            [d for d in depth_grid_candidates if 0.0 <= d <= max_depth_km]
+            [d for d in depth_grid_candidates if min_depth <= d <= max_depth_km]
         ) or [initial_depth_km]
         return unique_seeds, candidate_depths
 
     def _estimate_t0_and_score(ev_idx: int, lat: float, lon: float, depth_km: float):
+        """Estimate origin time and weighted RMS for a candidate hypocenter.
+
+        Parameters
+        ----------
+        ev_idx : int
+            Event index in the shared data container.
+        lat : float
+            Candidate latitude in degrees.
+        lon : float
+            Candidate longitude in degrees.
+        depth_km : float
+            Candidate depth in kilometers.
+
+        Returns
+        -------
+        tuple of float or None
+            ``(t0_rel, wrms, n_obs)`` when enough usable arrivals are present,
+            otherwise ``None``.
+
+        Notes
+        -----
+        The returned origin time is relative to the per-event reference time.
         """
-        Estimate origin time (t0, RELATIVE to time_refs) and WRMS for a candidate hypocenter.
-        Returns (t0_rel, wrms, n_obs) or None.
-        """
-        # Collect all usable picks for the event — each item is (station_idx, phase_idx, t_obs_rel, sigma)
+        # Collect all usable picks for the event. Each item is
+        # (station_idx, phase_idx, t_obs_rel, sigma).
         picks = _usable_arrivals_for_event(ev_idx)
 
         # Require at least a minimal number of picks to compute a stable origin time
@@ -119,27 +194,28 @@ def init_locations(
             observed_arrival_time_rel,
             measurement_error,
         ) in picks:
-            # Get the station’s geographic position
+            # Get the station's geographic position.
             sta_lat, sta_lon, sta_elev = data.stations_locations[station_id]
             phase = data.phases[phase_id]
 
-            # Compute theoretical travel time for this candidate source–station pair
+            # Compute theoretical travel time for this candidate source-station
+            # pair.
             _, theoretical_arrival_time, _ = derivative_engine.derive_travel_time_param(
                 (lat, lon, depth_km), (sta_lat, sta_lon, sta_elev), phase
             )
 
-            # Skip if travel time couldn’t be computed or is invalid
+            # Skip if travel time could not be computed or is invalid.
             if theoretical_arrival_time is None or not np.isfinite(
                 theoretical_arrival_time
             ):
                 continue
 
-            # Residual in RELATIVE frame: (t_obs_rel - t_theory)
+            # Residual in the relative frame: (t_obs_rel - t_theory).
             residual_arrival_times.append(
                 observed_arrival_time_rel - float(theoretical_arrival_time)
             )
 
-            # Weight: inverse of variance (1/σ²)
+            # Weight: inverse of variance (1 / sigma^2).
             weights.append(1.0 / (measurement_error * measurement_error))
 
         if len(residual_arrival_times) < max(3, data.min_picks_per_event // 2):
@@ -148,12 +224,12 @@ def init_locations(
         residual_arrival_times = np.asarray(residual_arrival_times, dtype=float)
         weights = np.asarray(weights, dtype=float)
 
-        # Weighted average of (t_obs_rel - t_theory) gives t0_rel
+        # Weighted average of (t_obs_rel - t_theory) gives t0_rel.
         t0_rel = round(
             float(np.sum(weights * residual_arrival_times) / np.sum(weights)), 4
         )
 
-        # Weighted RMS (WRMS)
+        # Weighted RMS (WRMS).
         wrms = float(
             np.sqrt(
                 np.sum(weights * (residual_arrival_times - t0_rel) ** 2)
@@ -187,9 +263,9 @@ def init_locations(
         if len(event.picks) == 0:
             continue
 
-        # TODO: Move this station filtering logic into DataHandler
-        # so that it’s not repeated for each event.
-        # Keep only picks from stations we know about
+        # TODO: Move this station filtering logic into DataHandler so it is
+        # not repeated for each event.
+        # Keep only picks from stations we know about.
         event.picks = [
             pick
             for pick in event.picks
@@ -201,7 +277,10 @@ def init_locations(
             event, trial_depth_km, max_depth_km
         )
         logger.warning(
-            f"Seeds: {seeds}, Depth candidates: {candidate_depths} for event {event_index}"
+            "Seeds: %s, Depth candidates: %s for event %d",
+            seeds,
+            candidate_depths,
+            event_index,
         )
         best_solution: tuple[float, float, float, float, float] | None = None
         # (wrms, lat, lon, depth_km, t0_rel)
@@ -233,7 +312,8 @@ def init_locations(
                     logger.debug(
                         f"New best solution for event {event_index}: "
                         f"WRMS={wrms:.3f}, lat={lat_seed:.4f}, lon={lon_seed:.4f}, "
-                        f"depth={depth_candidate_km:.2f} km, t0_rel={t0_estimate_rel:.3f}s"
+                        f"depth={depth_candidate_km:.2f} km, "
+                        f"t0_rel={t0_estimate_rel:.3f}s"
                     )
 
         if best_solution is not None:
@@ -243,7 +323,8 @@ def init_locations(
             t0_abs = t0_best_rel + data.time_refs[event_index]
             logger.debug(
                 f"[init] ev#{event_index}: lat={lat_best:.4f} lon={lon_best:.4f} "
-                f"z={depth_best_km:.2f} km, t0_rel={t0_best_rel:.3f}s, t0_abs={t0_abs:.3f}s"
+                f"z={depth_best_km:.2f} km, t0_rel={t0_best_rel:.3f}s, "
+                f"t0_abs={t0_abs:.3f}s"
             )
         else:
             # Fallback: use the station of the earliest pick and estimate origin time

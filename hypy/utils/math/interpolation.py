@@ -1,9 +1,62 @@
+"""Interpolation helpers for travel-time tables."""
+
 import numpy as np
 from numba import njit  # type: ignore[import-untyped]
 
 
+@njit(cache=True)
+def velocity_from_layers(
+    depth: float,
+    top_depth: np.ndarray,
+    bot_depth: np.ndarray,
+    top_velocity: np.ndarray,
+    bot_velocity: np.ndarray,
+) -> float:
+    """Interpolate velocity from layered model parameters."""
+    n = len(top_depth)
+    layer_index = -1
+    for i in range(n):
+        if top_depth[i] <= depth and depth <= bot_depth[i]:
+            layer_index = i
+            break
+    if layer_index == -1:
+        raise ValueError("Depth is not covered by any model layer.")
+
+    top_z = top_depth[layer_index]
+    bot_z = bot_depth[layer_index]
+    top_v = top_velocity[layer_index]
+    bot_v = bot_velocity[layer_index]
+    if bot_z == top_z:
+        return top_v
+    return top_v + (bot_v - top_v) * ((depth - top_z) / (bot_z - top_z))
+
+
 @njit(cache=True, inline="always")
 def linear_interp(x, x0, x1, y0, y1):
+    """Perform linear interpolation between two samples.
+
+    Parameters
+    ----------
+    x : float
+        Target coordinate.
+    x0 : float
+        Lower sample coordinate.
+    x1 : float
+        Upper sample coordinate.
+    y0 : float
+        Sample value at ``x0``.
+    y1 : float
+        Sample value at ``x1``.
+
+    Returns
+    -------
+    float
+        Interpolated value at ``x``.
+
+    Notes
+    -----
+    If ``x0 == x1``, the function returns ``y0`` to avoid division by zero.
+    """
     if x1 == x0:
         return y0
     return y0 + (x - x0) / (x1 - x0) * (y1 - y0)
@@ -11,7 +64,26 @@ def linear_interp(x, x0, x1, y0, y1):
 
 @njit(cache=True)
 def lagrange_interp(x, x_vals, y_vals):
-    """Three-point Lagrange interpolation"""
+    """Evaluate a three-point Lagrange interpolant.
+
+    Parameters
+    ----------
+    x : float
+        Target coordinate.
+    x_vals : numpy.ndarray
+        Three sample coordinates used to build the interpolant.
+    y_vals : numpy.ndarray
+        Sample values corresponding to ``x_vals``.
+
+    Returns
+    -------
+    float
+        Interpolated value at ``x``.
+
+    Notes
+    -----
+    The caller is responsible for providing three distinct sample positions.
+    """
     xA, xB, xC = x_vals[0], x_vals[1], x_vals[2]
     yA, yB, yC = y_vals[0], y_vals[1], y_vals[2]
     denomA = (xA - xB) * (xA - xC)
@@ -25,8 +97,27 @@ def lagrange_interp(x, x_vals, y_vals):
 
 @njit(cache=True)
 def adaptive_interp_1d(x, x_grid, y_row):
-    """
-    Interpolate y(x) from grid data using 3-point Lagrange or linear fallback.
+    """Interpolate one-dimensional tabulated data with adaptive stencils.
+
+    Parameters
+    ----------
+    x : float
+        Target coordinate.
+    x_grid : numpy.ndarray
+        Monotonic grid coordinates for the tabulated samples.
+    y_row : numpy.ndarray
+        Tabulated values for a single depth slice.
+
+    Returns
+    -------
+    float
+        Interpolated value at ``x``.
+
+    Notes
+    -----
+    The function prefers three-point Lagrange interpolation when the target is
+    safely away from the grid boundaries and falls back to linear
+    interpolation near the edges.
     """
     n = len(x_grid)
 
@@ -62,6 +153,22 @@ def adaptive_interp_1d(x, x_grid, y_row):
 def interp_one_depth(
     distance: float, distance_grid: np.ndarray, depth_slice: np.ndarray
 ) -> float:
+    """Interpolate a single depth slice across distance.
+
+    Parameters
+    ----------
+    distance : float
+        Target epicentral distance.
+    distance_grid : numpy.ndarray
+        Monotonic distance grid for the table.
+    depth_slice : numpy.ndarray
+        Travel-time values for one depth level.
+
+    Returns
+    -------
+    float
+        Interpolated travel time at the requested distance.
+    """
     return adaptive_interp_1d(distance, distance_grid, depth_slice)
 
 
@@ -73,8 +180,36 @@ def interp_quant(
     distance_grid: np.ndarray,
     table: np.ndarray,  # shape: (n_depths, n_distances)
 ) -> float:
-    """
-    Numba-compatible generic interpolation over depth and distance.
+    """Interpolate a quantized travel-time table in depth and distance.
+
+    Parameters
+    ----------
+    depth : float
+        Target depth.
+    distance : float
+        Target epicentral distance.
+    depth_grid : numpy.ndarray
+        Monotonic depth grid for the table.
+    distance_grid : numpy.ndarray
+        Monotonic distance grid for the table.
+    table : numpy.ndarray
+        Travel-time table with shape ``(n_depths, n_distances)``.
+
+    Returns
+    -------
+    float
+        Interpolated travel time.
+
+    Raises
+    ------
+    ValueError
+        If ``depth`` or ``distance`` exceeds the tabulated range.
+
+    Notes
+    -----
+    Values below the minimum depth and distance are clamped to the first grid
+    point so callers can safely query shallow or near-source samples without
+    triggering a boundary failure.
     """
     if depth > depth_grid[-1]:
         raise ValueError(
@@ -82,7 +217,9 @@ def interp_quant(
         )
     if distance > distance_grid[-1]:
         raise ValueError(
-            f"Distance {distance} outside range of travel-time table: [{distance_grid[0]}, {distance_grid[-1]}]"
+            "Distance "
+            f"{distance} outside range of travel-time table: "
+            f"[{distance_grid[0]}, {distance_grid[-1]}]"
         )
 
     # Clamp depth to minimum grid value

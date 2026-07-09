@@ -1,0 +1,2485 @@
+<?xml version='1.0' encoding='utf-8'?>
+<q:quakeml xmlns="http://quakeml.org/xmlns/bed/1.2" xmlns:q="http://quakeml.org/xmlns/quakeml/1.2">
+  <eventParameters publicID="smi:local/a7411b70-cf8a-4653-be6a-9443f500955c">
+    <event publicID="smi:org.gfz-potsdam.de/geofon/gsi20240323183556">
+      <preferredOriginID>smi:org.gfz-potsdam.de/geofon/gsiOrigin202403240403.54.046407.26472</preferredOriginID>
+      <preferredMagnitudeID>smi:org.gfz-potsdam.de/geofon/gsiOrigin202403240403.54.046407.26472#netMag.M</preferredMagnitudeID>
+      <type>earthquake</type>
+      <description>
+        <text>Carmel-Tirza</text>
+        <type>region name</type>
+      </description>
+      <description>
+        <text>earthquake</text>
+        <type>earthquake name</type>
+      </description>
+      <creationInfo>
+        <agencyID>GSI</agencyID>
+        <author>marina@janalise2</author>
+        <creationTime>2024-03-23T18:35:50.709486Z</creationTime>
+      </creationInfo>
+      <origin publicID="smi:org.gfz-potsdam.de/geofon/gsiOrigin202403240403.54.046407.26472">
+        <time>
+          <value>2024-03-23T18:35:56.180702Z</value>
+          <uncertainty>0.13480184972286224</uncertainty>
+        </time>
+        <latitude>
+          <value>32.50252151489258</value>
+          <uncertainty>0.5238112211227417</uncertainty>
+        </latitude>
+        <longitude>
+          <value>35.194740295410156</value>
+          <uncertainty>0.8056603670120239</uncertainty>
+        </longitude>
+        <depth>
+          <value>5318.760395050049</value>
+          <uncertainty>1232.9503297805786</uncertainty>
+        </depth>
+        <methodID>smi:org.gfz-potsdam.de/geofon/LOCSAT</methodID>
+        <earthModelID>smi:org.gfz-potsdam.de/geofon/giimod</earthModelID>
+        <quality>
+          <associatedPhaseCount>117</associatedPhaseCount>
+          <usedPhaseCount>117</usedPhaseCount>
+          <associatedStationCount>70</associatedStationCount>
+          <usedStationCount>70</usedStationCount>
+          <depthPhaseCount>0</depthPhaseCount>
+          <standardError>0.21951665041639182</standardError>
+          <azimuthalGap>86.64112854003906</azimuthalGap>
+          <minimumDistance>0.10801006853580475</minimumDistance>
+          <maximumDistance>1.2794945240020752</maximumDistance>
+          <medianDistance>0.4653258323669434</medianDistance>
+        </quality>
+        <evaluationMode>manual</evaluationMode>
+        <evaluationStatus>confirmed</evaluationStatus>
+        <creationInfo>
+          <agencyID>GSI</agencyID>
+          <author>marina@janalise2</author>
+          <creationTime>2024-03-24T04:30:54.046792Z</creationTime>
+        </creationInfo>
+        <originUncertainty>
+          <preferredDescription>horizontal uncertainty</preferredDescription>
+          <minHorizontalUncertainty>1116.905927658081</minHorizontalUncertainty>
+          <maxHorizontalUncertainty>1719.146966934204</maxHorizontalUncertainty>
+          <azimuthMaxHorizontalUncertainty>88.42528533935547</azimuthMaxHorizontalUncertainty>
+        </originUncertainty>
+      </origin>
+      <origin publicID="smi:local/cc04fdf3-f656-4199-977c-899b2ee13164">
+        <time>
+          <value>2024-03-23T18:35:56.148407Z</value>
+        </time>
+        <latitude>
+          <value>32.50150442076292</value>
+        </latitude>
+        <longitude>
+          <value>35.193278856726515</value>
+        </longitude>
+        <depth>
+          <value>5075.23220645601</value>
+          <uncertainty>680.2877656188316</uncertainty>
+          <confidenceLevel>95.0</confidenceLevel>
+        </depth>
+        <depthType>from location</depthType>
+        <originUncertainty>
+          <preferredDescription>confidence ellipsoid</preferredDescription>
+          <horizontalUncertainty>446.6287567811451</horizontalUncertainty>
+          <confidenceLevel>95.0</confidenceLevel>
+          <confidenceEllipsoid>
+            <semiMajorAxisLength>688.4617392416553</semiMajorAxisLength>
+            <semiMinorAxisLength>283.4781796292426</semiMinorAxisLength>
+            <semiIntermediateAxisLength>450.42547342573465</semiIntermediateAxisLength>
+            <majorAxisPlunge>83.87669375121392</majorAxisPlunge>
+            <majorAxisAzimuth>58.028763916922685</majorAxisAzimuth>
+            <majorAxisRotation>50.71935720054094</majorAxisRotation>
+          </confidenceEllipsoid>
+        </originUncertainty>
+        <arrival publicID="smi:local/3f314295-3f5b-4c39-8ffa-6cbfa57573a9">
+          <pickID>smi:local/ac41bf20-e8dc-4cc2-a578-89ca299ac57d</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.13378125755142456</timeResidual>
+          <timeWeight>0.9943617025149826</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/007132b7-7ce6-466a-8921-7159fe52aa37">
+          <pickID>smi:local/4a5a6691-298b-480a-9064-9e527dc404d1</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.0601593444543731</timeResidual>
+          <timeWeight>0.9943617025149826</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/039f7305-eae0-40ae-97f7-7d808b7e6522">
+          <pickID>smi:local/6b479574-7de8-4fff-becf-dd136a466b45</pickID>
+          <phase>P</phase>
+          <timeResidual>0.24950852266826118</timeResidual>
+          <timeWeight>0.9144098429757781</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/d79dddee-e18d-4f3b-a946-b182c3ba4b09">
+          <pickID>smi:local/fb27b03b-8f57-45c6-8f86-af2a479daf54</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.03027607137849131</timeResidual>
+          <timeWeight>0.9671163691325086</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/b169781b-bee8-44a2-928a-d6115412f488">
+          <pickID>smi:local/306cb34e-b8f9-4408-8f9c-fe1220c727df</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.1073496667137519</timeResidual>
+          <timeWeight>0.9671163691325086</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/7bcc6b5b-37bd-4b51-832d-863dd6a79b7b">
+          <pickID>smi:local/580b6545-18ea-495a-8171-51d24fb9790e</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.17005768807101074</timeResidual>
+          <timeWeight>0.9937866634222213</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/0af1a628-c022-447a-bba9-1f1dba000ee1">
+          <pickID>smi:local/e0e8e167-9353-4379-9d60-2455f98e7704</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.19588009399972428</timeResidual>
+          <timeWeight>0.9937866634222213</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/119fadd1-b625-4cbf-867b-8cf3adebaa04">
+          <pickID>smi:local/cb672a85-a58b-4bc3-a1bd-f7b60c15eb2d</pickID>
+          <phase>P</phase>
+          <timeResidual>0.197126253724754</timeResidual>
+          <timeWeight>0.9966276097022423</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/8a88247c-85cc-4756-871e-9fc9f4399545">
+          <pickID>smi:local/d2ef355e-9cc2-45fb-91af-35cf07f696c0</pickID>
+          <phase>S</phase>
+          <timeResidual>0.5870485604601328</timeResidual>
+          <timeWeight>0.9966276097022423</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/6ba7dcdc-8640-4580-90e3-2c73d5d2f78d">
+          <pickID>smi:local/65649ad1-8403-4049-bacb-6192adada0c2</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.25293058415614134</timeResidual>
+          <timeWeight>0.9878461845967164</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/e9521f52-6858-48e1-86cd-95f8487d66ea">
+          <pickID>smi:local/147587c0-c710-484f-8303-edbeb3253835</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.1491897188306801</timeResidual>
+          <timeWeight>0.9878461845967164</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/57abe9fa-7bf7-4ecb-be88-5d2833fba275">
+          <pickID>smi:local/4324125e-eae7-44fa-9a0b-9599094893f9</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.23948012712151723</timeResidual>
+          <timeWeight>0.9927448532620492</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/efaa6299-c574-4872-ae10-5cb246e10334">
+          <pickID>smi:local/4d7be1e8-0dec-472d-a250-e398de1fffe2</pickID>
+          <phase>S</phase>
+          <timeResidual>0.4573987089129812</timeResidual>
+          <timeWeight>0.9927448532620492</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/79ee9e7d-9460-4ab5-93f4-f8d67737fc33">
+          <pickID>smi:local/e845a20c-8016-41b0-9be8-303e3e536551</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.21052219912705716</timeResidual>
+          <timeWeight>0.994187287038308</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/31cda43d-1a7c-4762-9615-5260b09b0b0d">
+          <pickID>smi:local/436141c0-d88e-4221-b0d6-08bc1dc6c4bd</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.06573881540912652</timeResidual>
+          <timeWeight>0.994187287038308</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/4ce26fa1-33aa-42ed-a1ce-e3779e6d8be5">
+          <pickID>smi:local/461fdc03-4b78-4ce8-a3a3-671ccc12fad2</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.18983428296493443</timeResidual>
+          <timeWeight>0.7577657338001857</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/5847e0d3-2f63-4921-a0fc-faed9740cb89">
+          <pickID>smi:local/274821cd-9dc6-4e4d-a455-22ae58098ec1</pickID>
+          <phase>P</phase>
+          <timeResidual>0.24331365233260982</timeResidual>
+          <timeWeight>0.9393701598189269</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/23abb919-a3ed-469f-84a9-a3f4ed5500a2">
+          <pickID>smi:local/8aa051d2-d52f-4323-8724-52d933942d2c</pickID>
+          <phase>S</phase>
+          <timeResidual>0.04777819665719818</timeResidual>
+          <timeWeight>0.9393701598189269</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/c616b613-e19c-4424-8b65-4e3f47ac1bd5">
+          <pickID>smi:local/9d528530-73fe-4cf9-a819-347d576e39d7</pickID>
+          <phase>P</phase>
+          <timeResidual>0.24919140695211883</timeResidual>
+          <timeWeight>0.9957214604514764</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/f48b2165-9a83-43a2-a0b1-784e4ed525a4">
+          <pickID>smi:local/016d847c-996a-482c-a8f9-fd5ab4b6b60d</pickID>
+          <phase>S</phase>
+          <timeResidual>0.11492890973645231</timeResidual>
+          <timeWeight>0.9957214604514764</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/079ede85-44d2-47dc-8c41-ee66add6f6ad">
+          <pickID>smi:local/d3c66272-3595-4ebc-87d2-7f66803d203d</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.09737635668850775</timeResidual>
+          <timeWeight>0.9960935843346811</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/7682340f-0d98-4b6e-a3a0-ac9e9a9ebd5e">
+          <pickID>smi:local/2d818fc9-4e70-4426-8ba7-7f068689b69e</pickID>
+          <phase>S</phase>
+          <timeResidual>0.2717013503637986</timeResidual>
+          <timeWeight>0.9960935843346811</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/4f7b0f17-7b9f-4252-95fb-07885c640d7f">
+          <pickID>smi:local/027b1812-0379-4e7f-92c8-1a025d93a7f9</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.06774815647784305</timeResidual>
+          <timeWeight>0.9954852564245126</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/b489e39d-3781-4b80-a807-5b732c7c1ff0">
+          <pickID>smi:local/fd567f79-0182-4359-a361-c118a2ee4450</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.05003727028896954</timeResidual>
+          <timeWeight>0.9954852564245126</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/7ae19c5b-0551-478b-848f-4633e97257cf">
+          <pickID>smi:local/a35a2b72-52a3-40e0-9028-70e943eaef04</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.18528206355663457</timeResidual>
+          <timeWeight>0.9789146535560417</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/c1bf9c6d-5b33-48c2-90ea-c4eb2f941902">
+          <pickID>smi:local/7d726e05-1790-44e9-b293-ff9b4c0aa1e8</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.011666474361881285</timeResidual>
+          <timeWeight>0.9316474424607735</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/dc910bea-99dc-4a16-8a5b-6f1cc0adf38f">
+          <pickID>smi:local/20937cc0-1e1f-469b-b95c-91a799e02073</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.10945599997596744</timeResidual>
+          <timeWeight>0.9316474424607735</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/0853a430-18ec-4e1c-8928-a5d153466d79">
+          <pickID>smi:local/14c57dfa-55bc-4af7-894d-9de7b6592a8c</pickID>
+          <phase>P</phase>
+          <timeResidual>0.18827658571338013</timeResidual>
+          <timeWeight>0.9572836486078302</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/07195508-a804-4ead-bf74-6871d6217beb">
+          <pickID>smi:local/eac04be0-49ed-428c-b16c-6a46661940e3</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.26205655734102606</timeResidual>
+          <timeWeight>0.9572836486078302</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/908c021b-a2fb-41d9-b145-b65a7166eb0f">
+          <pickID>smi:local/847a21f8-7732-4cc4-a730-3872f3462adf</pickID>
+          <phase>P</phase>
+          <timeResidual>0.23186007970358524</timeResidual>
+          <timeWeight>0.9901312902335513</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/d111db1e-2788-444a-90c6-439808032cb3">
+          <pickID>smi:local/aa9d27f6-0e4f-44fa-957c-e698a69f2ba9</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.232908069238972</timeResidual>
+          <timeWeight>0.9802762619013183</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/5bdb6d7c-5e0b-42be-9db8-f96907615b44">
+          <pickID>smi:local/07462f27-9ac3-40e2-85dd-30d9f75720ab</pickID>
+          <phase>P</phase>
+          <timeResidual>0.30893074751469385</timeResidual>
+          <timeWeight>0.9913053630797808</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/3f259716-b073-4e3b-93e8-9ebaece39267">
+          <pickID>smi:local/1638bcc0-29aa-470d-969b-a9395bc662ac</pickID>
+          <phase>S</phase>
+          <timeResidual>0.3252933350953562</timeResidual>
+          <timeWeight>0.9913053630797808</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/b0a1ce0e-a1cc-4907-8d90-116df5b5a1b5">
+          <pickID>smi:local/ce86f50c-fe11-43ae-b2cf-2842e2e3c380</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.0009423470971272607</timeResidual>
+          <timeWeight>0.9978419292212937</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/6b44042b-ccb9-4fb3-8bd4-38383d8feb27">
+          <pickID>smi:local/940c9c6a-1f0a-488a-ac3f-753b3617c132</pickID>
+          <phase>S</phase>
+          <timeResidual>0.07540280576255665</timeResidual>
+          <timeWeight>0.9978419292212937</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/d0ff9906-e4dc-407a-8a21-2917e19f9823">
+          <pickID>smi:local/f143ba84-d1a5-4b19-96e6-40bb5712948e</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.02401016385758581</timeResidual>
+          <timeWeight>0.9582372143534118</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/c3cd6ce1-8330-4a73-84ce-d9a82166ce40">
+          <pickID>smi:local/e86cd9c8-d5c2-4bbf-8e1a-7159c655a8bb</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.2381178564947426</timeResidual>
+          <timeWeight>0.9582372143534118</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/e591048f-8c45-465b-a383-fbb462bf622a">
+          <pickID>smi:local/7531119f-ec86-4b47-a26f-0784262deb86</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.010873382961877454</timeResidual>
+          <timeWeight>0.9846623417615301</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/579bb17f-d1df-409a-aab0-642b86472cac">
+          <pickID>smi:local/c85b15d1-0b05-4168-9865-dce2496e4cc0</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.12654909839231987</timeResidual>
+          <timeWeight>0.9934388212068859</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/44203846-a182-445f-b1cd-e6918de0e434">
+          <pickID>smi:local/1379c56e-13eb-4edb-9c8b-b041b9c42267</pickID>
+          <phase>S</phase>
+          <timeResidual>0.10414031210653008</timeResidual>
+          <timeWeight>0.9934388212068859</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/543c51ed-a27c-4680-8cfe-0d61e45d1c2f">
+          <pickID>smi:local/8546c041-5c71-466d-b58e-57cb25a67d80</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.1466537909246428</timeResidual>
+          <timeWeight>0.9937261041718988</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/f2a7c4eb-553b-40a0-b094-88d9589c616e">
+          <pickID>smi:local/06af97b4-709f-4fd3-8db0-b7c2d004be3c</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.09480282617419</timeResidual>
+          <timeWeight>0.9937261041718988</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/765a8586-e289-4b66-b7fc-f279e08f5687">
+          <pickID>smi:local/05a04989-90ca-4af1-b323-97c267cf681a</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.005527630210568901</timeResidual>
+          <timeWeight>0.9834057350863216</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/89a8349b-49b8-407c-89a9-df0283f402c5">
+          <pickID>smi:local/5f897c55-0b95-4f1b-925e-2049e66989ed</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.11476972962137832</timeResidual>
+          <timeWeight>0.995023561021682</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/f477d1eb-bd49-4570-a779-0ddb900a1dd5">
+          <pickID>smi:local/41cd5653-0fe2-4de0-a1b1-2152e4f59d7b</pickID>
+          <phase>S</phase>
+          <timeResidual>0.05675735763266232</timeResidual>
+          <timeWeight>0.995023561021682</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/566be47e-937c-453a-bd98-0ea0922a541f">
+          <pickID>smi:local/29c80438-714c-4236-8742-fdb3ad21dcbf</pickID>
+          <phase>P</phase>
+          <timeResidual>0.01549914389455509</timeResidual>
+          <timeWeight>0.9781019124245955</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/5a7ebbc6-7460-4779-8215-21288d1cfb71">
+          <pickID>smi:local/9938f92e-4c8b-4a62-8ea6-f69503798a13</pickID>
+          <phase>S</phase>
+          <timeResidual>0.357790674091337</timeResidual>
+          <timeWeight>0.9781019124245955</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/5a240b08-a613-4e36-a8ef-894f227f3175">
+          <pickID>smi:local/0bd7af49-98ab-47d5-84a0-1f3b85ac7d78</pickID>
+          <phase>P</phase>
+          <timeResidual>0.10434489711033734</timeResidual>
+          <timeWeight>0.9979656615116632</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/d5e43593-ef68-46ea-bd2a-10d48a5361d8">
+          <pickID>smi:local/48ee901f-6f5b-413d-a9c9-0c13c4f3de63</pickID>
+          <phase>S</phase>
+          <timeResidual>0.24922185619391524</timeResidual>
+          <timeWeight>0.9979656615116632</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/7a14fdab-99b2-4235-b21b-067cb7da9993">
+          <pickID>smi:local/f4681ec8-f4a9-48fd-b7b1-288a32b13254</pickID>
+          <phase>P</phase>
+          <timeResidual>0.04374974525045827</timeResidual>
+          <timeWeight>0.9978181437903649</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/02edf363-1750-4c55-8529-66cfc0825990">
+          <pickID>smi:local/2cc40187-2dcf-4cf6-abc2-53d7a9c1fae8</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.11949095493827677</timeResidual>
+          <timeWeight>0.9978181437903649</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/6a610e4b-d15b-475b-9e94-678a1861f8e7">
+          <pickID>smi:local/825c3f8a-7de6-47b9-8f95-4c2b252e9231</pickID>
+          <phase>P</phase>
+          <timeResidual>0.0564195015245712</timeResidual>
+          <timeWeight>0.969517744856632</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/c719822b-fd34-442f-b267-9f1d56431889">
+          <pickID>smi:local/faf41631-7a54-4883-b84c-c63de97670a2</pickID>
+          <phase>S</phase>
+          <timeResidual>0.0055230038770126555</timeResidual>
+          <timeWeight>0.969517744856632</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/7cf0b02d-8177-4829-982c-32685161657d">
+          <pickID>smi:local/5b2ff0c9-342e-44d9-adfd-cb1e8921845e</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.05676569756138505</timeResidual>
+          <timeWeight>0.9678024575526947</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/153cefb8-9a49-4f66-b903-ab62568b4cd7">
+          <pickID>smi:local/ee32af6a-a902-4bc9-80c8-3306199c2c1d</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.15286642596443656</timeResidual>
+          <timeWeight>0.9678024575526947</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/2fb9c885-e180-4d63-946e-07d7c09c8e2d">
+          <pickID>smi:local/83961bd4-e84f-4374-a35d-b21800999633</pickID>
+          <phase>P</phase>
+          <timeResidual>0.06428622090990999</timeResidual>
+          <timeWeight>0.9757296508170058</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/8871cd3c-775b-431d-8dd7-e7ddbe5fada8">
+          <pickID>smi:local/6bd86480-2a7c-4821-a7b9-08c9eb93d0d2</pickID>
+          <phase>S</phase>
+          <timeResidual>0.4794389018455796</timeResidual>
+          <timeWeight>0.9757296508170058</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/c1620eb9-acea-47b0-b657-09c93e7bf2f9">
+          <pickID>smi:local/fd5f68c5-a5af-4f7c-b683-7c3bcb1f9afc</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.03371577852394836</timeResidual>
+          <timeWeight>0.9953599440770426</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/f59c1fe5-b137-425e-9b0e-baa5f94aed6b">
+          <pickID>smi:local/3562d9bf-6b33-490e-a751-64b41c28f19c</pickID>
+          <phase>S</phase>
+          <timeResidual>0.27210162651165426</timeResidual>
+          <timeWeight>0.9953599440770426</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/dd3ad05d-7e84-4e17-865f-1a29a0cd3725">
+          <pickID>smi:local/cf5357ea-a676-473a-9f5d-b6f611d49af2</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.33899676529497924</timeResidual>
+          <timeWeight>0.9885658488451963</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/4cf676b0-6328-40fa-afe0-8f227731bbb0">
+          <pickID>smi:local/f04a0aff-a62d-4c6e-be3c-75df7f280489</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.12039862051384986</timeResidual>
+          <timeWeight>0.9885658488451963</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/36ee40f5-2b8a-4cca-930a-bd1b21274106">
+          <pickID>smi:local/d58574cf-f62a-4b90-9fb2-e285db9ac61c</pickID>
+          <phase>P</phase>
+          <timeResidual>0.35627793919189354</timeResidual>
+          <timeWeight>0.995108925188782</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/874688f5-b12a-469b-b6c0-2ed6f4ee54c2">
+          <pickID>smi:local/8099c680-6a19-4d14-bb1b-5dd122c5d154</pickID>
+          <phase>S</phase>
+          <timeResidual>0.709753536024408</timeResidual>
+          <timeWeight>0.995108925188782</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/5c9d6afb-8d96-4c60-9854-2621cb5785d5">
+          <pickID>smi:local/d265e3c3-b118-49e4-afc0-4aa5b379b393</pickID>
+          <phase>P</phase>
+          <timeResidual>0.14423529523830503</timeResidual>
+          <timeWeight>0.9722029307568872</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/e8e04e9c-392b-4580-8d1b-3d4bc498fb2b">
+          <pickID>smi:local/7b2d7648-0f61-468b-b88a-0ca2b77aa10d</pickID>
+          <phase>S</phase>
+          <timeResidual>0.3148609751598208</timeResidual>
+          <timeWeight>0.9722029307568872</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/b4561081-0d2c-4376-bd10-91ab64a3d99f">
+          <pickID>smi:local/109f3d99-8639-4383-8f31-67d43b32d4ea</pickID>
+          <phase>P</phase>
+          <timeResidual>0.31325970883953147</timeResidual>
+          <timeWeight>0.970120222522112</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/746acf52-b9bf-479a-9fcf-44ccb5910ef4">
+          <pickID>smi:local/392a79a4-c070-4cee-951f-589ed914d204</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.013056025299990281</timeResidual>
+          <timeWeight>0.982865687526636</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/02c9eb53-e425-4f6d-9ef3-f1e2c834af18">
+          <pickID>smi:local/7b582987-8c6a-4f46-bcab-07dcde1df581</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.11326993881030667</timeResidual>
+          <timeWeight>0.9673176958063304</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/0735281f-e12d-4cd1-93da-9481c528a3e1">
+          <pickID>smi:local/6aaefe88-e4ee-44f8-ad0e-c15dafebf2cc</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.19176903257453048</timeResidual>
+          <timeWeight>0.9673176958063304</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/4f27e8e6-e4b5-4fa7-a179-8cee89731b1a">
+          <pickID>smi:local/b0390ee6-2ebf-43f3-8983-7abaf5dbf006</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.2624140914238158</timeResidual>
+          <timeWeight>0.9902176826504157</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/46cbee87-5195-439c-96ff-24f9fa86f663">
+          <pickID>smi:local/a4db4196-9c36-47b8-8576-d2839abb643d</pickID>
+          <phase>S</phase>
+          <timeResidual>0.1879893332010738</timeResidual>
+          <timeWeight>0.9902176826504157</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/9dad4c12-f1ac-4c9e-b50d-7fc2767edcce">
+          <pickID>smi:local/9d190207-57d6-40d5-bdd4-ef50a68cf78c</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.06750321662011771</timeResidual>
+          <timeWeight>0.995188034791149</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/207f2b51-b3df-4e21-a94e-72bbda6eb94d">
+          <pickID>smi:local/22dbb610-fcda-4410-bd40-c1f42bf9716f</pickID>
+          <phase>S</phase>
+          <timeResidual>0.4499620132126445</timeResidual>
+          <timeWeight>0.995188034791149</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/e6269852-618a-4948-9cec-4573e3209e2c">
+          <pickID>smi:local/d0a53074-d337-41d4-a0b5-809091f7b9a1</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.5257928786038519</timeResidual>
+          <timeWeight>0.9916511853267362</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/d125d3ed-1809-47d4-a257-1ee0fa5b0c33">
+          <pickID>smi:local/c1807e7d-0ced-4f2c-9eab-e09221871ed3</pickID>
+          <phase>P</phase>
+          <timeResidual>0.04254926275278592</timeResidual>
+          <timeWeight>0.9966254896031231</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/5358d427-ab00-4849-86ff-63f44c7a0cd3">
+          <pickID>smi:local/58c6cf85-6caf-4c6c-ba4e-9423bf9fa476</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.00889521011351846</timeResidual>
+          <timeWeight>0.9966254896031231</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/dc71173b-2c0f-400c-84af-9d091ae8d0b2">
+          <pickID>smi:local/52b1ddd0-01d0-43b3-96ab-dedb91301ff7</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.09312489756639941</timeResidual>
+          <timeWeight>0.9970267048947957</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/df0729ce-5da3-4736-81dc-913c6c2da62b">
+          <pickID>smi:local/d334e14b-01c6-46a4-8816-f61468f1698e</pickID>
+          <phase>S</phase>
+          <timeResidual>0.4219939359816891</timeResidual>
+          <timeWeight>0.9970267048947957</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/a83b49ad-a445-47ee-96c7-c23e02aa3dd3">
+          <pickID>smi:local/3b970402-100e-4ad9-addf-5d7c6c36496e</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.22382576203207805</timeResidual>
+          <timeWeight>0.9942890640178286</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/ec0e3748-95a4-407b-955e-5a88fe1a49ed">
+          <pickID>smi:local/2fdc2ac5-dbcc-4716-9d03-b3597a9dc534</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.42836943796858584</timeResidual>
+          <timeWeight>0.9942890640178286</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/94af851f-01fc-4f19-a5a0-42863f74aca6">
+          <pickID>smi:local/c4218276-f8b7-436f-86d7-ccbdbe6588c4</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.001994268308949998</timeResidual>
+          <timeWeight>0.9976447675439236</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/c35e0a2e-2ead-4dc5-8e51-f723535e066a">
+          <pickID>smi:local/f596d3bd-8ee5-425c-889f-25d4187f0b6c</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.22297508568851043</timeResidual>
+          <timeWeight>0.9863010104405228</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/6c346444-a165-4d92-ac9e-d66d7860669f">
+          <pickID>smi:local/19bf60a9-470f-4e96-837f-cfc024666674</pickID>
+          <phase>S</phase>
+          <timeResidual>0.129096675820481</timeResidual>
+          <timeWeight>0.9863010104405228</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/504d6f96-b15b-4329-849d-2be35f200970">
+          <pickID>smi:local/1f6fa56f-8254-453c-99e3-82d95c711bfe</pickID>
+          <phase>P</phase>
+          <timeResidual>0.08595283226977735</timeResidual>
+          <timeWeight>0.9584364153272983</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/5921495a-1643-4498-adfc-31f3a62bd406">
+          <pickID>smi:local/bd2ad2b9-8ef3-4d63-bfe0-df2b2ebf3ab1</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.4085196116008518</timeResidual>
+          <timeWeight>0.8138592246855955</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/2547d767-028b-4a3e-a2a8-d35761082618">
+          <pickID>smi:local/83a81c92-7a91-464c-a7a2-4f2f46f8adf3</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.0519514924060509</timeResidual>
+          <timeWeight>0.9248408801818092</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/f3d0ec46-d057-42c9-93c9-d26b0f0a5d13">
+          <pickID>smi:local/463d5da4-400c-4069-9776-2a9ccab0709d</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.11272144878174117</timeResidual>
+          <timeWeight>0.9512977892247068</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/01ba654a-748e-4a7f-9d01-732b5bf039d8">
+          <pickID>smi:local/06f9c265-903a-4e1e-93a8-cdd8a97972ac</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.09109227524568553</timeResidual>
+          <timeWeight>0.9512977892247068</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/c6bc0f73-ddbc-4552-a79e-e2856a07fe15">
+          <pickID>smi:local/e48ae1e1-8d76-4bd3-896e-7e5adb70e952</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.22428259539556095</timeResidual>
+          <timeWeight>0.8410254059623344</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/2f422679-77e6-473b-b3e5-eb0bdca49e6e">
+          <pickID>smi:local/11938dc1-1b23-41ee-91d6-e14ab56c7c0e</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.05388201114367952</timeResidual>
+          <timeWeight>0.9967999419327845</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/c2868f4f-c87f-4ad2-867e-66382dc86206">
+          <pickID>smi:local/053e2f7c-5da1-4f7e-9177-c5e448050525</pickID>
+          <phase>S</phase>
+          <timeResidual>0.17647113329238273</timeResidual>
+          <timeWeight>0.9967999419327845</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/378604c5-68bf-47e4-a5b0-0ac490366d05">
+          <pickID>smi:local/80a13de2-a8a0-4c22-bae7-d99b10ed7108</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.2980461240131316</timeResidual>
+          <timeWeight>0.9915159754147151</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/8ec83767-2cd2-4c0c-bc0b-b06e07d0f9ad">
+          <pickID>smi:local/cd57e936-e84c-44d0-bf82-7a73be4931e7</pickID>
+          <phase>S</phase>
+          <timeResidual>0.12737675334885523</timeResidual>
+          <timeWeight>0.9915159754147151</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/0a03263f-3b26-4521-9815-f2fb9a6baf2d">
+          <pickID>smi:local/6f7ead8f-329b-4371-a46f-86d487bd267e</pickID>
+          <phase>P</phase>
+          <timeResidual>0.20036494283501405</timeResidual>
+          <timeWeight>0.9871181177894628</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/3edb4079-7796-428f-bf6a-8b161897db1a">
+          <pickID>smi:local/8ee9a980-dce3-435c-92a8-0b4b12141649</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.015438002899986536</timeResidual>
+          <timeWeight>0.9939844979454744</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/e36738de-e729-4c3f-8278-99c650dff999">
+          <pickID>smi:local/b572fe38-d700-482c-9e0b-0710ca2079ee</pickID>
+          <phase>S</phase>
+          <timeResidual>0.037325020464619385</timeResidual>
+          <timeWeight>0.9939844979454744</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/6f355dff-8cdf-465c-af41-a56d92febcb0">
+          <pickID>smi:local/acf681f5-bc99-4a5e-b6d3-92017b1fbb7b</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.1740268795302118</timeResidual>
+          <timeWeight>0.9855714557550488</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/2eaffd5e-e485-4655-b738-b72f3e7dd306">
+          <pickID>smi:local/100a28b4-c70f-4551-9ea7-44d031d350b7</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.10634613673632032</timeResidual>
+          <timeWeight>0.9899172605404749</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/df85b0fa-1549-40dc-9565-65f8e63157b1">
+          <pickID>smi:local/588ae77b-f36c-41b8-8a59-97128e91bb45</pickID>
+          <phase>S</phase>
+          <timeResidual>0.08780031990312764</timeResidual>
+          <timeWeight>0.9899172605404749</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/7ef70b7b-cb1d-4e49-a29f-9e6e721fb4d6">
+          <pickID>smi:local/055437ed-6027-492f-bbfa-ecfeef30d5b1</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.3048838916370542</timeResidual>
+          <timeWeight>0.9902418834447879</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/21c44e7c-4358-4246-aad1-22a99d707363">
+          <pickID>smi:local/fe0a8027-ea66-4ecf-8654-5ed7b6032b0f</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.12936375771106157</timeResidual>
+          <timeWeight>0.9902418834447879</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/3840df00-72b6-40f5-94eb-3d7aae2beba8">
+          <pickID>smi:local/817a3816-54ed-4a0b-ac4a-febdc7ef502e</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.4210474592655</timeResidual>
+          <timeWeight>0.9925340143238778</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/e23f9c53-4792-449a-aea4-673768acc0e5">
+          <pickID>smi:local/d548eee1-adbb-4ab3-89b3-fb563ec4b68e</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.44086430635951857</timeResidual>
+          <timeWeight>0.9925340143238778</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/b886c57e-dc76-4e19-8223-b35274e3428d">
+          <pickID>smi:local/94d2927f-8042-4236-a14f-a48245376759</pickID>
+          <phase>P</phase>
+          <timeResidual>0.0566975511748673</timeResidual>
+          <timeWeight>0.9724980398543991</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/35c9c995-8494-4dad-96b0-81c2c077a0a5">
+          <pickID>smi:local/384326d8-68ad-46fa-9cd9-4f76858db550</pickID>
+          <phase>P</phase>
+          <timeResidual>0.08680316408251088</timeResidual>
+          <timeWeight>0.8304559235072458</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/b12be9e8-bbb2-444a-81b4-75d7a2bde4e8">
+          <pickID>smi:local/7766f6f0-750e-4396-84de-c8864b2eff85</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.1229600408673086</timeResidual>
+          <timeWeight>0.9737065504102069</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/56a869b9-c6ff-4d3c-9b13-3e7141c12f7f">
+          <pickID>smi:local/246c7d80-228e-4947-ac33-0aeb7c4207e4</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.0010461608461183047</timeResidual>
+          <timeWeight>0.9960751039381347</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/b162f00d-21ef-4257-80e4-1ef39ed998db">
+          <pickID>smi:local/5133a0d8-1154-46cf-98d2-75557dbf4382</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.04889758469255234</timeResidual>
+          <timeWeight>0.9833804636069577</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/d1975f25-d5a5-44de-bd6c-36901c0c9dff">
+          <pickID>smi:local/d1c25773-bbaa-4c56-8dac-52e9114eac51</pickID>
+          <phase>S</phase>
+          <timeResidual>-0.04747341564841179</timeResidual>
+          <timeWeight>0.9833804636069577</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/84b28518-3536-474a-85d7-996201df8dcb">
+          <pickID>smi:local/f07773ef-d9de-490b-a9fa-f2fa4f73c832</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.16056570270603743</timeResidual>
+          <timeWeight>0.9869894286770537</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/37b5be01-95e7-4e33-ae5a-647163884c74">
+          <pickID>smi:local/d95389e6-e96c-4d0c-b8ff-c5f1e3e5cf39</pickID>
+          <phase>S</phase>
+          <timeResidual>0.40514146831118225</timeResidual>
+          <timeWeight>0.9869894286770537</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/7852fbd9-a728-48bc-b63e-73423b0e47ab">
+          <pickID>smi:local/346a3d48-86a3-444d-bedf-25220fc82261</pickID>
+          <phase>P</phase>
+          <timeResidual>-0.12538787228220372</timeResidual>
+          <timeWeight>0.9820490205241457</timeWeight>
+        </arrival>
+        <arrival publicID="smi:local/dbf3456c-cfe2-4c2c-a1de-af8a871cc48c">
+          <pickID>smi:local/4920f8c1-4814-4c8c-8a08-810b60ed5bf5</pickID>
+          <phase>S</phase>
+          <timeResidual>1.263036197940437e-05</timeResidual>
+          <timeWeight>0.9820490205241457</timeWeight>
+        </arrival>
+      </origin>
+      <magnitude publicID="smi:org.gfz-potsdam.de/geofon/gsiOrigin202403240403.54.046407.26472#netMag.M">
+        <mag>
+          <value>3.2861538461538466</value>
+        </mag>
+        <type>Mwp</type>
+        <originID>smi:org.gfz-potsdam.de/geofon/gsiOrigin202403240403.54.046407.26472</originID>
+        <stationCount>13</stationCount>
+        <evaluationStatus>confirmed</evaluationStatus>
+        <creationInfo>
+          <agencyID>GSI</agencyID>
+          <author>MW-S</author>
+          <creationTime>2024-03-24T04:36:28.344524Z</creationTime>
+        </creationInfo>
+      </magnitude>
+      <pick publicID="smi:local/f4681ec8-f4a9-48fd-b7b1-288a32b13254">
+        <time>
+          <value>2024-03-23T18:35:59.138836Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="IZRL" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525308Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/d2ef355e-9cc2-45fb-91af-35cf07f696c0">
+        <time>
+          <value>2024-03-23T18:36:05.488042Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ALN" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525626Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/d3c66272-3595-4ebc-87d2-7f66803d203d">
+        <time>
+          <value>2024-03-23T18:36:01.620876Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="BTSH" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525672Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/2d818fc9-4e70-4426-8ba7-7f068689b69e">
+        <time>
+          <value>2024-03-23T18:36:06.350310Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="BTSH" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525699Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/246c7d80-228e-4947-ac33-0aeb7c4207e4">
+        <time>
+          <value>2024-03-23T18:36:01.741298Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="YGR" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525731Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/9d528530-73fe-4cf9-a819-347d576e39d7">
+        <time>
+          <value>2024-03-23T18:36:02.390241Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="BTOR" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525828Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/016d847c-996a-482c-a8f9-fd5ab4b6b60d">
+        <time>
+          <value>2024-03-23T18:36:06.944977Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="BTOR" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525872Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/027b1812-0379-4e7f-92c8-1a025d93a7f9">
+        <time>
+          <value>2024-03-23T18:36:02.316650Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="CVYN" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525758Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/fd567f79-0182-4359-a361-c118a2ee4450">
+        <time>
+          <value>2024-03-23T18:36:07.212577Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="CVYN" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525786Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/3562d9bf-6b33-490e-a751-64b41c28f19c">
+        <time>
+          <value>2024-03-23T18:36:07.747777Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="KMKB" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525948Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/9d190207-57d6-40d5-bdd4-ef50a68cf78c">
+        <time>
+          <value>2024-03-23T18:36:02.604326Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MEHL" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525977Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/22dbb610-fcda-4410-bd40-c1f42bf9716f">
+        <time>
+          <value>2024-03-23T18:36:08.223511Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MEHL" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526017Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/d58574cf-f62a-4b90-9fb2-e285db9ac61c">
+        <time>
+          <value>2024-03-23T18:36:03.099396Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="KRPN" locationCode="21" channelCode="ENE"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526046Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/8099c680-6a19-4d14-bb1b-5dd122c5d154">
+        <time>
+          <value>2024-03-23T18:36:08.610045Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="KRPN" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526074Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/5f897c55-0b95-4f1b-925e-2049e66989ed">
+        <time>
+          <value>2024-03-23T18:36:02.711368Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="HTCH" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526102Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/41cd5653-0fe2-4de0-a1b1-2152e4f59d7b">
+        <time>
+          <value>2024-03-23T18:36:08.104578Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="HTCH" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526129Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/4a5a6691-298b-480a-9064-9e527dc404d1">
+        <time>
+          <value>2024-03-23T18:36:08.996579Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="AFK" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526239Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/3b970402-100e-4ad9-addf-5d7c6c36496e">
+        <time>
+          <value>2024-03-23T18:36:03.226508Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MNHM" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526158Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/ce86f50c-fe11-43ae-b2cf-2842e2e3c380">
+        <time>
+          <value>2024-03-23T18:35:59.051499Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="GNNR" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525249Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/940c9c6a-1f0a-488a-ac3f-753b3617c132">
+        <time>
+          <value>2024-03-23T18:36:01.414572Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="GNNR" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525279Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/2cc40187-2dcf-4cf6-abc2-53d7a9c1fae8">
+        <time>
+          <value>2024-03-23T18:36:01.295638Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="IZRL" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525337Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/c4218276-f8b7-436f-86d7-ccbdbe6588c4">
+        <time>
+          <value>2024-03-23T18:35:59.433202Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MRHV" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525373Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/52b1ddd0-01d0-43b3-96ab-dedb91301ff7">
+        <time>
+          <value>2024-03-23T18:36:00.403271Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MMLI" locationCode="22" channelCode="HHZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525408Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/d334e14b-01c6-46a4-8816-f61468f1698e">
+        <time>
+          <value>2024-03-23T18:36:04.328441Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MMLI" locationCode="22" channelCode="HHN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525436Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/11938dc1-1b23-41ee-91d6-e14ab56c7c0e">
+        <time>
+          <value>2024-03-23T18:36:00.764539Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="OFRI" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525530Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/c1807e7d-0ced-4f2c-9eab-e09221871ed3">
+        <time>
+          <value>2024-03-23T18:36:01.099045Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MLDT" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525463Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/58c6cf85-6caf-4c6c-ba4e-9423bf9fa476">
+        <time>
+          <value>2024-03-23T18:36:04.893375Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MLDT" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525495Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/cb672a85-a58b-4bc3-a1bd-f7b60c15eb2d">
+        <time>
+          <value>2024-03-23T18:36:01.252918Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ALN" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525593Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/2fdc2ac5-dbcc-4716-9d03-b3597a9dc534">
+        <time>
+          <value>2024-03-23T18:36:08.728978Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MNHM" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526186Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/e845a20c-8016-41b0-9be8-303e3e536551">
+        <time>
+          <value>2024-03-23T18:36:03.320170Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="BRSH" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526265Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/b572fe38-d700-482c-9e0b-0710ca2079ee">
+        <time>
+          <value>2024-03-23T18:36:09.620979Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ROI" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526403Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/580b6545-18ea-495a-8171-51d24fb9790e">
+        <time>
+          <value>2024-03-23T18:36:03.668057Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ALMT" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526318Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/06af97b4-709f-4fd3-8db0-b7c2d004be3c">
+        <time>
+          <value>2024-03-23T18:36:09.829113Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="HMRA" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526455Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/c85b15d1-0b05-4168-9865-dce2496e4cc0">
+        <time>
+          <value>2024-03-23T18:36:03.962423Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="HMDT" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526481Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/1379c56e-13eb-4edb-9c8b-b041b9c42267">
+        <time>
+          <value>2024-03-23T18:36:10.394047Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="HMDT" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526509Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/4d7be1e8-0dec-472d-a250-e398de1fffe2">
+        <time>
+          <value>2024-03-23T18:36:11.494181Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ARIL" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526622Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/817a3816-54ed-4a0b-ac4a-febdc7ef502e">
+        <time>
+          <value>2024-03-23T18:36:04.256789Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="TVR" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526538Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/d0a53074-d337-41d4-a0b5-809091f7b9a1">
+        <time>
+          <value>2024-03-23T18:36:04.665558Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MGDL" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526705Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/07462f27-9ac3-40e2-85dd-30d9f75720ab">
+        <time>
+          <value>2024-03-23T18:36:05.668902Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="GLHS" locationCode="22" channelCode="HHZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526733Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/1638bcc0-29aa-470d-969b-a9395bc662ac">
+        <time>
+          <value>2024-03-23T18:36:12.713249Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="GLHS" locationCode="22" channelCode="HHN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526759Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/055437ed-6027-492f-bbfa-ecfeef30d5b1">
+        <time>
+          <value>2024-03-23T18:36:05.577242Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="SPR" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526874Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/fe0a8027-ea66-4ecf-8654-5ed7b6032b0f">
+        <time>
+          <value>2024-03-23T18:36:13.159249Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="SPR" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526900Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/847a21f8-7732-4cc4-a730-3872f3462adf">
+        <time>
+          <value>2024-03-23T18:36:06.142176Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ENGV" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526927Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/a4db4196-9c36-47b8-8576-d2839abb643d">
+        <time>
+          <value>2024-03-23T18:36:13.426849Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MEFR" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526983Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/100a28b4-c70f-4551-9ea7-44d031d350b7">
+        <time>
+          <value>2024-03-23T18:36:05.904309Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="SLMZ" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527011Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/588ae77b-f36c-41b8-8a59-97128e91bb45">
+        <time>
+          <value>2024-03-23T18:36:13.575516Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="SLMZ" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527037Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/cf5357ea-a676-473a-9f5d-b6f611d49af2">
+        <time>
+          <value>2024-03-23T18:36:06.171909Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="KNHM" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527066Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/147587c0-c710-484f-8303-edbeb3253835">
+        <time>
+          <value>2024-03-23T18:36:14.616184Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="AMID" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527145Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/6f7ead8f-329b-4371-a46f-86d487bd267e">
+        <time>
+          <value>2024-03-23T18:36:07.212577Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="RMOT" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527173Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/f07773ef-d9de-490b-a9fa-f2fa4f73c832">
+        <time>
+          <value>2024-03-23T18:36:06.826043Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ZEFT" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527205Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/d95389e6-e96c-4d0c-b8ff-c5f1e3e5cf39">
+        <time>
+          <value>2024-03-23T18:36:15.567650Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ZEFT" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527232Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/f596d3bd-8ee5-425c-889f-25d4187f0b6c">
+        <time>
+          <value>2024-03-23T18:36:06.974710Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MRON" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527266Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/19bf60a9-470f-4e96-837f-cfc024666674">
+        <time>
+          <value>2024-03-23T18:36:15.656850Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MRON" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527292Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/acf681f5-bc99-4a5e-b6d3-92017b1fbb7b">
+        <time>
+          <value>2024-03-23T18:36:07.272043Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="RSPN" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527325Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/7531119f-ec86-4b47-a26f-0784262deb86">
+        <time>
+          <value>2024-03-23T18:36:07.718044Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="HDNS" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527383Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/05a04989-90ca-4af1-b323-97c267cf681a">
+        <time>
+          <value>2024-03-23T18:36:08.015377Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="HNTI" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527409Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/5133a0d8-1154-46cf-98d2-75557dbf4382">
+        <time>
+          <value>2024-03-23T18:36:08.015377Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="YITV" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527440Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/d1c25773-bbaa-4c56-8dac-52e9114eac51">
+        <time>
+          <value>2024-03-23T18:36:16.994852Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="YITV" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527474Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/392a79a4-c070-4cee-951f-589ed914d204">
+        <time>
+          <value>2024-03-23T18:36:08.164044Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="LOD" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527567Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/346a3d48-86a3-444d-bedf-25220fc82261">
+        <time>
+          <value>2024-03-23T18:36:08.193778Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ZRT" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527504Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/4920f8c1-4814-4c8c-8a08-810b60ed5bf5">
+        <time>
+          <value>2024-03-23T18:36:17.470585Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ZRT" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527539Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/aa9d27f6-0e4f-44fa-957c-e698a69f2ba9">
+        <time>
+          <value>2024-03-23T18:36:08.520844Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="GDOT" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527595Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/a35a2b72-52a3-40e0-9028-70e943eaef04">
+        <time>
+          <value>2024-03-23T18:36:08.818178Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="DSHN" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527622Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/29c80438-714c-4236-8742-fdb3ad21dcbf">
+        <time>
+          <value>2024-03-23T18:36:09.204712Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="HULT" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527650Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/83961bd4-e84f-4374-a35d-b21800999633">
+        <time>
+          <value>2024-03-23T18:36:09.650712Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="KDZV" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527706Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/6bd86480-2a7c-4821-a7b9-08c9eb93d0d2">
+        <time>
+          <value>2024-03-23T18:36:20.146588Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="KDZV" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527731Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/7766f6f0-750e-4396-84de-c8864b2eff85">
+        <time>
+          <value>2024-03-23T18:36:09.799379Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="YFTH" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527761Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/d265e3c3-b118-49e4-afc0-4aa5b379b393">
+        <time>
+          <value>2024-03-23T18:36:10.275113Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="KSH0" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527788Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/94d2927f-8042-4236-a14f-a48245376759">
+        <time>
+          <value>2024-03-23T18:36:10.215646Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="VJRH" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527843Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/109f3d99-8639-4383-8f31-67d43b32d4ea">
+        <time>
+          <value>2024-03-23T18:36:10.840047Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="KSRY" locationCode="22" channelCode="HHZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527871Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/825c3f8a-7de6-47b9-8f95-4c2b252e9231">
+        <time>
+          <value>2024-03-23T18:36:10.572446Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="JER" locationCode="22" channelCode="HHZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527900Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/faf41631-7a54-4883-b84c-c63de97670a2">
+        <time>
+          <value>2024-03-23T18:36:21.276455Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="JER" locationCode="22" channelCode="HHN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:17:19.642294Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/7b582987-8c6a-4f46-bcab-07dcde1df581">
+        <time>
+          <value>2024-03-23T18:36:10.750847Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="LVBS" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527953Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/6aaefe88-e4ee-44f8-ad0e-c15dafebf2cc">
+        <time>
+          <value>2024-03-23T18:36:21.692722Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="LVBS" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:17:19.642346Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/5b2ff0c9-342e-44d9-adfd-cb1e8921845e">
+        <time>
+          <value>2024-03-23T18:36:10.780580Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="KARV" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528007Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/ee32af6a-a902-4bc9-80c8-3306199c2c1d">
+        <time>
+          <value>2024-03-23T18:36:21.692722Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="KARV" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:17:19.642383Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/fb27b03b-8f57-45c6-8f86-af2a479daf54">
+        <time>
+          <value>2024-03-23T18:36:10.869780Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ALMG" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528033Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/306cb34e-b8f9-4408-8f9c-fe1220c727df">
+        <time>
+          <value>2024-03-23T18:36:21.841389Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ALMG" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:17:19.642421Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/1f6fa56f-8254-453c-99e3-82d95c711bfe">
+        <time>
+          <value>2024-03-23T18:36:11.910448Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MSAM" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528086Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/f143ba84-d1a5-4b19-96e6-40bb5712948e">
+        <time>
+          <value>2024-03-23T18:36:11.880714Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="GOSH" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528113Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/e86cd9c8-d5c2-4bbf-8e1a-7159c655a8bb">
+        <time>
+          <value>2024-03-23T18:36:23.446991Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="GOSH" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:17:19.642470Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/14c57dfa-55bc-4af7-894d-9de7b6592a8c">
+        <time>
+          <value>2024-03-23T18:36:12.207781Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="EFSH" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528167Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/eac04be0-49ed-428c-b16c-6a46661940e3">
+        <time>
+          <value>2024-03-23T18:36:23.625391Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="EFSH" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528192Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/463d5da4-400c-4069-9776-2a9ccab0709d">
+        <time>
+          <value>2024-03-23T18:36:12.415915Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MTLA" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528220Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/06f9c265-903a-4e1e-93a8-cdd8a97972ac">
+        <time>
+          <value>2024-03-23T18:36:24.666058Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MTLA" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:17:19.642533Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/274821cd-9dc6-4e4d-a455-22ae58098ec1">
+        <time>
+          <value>2024-03-23T18:36:13.753916Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="BTNR" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528289Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/20937cc0-1e1f-469b-b95c-91a799e02073">
+        <time>
+          <value>2024-03-23T18:36:27.312328Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="DSI" locationCode="22" channelCode="HHN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:17:19.642615Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/83a81c92-7a91-464c-a7a2-4f2f46f8adf3">
+        <time>
+          <value>2024-03-23T18:36:14.437783Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MSLM" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528346Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/6b479574-7de8-4fff-becf-dd136a466b45">
+        <time>
+          <value>2024-03-23T18:36:15.300050Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="AKAT" locationCode="22" channelCode="HHZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528373Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/e48ae1e1-8d76-4bd3-896e-7e5adb70e952">
+        <time>
+          <value>2024-03-23T18:36:17.886852Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="NMSR" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528404Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/384326d8-68ad-46fa-9cd9-4f76858db550">
+        <time>
+          <value>2024-03-23T18:36:18.451786Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="YATR" locationCode="22" channelCode="HHZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528432Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/bd2ad2b9-8ef3-4d63-bfe0-df2b2ebf3ab1">
+        <time>
+          <value>2024-03-23T18:36:18.511253Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MSBI" locationCode="22" channelCode="HHZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528464Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/461fdc03-4b78-4ce8-a3a3-671ccc12fad2">
+        <time>
+          <value>2024-03-23T18:36:20.206054Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="BSHV" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528495Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/e0e8e167-9353-4379-9d60-2455f98e7704">
+        <time>
+          <value>2024-03-23T18:36:09.650713Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ALMT" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526344Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/8546c041-5c71-466d-b58e-57cb25a67d80">
+        <time>
+          <value>2024-03-23T18:36:03.734959Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="HMRA" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526429Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/48ee901f-6f5b-413d-a9c9-0c13c4f3de63">
+        <time>
+          <value>2024-03-23T18:36:01.117238Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="HYGV" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525214Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/0bd7af49-98ab-47d5-84a0-1f3b85ac7d78">
+        <time>
+          <value>2024-03-23T18:35:58.891865Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="HYGV" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525125Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/ac41bf20-e8dc-4cc2-a578-89ca299ac57d">
+        <time>
+          <value>2024-03-23T18:36:03.259959Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="AFK" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526212Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/fd5f68c5-a5af-4f7c-b683-7c3bcb1f9afc">
+        <time>
+          <value>2024-03-23T18:36:02.470523Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="KMKB" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525918Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/80a13de2-a8a0-4c22-bae7-d99b10ed7108">
+        <time>
+          <value>2024-03-23T18:36:04.966561Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="RGMN" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526789Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/b0390ee6-2ebf-43f3-8983-7abaf5dbf006">
+        <time>
+          <value>2024-03-23T18:36:05.606975Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="MEFR" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526957Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/cd57e936-e84c-44d0-bf82-7a73be4931e7">
+        <time>
+          <value>2024-03-23T18:36:12.415915Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="RGMN" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526816Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/8aa051d2-d52f-4323-8724-52d933942d2c">
+        <time>
+          <value>2024-03-23T18:36:26.509527Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="BTNR" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:17:19.642576Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/4324125e-eae7-44fa-9a0b-9599094893f9">
+        <time>
+          <value>2024-03-23T18:36:04.317000Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ARIL" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526591Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/f04a0aff-a62d-4c6e-be3c-75df7f280489">
+        <time>
+          <value>2024-03-23T18:36:14.229650Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="KNHM" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527092Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/65649ad1-8403-4049-bacb-6192adada0c2">
+        <time>
+          <value>2024-03-23T18:36:06.498976Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="AMID" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527120Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/053e2f7c-5da1-4f7e-9177-c5e448050525">
+        <time>
+          <value>2024-03-23T18:36:04.655508Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="OFRI" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.525561Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/d548eee1-adbb-4ab3-89b3-fb563ec4b68e">
+        <time>
+          <value>2024-03-23T18:36:10.899514Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="TVR" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526565Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/9938f92e-4c8b-4a62-8ea6-f69503798a13">
+        <time>
+          <value>2024-03-23T18:36:19.343787Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="HULT" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527676Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/7b2d7648-0f61-468b-b88a-0ca2b77aa10d">
+        <time>
+          <value>2024-03-23T18:36:20.919655Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="KSH0" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.527814Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/7d726e05-1790-44e9-b293-ff9b4c0aa1e8">
+        <time>
+          <value>2024-03-23T18:36:14.051249Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="DSI" locationCode="22" channelCode="HHZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.528317Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/436141c0-d88e-4221-b0d6-08bc1dc6c4bd">
+        <time>
+          <value>2024-03-23T18:36:09.234445Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="BRSH" locationCode="21" channelCode="ENN"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>S</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526292Z</creationTime>
+        </creationInfo>
+      </pick>
+      <pick publicID="smi:local/8ee9a980-dce3-435c-92a8-0b4b12141649">
+        <time>
+          <value>2024-03-23T18:36:03.674747Z</value>
+          <uncertainty>0.01</uncertainty>
+          <confidenceLevel>100.0</confidenceLevel>
+        </time>
+        <waveformID networkCode="IS" stationCode="ROI" locationCode="21" channelCode="ENZ"></waveformID>
+        <methodID>smi:local/GSI</methodID>
+        <phaseHint>P</phaseHint>
+        <evaluationMode>manual</evaluationMode>
+        <creationInfo>
+          <author>GSI</author>
+          <creationTime>2024-03-24T04:16:07.526373Z</creationTime>
+        </creationInfo>
+      </pick>
+    </event>
+  </eventParameters>
+</q:quakeml>

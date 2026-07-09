@@ -1,5 +1,5 @@
-utils.weighting
-===============
+hypy.utils.weighting module
+===========================
 
 .. automodule:: hypy.utils.weighting
    :members:

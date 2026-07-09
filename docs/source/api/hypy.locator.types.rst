@@ -1,5 +1,5 @@
-locator.types
-=============
+hypy.locator.types module
+=========================
 
 .. automodule:: hypy.locator.types
    :members:

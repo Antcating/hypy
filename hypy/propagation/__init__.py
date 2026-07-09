@@ -1,58 +1,21 @@
-from pathlib import Path
-from typing import Optional
+"""Public propagation package API."""
+
+from .base import PropagationEngine
+
+__all__ = ["PropagationEngine"]
 
 
-class PropagationModel:
-    def __init__(self, model_path: str):
-        self.model_path = model_path
-        self.model_name = Path(model_path).stem
+def __getattr__(name: str):
+    """Lazily expose common propagation base classes."""
+    if name == "LayeredPropagationEngine":
+        from .layered import LayeredPropagationEngine
 
-    @property
-    def dim(self) -> int:
-        """Return the dimensionality of the propagation model.
+        return LayeredPropagationEngine
+    if name == "VolumetricPropagationEngine":
+        from .volumetric import VolumetricPropagationEngine
 
-        This is a placeholder method and should be overridden by subclasses
-        to return the actual dimensionality of the model (e.g., 1 for 1D, 3 for 3D).
+        return VolumetricPropagationEngine
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-        Returns
-        -------
-        int
-            The dimensionality of the propagation model.
-        """
-        raise NotImplementedError("This method should be overridden by subclasses")
 
-    def get_arrival(
-        self,
-        source_latitude: float,
-        source_longitude: float,
-        source_depth_km: float,
-        receiver_latitude: float,
-        receiver_longitude: float,
-        receiver_elevation_m: float,
-        phase: str,
-        max_distance_km: Optional[float] = None,
-    ) -> tuple[float, Optional[float], Optional[float], float]:
-        # Placeholder for child classes to implement
-        # arrival time and takeoff angle retrieval
-        raise NotImplementedError("This method should be overridden by subclasses")
-
-    def compute_travel_time_params(
-        self,
-        source_latitude: float,
-        source_longitude: float,
-        source_depth_km: float,
-        receiver_latitude: float,
-        receiver_longitude: float,
-        receiver_elevation_m: float,
-        phase: str,
-        delta: Optional[float] = None,
-        derivative_method: str = "analytical",
-    ) -> tuple[float, float, tuple[float, float, float, float]]:
-        # Placeholder for child classes to implement
-        # spatial slowness derivative computation
-        raise NotImplementedError("This method should be overridden by subclasses")
-
-    def compute_derivatives(self, *args, **kwargs):
-        # Placeholder for child classes to implement
-        # spatial slowness retrieval
-        raise NotImplementedError("This method should be overridden by subclasses")
+__all__.extend(["LayeredPropagationEngine", "VolumetricPropagationEngine"])

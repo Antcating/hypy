@@ -1,5 +1,5 @@
 """Module for tau time tables used in layered grid propagation."""
 
-from .tau_time_tables import TauTimeTables
+from .grid import TauTravelTimeGrid
 
-__all__ = ["TauTimeTables"]
+__all__ = ["TauTravelTimeGrid"]

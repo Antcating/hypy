@@ -12,7 +12,7 @@ project-excludes = [
 
 [project]
 name = "hypy"
-version = "1.1.0"
+version = "1.2.0"
 description = "A Python package for locating seismic events based on seismic arrivals."
 authors = [{ name = "Yevhenii Antcating"}]
 license = { text = "MIT" }
@@ -22,27 +22,41 @@ dependencies = [
     "numpy==1.26.4",
     "obspy>=1.2",
     "scipy>=1.7",
-    "numba>=0.61"
+    "numba>=0.61",
+    "matplotlib>=3.10.8",
+    "cartopy>=0.25.0",
 ]
 
 [project.optional-dependencies]
 # Extra for development and testing
+
+[dependency-groups]
+# Dev group
 dev = [
-    "pytest",
-    "pytest-cov",
-    "pyrocko",
-    "ruff",
-    "hatchling",
+    "austin-dist>=4.0.0",
+    "hatchling>=1.29.0",
+    "pre-commit>=4.5.1",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.1.0",
+    "pytest-ruff>=0.5",
     "sphinx>=9.0.4",
     "sphinx-rtd-theme>=3.1.0",
 ]
-pyrocko = ["pyrocko"]
 
-fmm = ["scikit-fmm"]
-
+# 3D support group
 3d = [
-    "nllgrid",
-    "pyekfmm"
+    "netcdf4>=1.7.3",
+    "nllgrid>=1.6",
+    "pyekfmm>=0.0.9.0",
+]
+
+# 1D fast marching support group
+fmm = [
+    "scikit-fmm>=2025.6.23",
+]
+# 1D pyrocko support group
+pyrocko = [
+    "pyrocko>=2025.12.4",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -53,7 +67,8 @@ exclude = [
 [tool.hatch.build.targets.sdist]
 packages = ["hypy"]
 exclude = [
-    "test_artifacts/**"
+    "test_artifacts/**",
+    "tests/**"
 ]
 
 [tool.uv.sources]

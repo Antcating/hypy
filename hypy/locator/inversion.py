@@ -1,58 +1,101 @@
+"""Inversion routines for seismic event relocation."""
+
+from typing import Optional
+
 import numpy as np
 from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
 from scipy.sparse.linalg import lsmr
 
-from ..logger import logger
+from hypy.logger import logger
+
 from ..utils.damping import update_damping_factor
 from .config import LocatorConfig
 from .data import DataHandler
-from .derivatives import DerivativeEngine
-from .model import VelocityModelHandler
+from .derivatives import DerivativesHandler
 from .types import InversionResults, SolverLiteral
 
 
 class InversionEngine:
-    """
-    Iterative least-squares inversion for event relocation.
+    """Iterative least-squares inversion for seismic event relocation.
 
-    All dependencies are passed explicitly via the constructor.
-    Mutates DataHandler arrays (locations, origin_times, invalid_events) in-place
-    and returns InversionResults for downstream error analysis.
+    This class encapsulates the main inversion loop for locating seismic events
+    using arrival time residuals and a linearized least-squares model.
+
+    The engine updates the runtime `DataHandler` arrays:
+    - `locations` (lat, lon, depth)
+    - `origin_times` (relative origin times)
+    - `invalid_events` (boolean mask for unresolvable events)
+
+    Assumptions
+    -----------
+    - The velocity model and derivatives are valid for the current event state.
+    - Observed travel times and theoretical travel times have the same ordering
+      and shape.
+
+    Notes
+    -----
+    - The method applies Levenberg-Marquardt-style damping via `damping`.
+    - Depth and time updates are clipped for numerical stability.
+
+    Examples
+    --------
+    >>> engine = InversionEngine(config, data, model_handler, derivative_engine)
+    >>> results = engine.run_iterations(max_iterations=100, conv_threshold=1e-3)
+    >>> print(results.rms)
     """
 
     def __init__(
         self,
         config: LocatorConfig,
         data: DataHandler,
-        model_handler: VelocityModelHandler,
-        derivative_engine: DerivativeEngine,
+        derivative_engine: DerivativesHandler,
     ) -> None:
         self.config = config
         self.data = data
-        self.model_handler = model_handler
         self.derivative_engine = derivative_engine
 
     def _clip_updates(
         self,
-        it: int,
+        iteration_index: int,
         dx: np.ndarray,
         max_horizontal_km: float = 3.0,
         max_vertical_km: float = 1.0,
         max_time_s: float = 1.0,
         couple_zt_to_horizontal: bool = True,
     ) -> np.ndarray:
-        """
-        Smooth safety clipping.
+        """Clip and smooth proposed event update steps.
 
-        Columns in dx:
-            0: horizontal update component 1 [km]
-            1: horizontal update component 2 [km]
-            2: depth update [km]
-            3: origin-time update [s]
+        Parameters
+        ----------
+        iteration_index : int
+            Iteration counter (zero-based).
+        dx : np.ndarray, shape (n_events, 4)
+            Candidate updates in the per-event block format [dx(lat), dy(lon), dz, dt].
+        max_horizontal_km : float, default=3.0
+            Maximum allowed horizontal displacement per iteration in kilometers.
+        max_vertical_km : float, default=1.0
+            Maximum allowed depth change per iteration in kilometers.
+        max_time_s : float, default=1.0
+            Maximum allowed origin-time shift per iteration in seconds.
+        couple_zt_to_horizontal : bool, default=True
+            If True, depth and time updates are scaled by horizontal clipping
+            factor to ensure consistent step magnitude.
 
-        Horizontal updates are clipped by vector norm so direction is preserved.
-        Optionally, z/t are shrunk by the same horizontal scale factor before
-        their own scalar safety clipping.
+        Returns
+        -------
+        np.ndarray
+            Clipped updates with the same shape as ``dx``.
+
+        Notes
+        -----
+        - Horizontal updates are clipped by vector magnitude, preserving direction.
+        - Depth and time updates are clipped independently after optional coupling.
+        - A warning is emitted through logger when any component is clipped.
+
+        Examples
+        --------
+        >>> dx = np.array([[5.0, 0.0, 0.5, 0.2]])
+        >>> clipped = engine._clip_updates(0, dx, max_horizontal_km=3.0)
         """
         dx_raw = dx.copy()
         dx_out = dx.copy()
@@ -89,7 +132,7 @@ class InversionEngine:
 
         if n_h or n_z or n_t:
             logger.warning(
-                f"Iteration {it + 1}: clipped/scaled updates "
+                f"Iteration {iteration_index + 1}: clipped/scaled updates "
                 f"(horizontal={n_h}, depth={n_z}, time={n_t})"
             )
 
@@ -101,30 +144,53 @@ class InversionEngine:
         max_iterations: int = 1000,
         conv_threshold: float = 1e-3,
         solve_airquakes: bool = False,
-        max_depth: float = 50.0,
+        max_depth: Optional[float] = None,
         safe_iteration_limit: int = 20,
         max_lm_trials: int = 8,
         lm_acceptance_tol: float = 1e-6,
     ) -> InversionResults:
-        """
-        Main iterative inversion loop. Runs until convergence or max_iterations.
+        """Run the inversion loop to update event locations and times.
 
-        LM-style logic:
-        - linearize at current model
-        - solve a damped least-squares step
-        - trial the step on the nonlinear objective
-        - accept only if RMS improves enough
-        - otherwise increase damping and retry from the same base model
+        Parameters
+        ----------
+        solver : {'lsqr', 'svd'}, default='lsqr'
+            Linear solver type for each Levenberg-Marquardt trial step.
+        max_iterations : int, default=1000
+            Maximum number of outer iteration cycles.
+        conv_threshold : float, default=1e-3
+            Convergence threshold for RMS residual reduction.
+        solve_airquakes : bool, default=False
+            If True, allow depth to go negative (airquakes); otherwise mark as invalid.
+        max_depth : float, default=50.0
+            Maximum permitted depth (km) after the safe iteration limit.
+        safe_iteration_limit : int, default=20
+            Number of iterations before strict depth bounds are enforced.
+        max_lm_trials : int, default=8
+            Number of damping trials attempted per iteration.
+        lm_acceptance_tol : float, default=1e-6
+            Relative RMS improvement threshold to accept a trial step.
+
+        Returns
+        -------
+        InversionResults
+            Object containing final jacobian matrix, valid rows, residuals, and damping.
+
+        Notes
+        -----
+        - The algorithm performs a damped least-squares update with trial-and-error
+          damping adjustment.
+        - If all trials fail, the state is restored to the previous iteration state.
+        - Behavior is deterministic for a fixed random-free data input set.
+
+        Examples
+        --------
+        >>> results = engine.run_iterations(max_iterations=50, conv_threshold=1e-4)
+        >>> print(results.residuals_flat.shape)
         """
         config = self.config
         data = self.data
 
         def _compute_residuals_and_rms(valid_rows: np.ndarray):
-            """
-            Compute residuals for the current model state:
-                residual = observed_travel_times - theoretical_travel_times
-            and RMS over valid rows only.
-            """
             observed_travel_times = data.arrivals - data.origin_times[:, np.newaxis]
             residuals = observed_travel_times - data.theoretical_travel_times
             residuals_flat_local = residuals.flatten()
@@ -141,20 +207,29 @@ class InversionEngine:
         logger.info(f"Locating {data.n_events} events with {data.n_stations} stations.")
         logger.info(f"Using phases: {config.phases}")
         logger.info(f"Using {solver} solver.")
-        logger.info(f"Using {config.mode} mode for travel-time calculations.")
+        logger.info(
+            f"Using {self.derivative_engine.tracer.name} forward engine "
+            f"for travel-time calculations."
+        )
         logger.info(f"Distance weighting: {config.distance_weighting_enabled}")
         logger.info(f"Fix depth: {config.fix_depth_km}")
         logger.info(f"Precalculate velocities: {config.precalculate_velocities}")
 
+        best_damping = 0.0
         damping = 1.0
         max_damping = 10.0
         residuals_flat = np.array([], dtype=float)
         valid_rows = np.array([], dtype=int)
+        derivatives_built = False
         prev_rms = None
+        iteration_index = 0
 
-        for it in range(max_iterations):
-            # Build derivatives and theoretical travel times for CURRENT model
-            valid_rows = self.derivative_engine.populate_derivative_matrix()
+        for iteration_index in range(max_iterations):
+            if not derivatives_built:
+                valid_rows = self.derivative_engine.build_derivative_matrix(
+                    data, config
+                )
+                derivatives_built = True
             if len(valid_rows) == 0:
                 logger.error("No valid observations available for inversion. Aborting.")
                 break
@@ -168,7 +243,7 @@ class InversionEngine:
                 * residuals_flat[valid_rows]
             )
             A = (
-                data.derivative_matrix[valid_rows, :]
+                data.jacobian_matrix[valid_rows, :]
                 * data.time_error_W[valid_rows][:, np.newaxis]
                 * data.distance_W[valid_rows][:, np.newaxis]
             )
@@ -180,6 +255,8 @@ class InversionEngine:
 
             accepted = False
             rms_after = rms_before
+            best_rms_trial = np.inf
+            best_oob_events = np.zeros(data.n_events, dtype=bool)
 
             for lm_trial in range(max_lm_trials):
                 # Always restart each LM trial from the same base state
@@ -199,9 +276,11 @@ class InversionEngine:
 
                 # Reshape to event blocks and clip/smooth
                 dx = dx_solution.reshape((data.n_events, config.dim))
-                dx = self._clip_updates(it, dx)
+                dx = self._clip_updates(iteration_index, dx)
 
-                # Depth sanity / constraints on trial step
+                # Depth sanity / constraints on trial step.
+                # Do not mark invalid in trial stage until all trials fail.
+                trial_oob = np.zeros(data.n_events, dtype=bool)
                 for event_idx in range(data.n_events):
                     if data.invalid_events[event_idx]:
                         continue
@@ -209,35 +288,46 @@ class InversionEngine:
                     new_depth = data.locations[event_idx, 2] + dx[event_idx, 2]
                     if not solve_airquakes and new_depth < 0.0:
                         logger.warning(
-                            f"Event {event_idx} depth would become negative ({new_depth} km). "
-                            f"Mark invalid for this trial."
+                            "Event %s depth would become negative (%.3f km),"
+                            " rejecting trial %d update.",
+                            event_idx,
+                            new_depth,
+                            lm_trial + 1,
                         )
-                        data.invalid_events[event_idx] = True
+                        trial_oob[event_idx] = True
                         dx[event_idx, :] = 0.0
 
-                    elif it > safe_iteration_limit and new_depth > max_depth:
+                    elif (
+                        iteration_index > safe_iteration_limit and new_depth > max_depth
+                    ):
                         logger.warning(
-                            f"Event {event_idx} depth exceeds max depth "
-                            f"({new_depth} km > {max_depth} km). Mark invalid for this trial."
+                            "Event %s depth exceeds max depth (%.3f km > %.3f km),"
+                            " rejecting trial %d update.",
+                            event_idx,
+                            new_depth,
+                            max_depth,
+                            lm_trial + 1,
                         )
-                        data.invalid_events[event_idx] = True
+                        trial_oob[event_idx] = True
                         dx[event_idx, :] = 0.0
 
                 # Convert km -> deg for lat/lon updates; apply trial step
-                planet_radius = self.model_handler.model.model.radius_of_planet
+                # planet_radius = self.model_handler.model.model.radius_of_planet
                 dx_apply = dx.copy()
-                dx_apply[:, 0] = kilometer2degrees(dx_apply[:, 0], planet_radius)
-                dx_apply[:, 1] = kilometer2degrees(dx_apply[:, 1], planet_radius)
+                dx_apply[:, 0] = kilometer2degrees(dx_apply[:, 0])
+                dx_apply[:, 1] = kilometer2degrees(dx_apply[:, 1])
 
-                valid_mask = ~data.invalid_events
-                data.locations[valid_mask, :3] += dx_apply[valid_mask, :3]
-                data.origin_times[valid_mask] += dx_apply[valid_mask, 3]
+                valid_event_mask = ~data.invalid_events
+                data.locations[valid_event_mask, :3] += dx_apply[valid_event_mask, :3]
+                data.origin_times[valid_event_mask] += dx_apply[valid_event_mask, 3]
 
                 # Rebuild derivatives and recompute RMS AFTER trial update
-                valid_rows_trial = self.derivative_engine.populate_derivative_matrix()
+                valid_rows_trial = self.derivative_engine.build_derivative_matrix(
+                    data, config
+                )
                 if len(valid_rows_trial) == 0:
                     logger.warning(
-                        f"Iteration {it + 1}, LM trial {lm_trial + 1}: "
+                        f"Iteration {iteration_index + 1}, LM trial {lm_trial + 1}: "
                         "no valid observations after trial update; increasing damping."
                     )
                     damping = update_damping_factor(
@@ -253,6 +343,10 @@ class InversionEngine:
                     valid_rows_trial
                 )
 
+                if rms_trial < best_rms_trial:
+                    best_rms_trial = rms_trial
+                    best_oob_events = trial_oob.copy()
+
                 rel_impr_trial = (rms_before - rms_trial) / max(rms_before, 1e-12)
 
                 if rel_impr_trial > lm_acceptance_tol:
@@ -262,6 +356,8 @@ class InversionEngine:
                     residuals_flat = residuals_flat_trial
                     rms_after = rms_trial
 
+                    best_damping = damping
+
                     damping = update_damping_factor(
                         current_factor=float(damping),
                         rms_prev=float(rms_before),
@@ -270,6 +366,12 @@ class InversionEngine:
                         max_factor=max_damping,
                     )
                     break
+
+                logger.warning(
+                    f"Iteration {iteration_index + 1}, LM trial {lm_trial + 1}: "
+                    f"RMS={rms_trial:.6f} s, relative improvement={rel_impr_trial:.6e} "
+                    "not sufficient to accept trial step; increasing damping.",
+                )
 
                 # Reject trial: do not keep trial state, increase damping and retry
                 damping = update_damping_factor(
@@ -286,29 +388,44 @@ class InversionEngine:
                 data.origin_times[:] = base_origin_times
                 data.invalid_events[:] = base_invalid_events
 
-                valid_rows = self.derivative_engine.populate_derivative_matrix()
+                if np.any(best_oob_events):
+                    data.invalid_events[best_oob_events] = True
+                    logger.warning(
+                        "Iteration %s: %s events invalidated after LM failure.",
+                        iteration_index + 1,
+                        int(np.sum(best_oob_events)),
+                    )
+                    logger.warning(
+                        "Best solution had out-of-bounds depth for invalidated events."
+                    )
+
+                valid_rows = self.derivative_engine.build_derivative_matrix(
+                    data, config
+                )
+                derivatives_built = True
                 if len(valid_rows) == 0:
                     logger.error(
-                        "No valid observations available after failed LM trials. Aborting."
+                        "No valid observations available after failed LM trials. "
+                        "Aborting."
                     )
                     break
 
                 residuals_flat, rms_after = _compute_residuals_and_rms(valid_rows)
 
                 logger.warning(
-                    f"Iteration {it + 1}: no acceptable LM step found after "
-                    f"{max_lm_trials} trials. Keeping previous model state."
+                    f"Iteration {iteration_index + 1}: no acceptable LM step found "
+                    f"after {max_lm_trials} trials. Keeping previous model state."
                 )
 
             logger.debug(
-                f"Iteration {it + 1}: "
+                f"Iteration {iteration_index + 1}: "
                 f"RMS before={rms_before:.6f} s, "
                 f"RMS after={rms_after:.6f} s, "
                 f"Damping={damping:.6f}, "
                 f"accepted={accepted}"
             )
             logger.debug(
-                f"Iteration {it + 1}: Origin for first event: "
+                f"Iteration {iteration_index + 1}: Origin for first event: "
                 f"Lat={data.locations[0, 0]:.4f}, Lon={data.locations[0, 1]:.4f}, "
                 f"Depth={data.locations[0, 2]:.2f} km, "
                 f"t0_rel={data.origin_times[0]:.2f}s, "
@@ -324,7 +441,7 @@ class InversionEngine:
                         f"rms={rms_after:.6f} s, rel_impr={rel_impr:.6e}"
                     )
                     logger.info(
-                        f"Convergence reached at iteration {it + 1}: "
+                        f"Convergence reached at iteration {iteration_index + 1}: "
                         f"RMS={rms_after:.6f} s, "
                         f"Relative improvement={rel_impr:.6e}"
                     )
@@ -333,25 +450,30 @@ class InversionEngine:
             prev_rms = rms_after
 
         # Ensure final derivatives / travel times / valid rows correspond to final state
-        valid_rows = self.derivative_engine.populate_derivative_matrix()
-        residuals_flat, final_rms = _compute_residuals_and_rms(valid_rows)
+        if not derivatives_built:
+            valid_rows = self.derivative_engine.build_derivative_matrix(data, config)
+        residuals_flat, rms = _compute_residuals_and_rms(valid_rows)
 
-        A_final = (
-            data.derivative_matrix
-            * data.time_error_W[:, np.newaxis]
-            * data.distance_W[:, np.newaxis]
+        residuals_flat_weighted = residuals_flat * data.time_error_W
+
+        jacobian_matrix_weighted = (
+            data.jacobian_matrix * data.time_error_W[:, np.newaxis]
         )
 
-        logger.info(f"Location iterations completed in {it + 1} iterations.")
+        logger.info(
+            f"Location iterations completed in {iteration_index + 1} iterations."
+        )
         logger.info(
             f"Located {np.sum(~data.invalid_events)} events, "
             f"{np.sum(data.invalid_events)} events invalid."
         )
-        logger.info(f"Final RMS = {final_rms:.6f} s")
+        logger.info(f"Final RMS = {rms:.6f} s, Final damping = {best_damping:.6f}")
 
         return InversionResults(
-            A_final=A_final,
-            valid_rows_final=valid_rows,
-            residuals_flat_final=residuals_flat,
-            lambda_final=damping,
+            jacobian_matrix=data.jacobian_matrix,
+            jacobian_matrix_weighted=jacobian_matrix_weighted,
+            valid_rows=valid_rows,
+            residuals_flat=residuals_flat,
+            residuals_flat_weighted=residuals_flat_weighted,
+            damping=best_damping,
         )

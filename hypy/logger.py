@@ -1,4 +1,5 @@
-# logging_utils.py
+"""Logging helpers used across the package."""
+
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -62,4 +63,4 @@ def get_logger(
     return logger
 
 
-logger = get_logger(log_file="logs/log", level=logging.DEBUG)
+logger = get_logger("hypy")

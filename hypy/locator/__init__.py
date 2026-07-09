@@ -1,45 +1,32 @@
 """
-Public API for hypy.locator
+Public API for hypy.locator.
 
 Exposes EventLocator as a composition-based orchestrator.
-Internal modules provide independent component classes:
-- LocatorConfig: immutable settings
-- DataHandler: mutable runtime arrays and event/station data
-- VelocityModelHandler: velocity model access
-- DerivativeEngine: travel-time derivative computation
-- InversionEngine: iterative least-squares relocation
-- ErrorAnalyzer: uncertainty estimation
-- OriginFinalizer: ObsPy Origin construction
 """
 
-from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
-from ..propagation import PropagationModel
+from ..logger import get_logger
+from ..propagation import PropagationEngine
 from .config import (
     LocatorConfig,
     configure_distance_weighting,
-    validate_operating_regime,
-    validate_precompute_args,
     validate_solver,
 )
 from .data import DataHandler
-from .derivatives import DerivativeEngine
-from .errors import ErrorAnalyzer
-from .finalize import OriginFinalizer
+from .derivatives import DerivativesHandler
+from .errors import compute_error_ellipsoids
+from .export import OriginExporter
 from .inversion import InversionEngine
 from .locations_setup import init_locations
-from .model import VelocityModelHandler
-from .tracer_setup import init_tracer
 from .types import (
+    INFO,
     Catalog,
     DerivativeMethodLiteral,
-    EngineLiteral,
     Event,
     Inventory,
-    ModeLiteral,
     SolverLiteral,
 )
 
@@ -50,8 +37,11 @@ class EventLocator:
 
     Parameters
     ----------
-    model_tvel_path : str
-        Path to the 1D velocity model file in .tvel format.
+    propagation_engine : PropagationEngine
+        Travel-time calculation engine. This is a required argument that specifies the
+        backend to use for travel-time calculations and derivative assembly. The provided
+        engine must be compatible with the specified derivative_method and support the
+        required model features.
     phases : Sequence[str], optional
         List of seismic phases to use for travel-time calculations. Default is ("P",).
         Alowed phases, for now, are "P" and "S".
@@ -59,32 +49,6 @@ class EventLocator:
         Minimum number of picks required per event to attempt location. Default is 4.
     default_time_error : float, optional
         Minimum pick time error (in seconds). Used if pick error is not given. Default is 0.1 s.
-    mode : Literal["table-1d", "ray-1d"], optional
-        Travel-time calculation mode. "table-1d" uses precomputed travel-time tables (faster,
-        less accurate), "ray-1d" computes travel-times on-the-fly using ray-tracing (slower,
-        more accurate). Default is "table-1d".
-
-        Note: "table-1d" mode has to calculate travel-times for the entire distance/depth
-        grid on the first call, which can take a while for large grids. Subsequent calls
-        are fast.
-    engine : Literal["taup", "pyrocko"], optional
-        Travel-time calculation engine. "taup" uses Obspy's TauPyModel, "pyrocko" uses
-        Pyrocko's travel-time calculator. Default is "taup".
-    max_depth_km : Optional[float], optional
-        Maximum depth (in km) for travel-time tables. Required if mode is "table-1d" or if
-        using precomputed velocity profiles. Optional if mode is "ray-1d", as ray-tracing
-        can handle arbitrary depths.
-    max_distance_km : Optional[float], optional
-        Maximum epicentral distance (in degrees) for travel-time tables. Required if
-        mode is "table-1d" or if using precomputed velocity profiles.
-        Optional if mode is "ray-1d", as ray-tracing can handle arbitrary
-        distances.
-    depth_step_km : Optional[float], optional
-        Depth sampling interval (in km) for travel-time tables. Required if mode is
-        "table-1d". Optional if mode is "ray-1d".
-    distance_step_km : Optional[float], optional
-        Distance sampling interval (in degrees) for travel-time tables. Required if mode
-        is "table-1d". Optional if mode is "ray-1d".
     distance_weight_start : Optional[float], optional
         Distance (in km) at which distance-based weighting starts to be applied. If None,
         no distance weighting is applied. Default is None.
@@ -97,38 +61,51 @@ class EventLocator:
         Weight factor at distance_weight_end. Default is 0.01.
     fix_depth_km : Optional[float], optional
         If not None, event depths are fixed during inversion. Default is None.
+    full_data_covariance : bool, optional
+        If True, compute event uncertainty using a correlated observation covariance
+        model instead of diagonal row weighting. Default is False.
+    correlation_length_km : float, optional
+        Correlation length in km used in the exponential observation covariance
+        model when full_data_covariance is enabled. Default is 1.0.
+    error_coefficient : float, optional
+        HYPOINVERSE-style coefficient applied to RMS in the error variance
+        estimate ``RDERR^2 + (error_coefficient * RMS)^2``. Default is 1.0.
+    seed : Optional[int], optional
+        Seed for the random number generator used during location
+        initialization. Set this to an integer to make location runs
+        reproducible. If None, results are non-deterministic. Default is None.
     _precalculate_velocities : bool, optional
         If True, precomputes velocity profiles for all events to speed up travel-time
         calculations. Requires max_depth_km and depth_step_km to be set. Default is False.
-    """
+    """  # noqa: E501
 
     def __init__(
         self,
-        model_tvel_path: str,
+        propagation_engine: PropagationEngine,
         phases: Tuple[str, ...] = ("P", "S"),
-        min_picks_per_event: int = 4,
-        default_time_error: float = 0.1,
-        mode: ModeLiteral = "table-1d",
-        engine: EngineLiteral = "taup",
         derivative_method: DerivativeMethodLiteral = "numerical",
-        max_depth_km: Optional[float] = None,
-        max_distance_km: Optional[float] = None,
-        depth_step_km: Optional[float] = None,
-        distance_step_km: Optional[float] = None,
         distance_weight_start_km: Optional[float] = None,
         distance_weight_end_km: Optional[float] = None,
         weight_start: Optional[float] = 0.99,
         weight_end: Optional[float] = 0.01,
         fix_depth_km: Optional[float] = None,
+        full_data_covariance: bool = False,
+        correlation_length_km: float = 1.0,
+        error_coefficient: float = 1.0,
+        min_picks_per_event: int = 4,
+        default_time_error: float = 0.1,
+        log_level: int = INFO,
+        log_file: Optional[str] = None,
+        seed: Optional[int] = None,
         _precalculate_velocities: bool = False,
     ):
-        # Validate mode and engine
-        mode, engine, derivative_method = validate_operating_regime(
-            mode, engine, derivative_method
-        )
+        get_logger("hypy", level=log_level, log_file=log_file)
 
-        # Resolve model path
-        tvel_file_path = Path(model_tvel_path).expanduser().resolve()
+        if derivative_method not in {"numerical", "analytical"}:
+            raise ValueError(
+                "Unsupported derivative method: "
+                f"{derivative_method!r}. Valid values are 'numerical' and 'analytical'."
+            )
 
         # Calculate distance weighting parameters
         distance_weighting_enabled, k, x0 = configure_distance_weighting(
@@ -137,29 +114,20 @@ class EventLocator:
 
         # Build immutable configuration
         self.config = LocatorConfig(
-            tvel_file_path=tvel_file_path,
-            model_name=tvel_file_path.stem,
             phases=tuple(phases),
             min_picks_per_event=min_picks_per_event,
             default_time_error=default_time_error,
-            mode=mode,
-            engine=engine,
             derivative_method=derivative_method,
-            max_depth_km=max_depth_km,
-            max_distance_km=max_distance_km,
-            depth_step_km=depth_step_km,
-            distance_step_km=distance_step_km,
             fix_depth_km=fix_depth_km,
             precalculate_velocities=bool(_precalculate_velocities),
             distance_weighting_enabled=distance_weighting_enabled,
             k=k,
             x0=x0,
+            full_data_covariance=bool(full_data_covariance),
+            correlation_length_km=float(correlation_length_km),
+            error_coefficient=float(error_coefficient),
+            seed=seed,
         )
-
-        # Initiate TauPyModel for the given velocity model file.
-        # TODO: Evaluate if this can be engine specific in the future
-        # to remove hard dependency on obspy's TauPyModel when using other engines.
-        self.model_handler = VelocityModelHandler(tvel_file_path)
 
         # Initialize Data handling
         self.data = DataHandler(
@@ -170,24 +138,23 @@ class EventLocator:
             fix_depth_km=self.config.fix_depth_km,
         )
 
-        # Initialize the travel-time calculator (tracer) based on the selected mode and engine.
-        self.tracer: PropagationModel = init_tracer(
-            mode=self.config.mode,
-            engine=self.config.engine,
-            phases=self.config.phases,
-            tvel_file_path=self.config.tvel_file_path,
-            max_depth=max_depth_km,
-            max_distance=max_distance_km,
-            depth_step=depth_step_km,
-            distance_step=distance_step_km,
-        )
+        backend_feature_flags = propagation_engine.feature_flags
+        # backend_required_model_features = forward_engine.required_model_features
 
-        # Derivative engine - bridges config, data, model, and tracer
-        self.derivative_engine = DerivativeEngine(
+        if f"derivative.{self.config.derivative_method}" not in backend_feature_flags:
+            raise ValueError(
+                "Unsupported derivative method: "
+                f"{self.config.derivative_method!r} "
+                f"for {propagation_engine.__class__.__name__!r} backend."
+            )
+
+        self.propagation_backend = propagation_engine
+
+        # Derivative engine - bridges config, data, model, and propagation backend
+        self.derivative_engine = DerivativesHandler(
             config=self.config,
             data=self.data,
-            model_handler=self.model_handler,
-            tracer=self.tracer,
+            tracer=self.propagation_backend,
         )
 
         # Whether to precompute velocity profiles for all events.
@@ -197,10 +164,22 @@ class EventLocator:
         # what travel-time calculation engine is used,
         # which can impact the accuracy of the solution in ray-tracing mode.
         if self.config.precalculate_velocities:
-            validate_precompute_args(max_depth_km, depth_step_km)
-            self.model_handler._precompute_velocity_profiles_1d(
-                self.config.phases, max_depth_km, depth_step_km
-            )  # type: ignore[arg-type]
+            raise NotImplementedError(
+                "Precomputing velocity profiles is not yet implemented. "
+                "This feature is planned for a future release."
+            )
+            # validate_precompute_args(max_depth_km, depth_step_km)
+            # precompute_velocity_profiles = getattr(
+            #     self.velocity_model,
+            #     "_precompute_velocity_profiles_1d",
+            #     None,
+            # )
+            # if callable(precompute_velocity_profiles):
+            #     precompute_velocity_profiles(
+            #         self.config.phases,
+            #         max_depth_km,
+            #         depth_step_km,
+            #     )
 
     def load_data(self, inv: Inventory, catalog: Union[List[Event], Catalog]) -> None:
         """
@@ -221,15 +200,21 @@ class EventLocator:
     def locate(
         self,
         solver: SolverLiteral = "lsqr",
-        max_iterations: int = 1000,
+        max_iterations: int = 100,
         conv_threshold: float = 1e-3,
         solve_airquakes: bool = False,
         safe_iteration_limit: int = 20,
         trial_depth_km: float = 10.0,
     ) -> Tuple[Union[List[Event], Catalog], np.ndarray]:
         """
-        Run the full location pipeline: initialization, iterative inversion,
-        error analysis, and finalization.
+        Run the full location pipeline.
+
+        Performs iterative least-squares inversion to locate events
+        based on the loaded data and configuration. The process includes:
+        1. Initial location setup (seed generation)
+        2. Iterative inversion to refine event locations
+        3. Error analysis to compute uncertainty ellipsoids
+        4. Finalization of Origin objects and reporting of invalid picks/events
 
         Parameters
         ----------
@@ -259,13 +244,13 @@ class EventLocator:
             self.config,
             self.derivative_engine,
             trial_depth_km,
-            self.config.max_depth_km,
+            self.propagation_backend.distance_step_km,
+            self.propagation_backend.max_depth_km,
         )
 
         inversion_engine = InversionEngine(
             config=self.config,
             data=self.data,
-            model_handler=self.model_handler,
             derivative_engine=self.derivative_engine,
         )
         inversion_results = inversion_engine.run_iterations(
@@ -273,16 +258,19 @@ class EventLocator:
             max_iterations=max_iterations,
             conv_threshold=conv_threshold,
             solve_airquakes=solve_airquakes,
-            max_depth=self.config.max_depth_km or 300.0,
+            max_depth=self.propagation_backend.max_depth_km,
             safe_iteration_limit=safe_iteration_limit,
         )
 
-        error_analyzer = ErrorAnalyzer(config=self.config, data=self.data)
-        error_results = error_analyzer.compute_error_ellipsoids(inversion_results)
+        error_results = compute_error_ellipsoids(
+            self.config,
+            self.data,
+            inversion_results,
+        )
 
-        finalizer = OriginFinalizer(config=self.config, data=self.data)
-        events = finalizer.finalize_origins(error_results)
-        invalid_indices = OriginFinalizer.report_invalid_events(self.data)
+        exporter = OriginExporter(config=self.config, data=self.data)
+        events = exporter.finalize_origins(error_results, as_catalog=True)
+        invalid_indices = OriginExporter.report_invalid_events(self.data)
 
         return events, invalid_indices
 

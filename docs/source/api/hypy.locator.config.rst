@@ -1,5 +1,5 @@
-locator.config
-==============
+hypy.locator.config module
+==========================
 
 .. automodule:: hypy.locator.config
    :members:

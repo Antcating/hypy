@@ -1,6 +1,7 @@
 import pytest
 
 from hypy.locator import config
+from hypy.propagation import registry
 
 
 @pytest.mark.parametrize(
@@ -29,6 +30,23 @@ def test_validate_operating_regime_valid(mode, engine, derivative_method, expect
 def test_validate_operating_regime_invalid(mode, engine, derivative_method):
     with pytest.raises(ValueError):
         config.validate_operating_regime(mode, engine, derivative_method)
+
+
+def test_validate_operating_regime_uses_backend_feature_flags(monkeypatch):
+    monkeypatch.setitem(
+        registry.BACKEND_FEATURE_FLAGS,
+        ("ray-1d", "taup"),
+        frozenset({"derivative.numerical"}),
+    )
+
+    with pytest.raises(ValueError, match="Unsupported derivative method"):
+        config.validate_operating_regime("ray-1d", "taup", "analytical")
+
+    assert config.validate_operating_regime("ray-1d", "taup", "numerical") == (
+        "ray-1d",
+        "taup",
+        "numerical",
+    )
 
 
 @pytest.mark.parametrize(

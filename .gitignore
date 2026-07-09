@@ -1,9 +1,8 @@
-# --- Travel Time Tables Data ---
+# Travel Time Tables Data 
 # Ignore automatically generated cache files
-hypy/propagation/layered/grid/*/data/*
+hypy/propagation/*/grid/*/data/*
 
-
-# --- Build and Distribution ---
+# Build and Distribution 
 build/
 dist/
 *.egg-info/
@@ -11,30 +10,30 @@ dist/
 *.egg
 *.whl
 
-# --- OS Generated Files ---
+# OS Generated Files 
 # macOS
 .DS_Store
 
-# --- Code editor files ---
+# Code editor files 
 # VS Code
 .vscode/
 
-# --- Python Cache ---
-# Python cache directories
+# Python Cache 
 __pycache__/
-# Python bytecode files
 *.py[cod]
-# Cython compiled files
 *.cpython*
 
-# --- Test artifacts ---
+# Test artifacts 
 **test_artifacts*/
 
 # Logs 
 logs/
 
-# Austin 
+# Profiling data 
 *.austin
+.profiles
+.coverage
 
+# Other
 *.xml
 *.csv

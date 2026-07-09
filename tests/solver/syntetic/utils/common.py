@@ -339,12 +339,14 @@ def locator_factory(mode, engine, phases, model_path):
     from hypy import EventLocator
 
     if mode == "ray-1d":
-        return EventLocator(model_path, phases=phases, mode="ray-1d", engine=engine)
+        return EventLocator(
+            model_path, phases=phases, mode_legacy="ray-1d", engine_legacy=engine
+        )
     return EventLocator(
         model_path,
         phases=phases,
-        mode="table-1d",
-        engine=engine,
+        mode_legacy="table-1d",
+        engine_legacy=engine,
         max_distance_km=250.0,
         distance_step_km=1.0,
         max_depth_km=50.0,

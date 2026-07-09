@@ -1,33 +1,28 @@
+"""Derivative assembly for location inversion."""
+
 from typing import Union
 
 import numpy as np
 
-from ..logger import logger  # type: ignore[import-not-found]
-from ..propagation import PropagationModel
+from hypy.logger import logger  # type: ignore[import-not-found]
+
+from ..propagation import PropagationEngine
 from ..utils.weighting import distance_weight
 from .config import LocatorConfig
 from .data import DataHandler
-from .model import VelocityModelHandler
 
 
-class DerivativeEngine:
-    """
-    Computes travel-time derivatives and fills the design (Jacobian) matrix.
-
-    Operates on DataHandler arrays in-place but does not own them.
-    All dependencies are passed explicitly via the constructor.
-    """
+class DerivativesHandler:
+    """Compute travel time derivatives for seismic event location."""
 
     def __init__(
         self,
         config: LocatorConfig,
         data: DataHandler,
-        model_handler: VelocityModelHandler,
-        tracer: PropagationModel,
+        tracer: PropagationEngine,
     ) -> None:
         self.config = config
         self.data = data
-        self.model_handler = model_handler
         self.tracer = tracer
 
     def derive_travel_time_param(
@@ -68,19 +63,26 @@ class DerivativeEngine:
             derivative_method=self.config.derivative_method,
         )
 
-    def populate_derivative_matrix(self) -> np.ndarray:
-        """
-        Fill the design (derivative) matrix rows corresponding to all valid
-        event-station-phase observations, and compute theoretical arrivals.
+    def build_derivative_matrix(
+        self, data: DataHandler, config: LocatorConfig
+    ) -> np.ndarray:
+        """Build the global derivative matrix for all events, stations, and phases.
 
         Returns
         -------
         np.ndarray
-            1D array of row indices (into the global design matrix) that were populated.
+            Array of row indices corresponding to valid observations used in the matrix.
         """
-        config = self.config
-        data = self.data
-        valid_row_indices: list[int] = []
+        # Reset per-iteration inversion state so skipped stations are zeroed out.
+        data.jacobian_matrix[:] = 0.0
+        data.theoretical_travel_times[:] = 0.0
+        if config.distance_weighting_enabled:
+            data.distance_W[:] = 0.0
+        else:
+            data.distance_W[:] = 1.0
+
+        observed_mask = ~np.isnan(data.arrivals)
+        valid_row_mask = np.zeros(data.jacobian_matrix.shape[0], dtype=bool)
 
         for event_index in range(data.n_events):
             # Skip invalid events
@@ -93,23 +95,23 @@ class DerivativeEngine:
 
             for station_index in range(data.n_stations):
                 st_lat, st_lon, st_elev_m = data.stations_locations[station_index]
+                station_obs_start = station_index * config.n_phases
+                station_obs_end = station_obs_start + config.n_phases
+                observed_for_station = observed_mask[
+                    event_index, station_obs_start:station_obs_end
+                ]
+                if not observed_for_station.any():
+                    continue
 
                 for phase_index, phase_name in enumerate(config.phases):
-                    # Column within the event's observation vector for this station–phase
-                    obs_col = config.n_phases * station_index + phase_index
-
-                    # If no observed pick, skip row
-                    observed_travel_time_s = data.arrivals[event_index, obs_col]
-                    if np.isnan(observed_travel_time_s):
-                        logger.warning(
-                            "Skipping event %d, station %s, phase %s: no observed pick.",  # noqa: E501
-                            event_index,
-                            data.stations[station_index],
-                            phase_name,
-                        )
+                    if not observed_for_station[phase_index]:
                         continue
 
-                    # Compute travel time and spatial derivatives
+                    obs_col = station_obs_start + phase_index
+                    row_index = (
+                        event_index * (data.n_stations * config.n_phases) + obs_col
+                    )
+
                     distance_km, theoretical_travel_time, (_, dt_dx, dt_dy, dt_dz) = (
                         self.derive_travel_time_param(
                             (ev_lat, ev_lon, ev_depth_km),
@@ -117,14 +119,10 @@ class DerivativeEngine:
                             phase_name,
                         )
                     )
-                    # Skip if no travel time (e.g., out of range)
                     if theoretical_travel_time is None:
-                        logger.warning(
-                            "Skipping event %d, station %s, phase %s: no valid travel time computed.",  # noqa: E501
-                            event_index,
-                            data.stations[station_index],
-                            phase_name,
-                        )
+                        data.theoretical_travel_times[event_index, obs_col] = 0.0
+                        data.jacobian_matrix[row_index, :] = 0.0
+                        data.distance_W[row_index] = 0.0
                         continue
 
                     derivatives = (dt_dx, dt_dy, dt_dz)
@@ -137,32 +135,36 @@ class DerivativeEngine:
                             data.stations[station_index],
                             phase_name,
                         )
+                        data.theoretical_travel_times[event_index, obs_col] = 0.0
+                        data.jacobian_matrix[row_index, :] = 0.0
+                        data.distance_W[row_index] = 0.0
                         continue
 
-                    # Store theoretical travel time
                     data.theoretical_travel_times[event_index, obs_col] = (
                         theoretical_travel_time
                     )
 
-                    # Row index in the global design matrix for this observation
-                    row_index = (
-                        event_index * (data.n_stations * config.n_phases) + obs_col
-                    )
-
-                    # Optional distance-based weighting
                     if config.distance_weighting_enabled:
                         data.distance_W[row_index] = distance_weight(
                             distance_km, k=config.k, x0=config.x0
                         )
 
-                    # Fill design matrix:
-                    # follow original convention: [y, x, z, t0] ordering in columns
-                    data.derivative_matrix[row_index, col0 + 0] = dt_dy  # type: ignore[index]
-                    data.derivative_matrix[row_index, col0 + 1] = dt_dx
+                    data.jacobian_matrix[row_index, col0 + 0] = dt_dy  # type: ignore[index]
+                    data.jacobian_matrix[row_index, col0 + 1] = dt_dx
                     if not data.fixed_depth_mask[event_index]:
-                        data.derivative_matrix[row_index, col0 + 2] = dt_dz
-                    data.derivative_matrix[row_index, col0 + 3] = 1.0  # dt/dt
+                        data.jacobian_matrix[row_index, col0 + 2] = dt_dz
+                    data.jacobian_matrix[row_index, col0 + 3] = 1.0  # dt/dt
 
-                    valid_row_indices.append(row_index)
+                    valid_row_mask[row_index] = True
 
-        return np.array(valid_row_indices, dtype=int)
+        valid_row_indices_arr = np.flatnonzero(valid_row_mask)
+        if valid_row_indices_arr.size > 0:
+            obs_cols = valid_row_indices_arr % (data.n_stations * config.n_phases)
+            station_indices = np.unique(obs_cols // config.n_phases)
+            logger.debug(
+                "Using %d stations (%d obs) in current derivative build.",
+                station_indices.size,
+                valid_row_indices_arr.size,
+            )
+
+        return valid_row_indices_arr
