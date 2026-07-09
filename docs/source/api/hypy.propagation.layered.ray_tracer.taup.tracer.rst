@@ -1,5 +1,5 @@
-propagation.layered.ray_tracer.taup.tracer
-==========================================
+hypy.propagation.layered.ray\_tracer.taup.tracer module
+=======================================================
 
 .. automodule:: hypy.propagation.layered.ray_tracer.taup.tracer
    :members:

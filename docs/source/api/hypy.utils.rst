@@ -1,5 +1,5 @@
-utils
-=====
+hypy.utils package
+==================
 
 .. automodule:: hypy.utils
    :members:
@@ -12,8 +12,8 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   utils.math <hypy.utils.math>
-   utils.nllgrid <hypy.utils.nllgrid>
+   hypy.utils.math
+   hypy.utils.nllgrid
 
 Submodules
 ----------
@@ -21,7 +21,7 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   utils.damping <hypy.utils.damping>
-   utils.geo <hypy.utils.geo>
-   utils.seismic <hypy.utils.seismic>
-   utils.weighting <hypy.utils.weighting>
+   hypy.utils.damping
+   hypy.utils.geo
+   hypy.utils.seismic
+   hypy.utils.weighting

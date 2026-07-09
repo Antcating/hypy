@@ -1,5 +1,5 @@
-propagation.layered.grid.fmm.grid
-=================================
+hypy.propagation.layered.grid.fmm.grid module
+=============================================
 
 .. automodule:: hypy.propagation.layered.grid.fmm.grid
    :members:

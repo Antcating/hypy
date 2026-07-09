@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <q:quakeml xmlns="http://quakeml.org/xmlns/bed/1.2" xmlns:q="http://quakeml.org/xmlns/quakeml/1.2">
-  <eventParameters publicID="smi:local/9e8ba4d0-7033-4dad-8c63-ad8d80e6e568">
+  <eventParameters publicID="smi:local/a7411b70-cf8a-4653-be6a-9443f500955c">
     <event publicID="smi:org.gfz-potsdam.de/geofon/gsi20240323183556">
       <preferredOriginID>smi:org.gfz-potsdam.de/geofon/gsiOrigin202403240403.54.046407.26472</preferredOriginID>
       <preferredMagnitudeID>smi:org.gfz-potsdam.de/geofon/gsiOrigin202403240403.54.046407.26472#netMag.M</preferredMagnitudeID>
@@ -63,712 +63,712 @@
           <azimuthMaxHorizontalUncertainty>88.42528533935547</azimuthMaxHorizontalUncertainty>
         </originUncertainty>
       </origin>
-      <origin publicID="smi:local/09946bc8-9150-41e2-807c-35d46d8c6b69">
+      <origin publicID="smi:local/cc04fdf3-f656-4199-977c-899b2ee13164">
         <time>
-          <value>2024-03-23T18:35:56.148880Z</value>
+          <value>2024-03-23T18:35:56.148407Z</value>
         </time>
         <latitude>
-          <value>32.50151724418538</value>
+          <value>32.50150442076292</value>
         </latitude>
         <longitude>
-          <value>35.193273282283386</value>
+          <value>35.193278856726515</value>
         </longitude>
         <depth>
-          <value>5081.566730739289</value>
-          <uncertainty>679.9214350934127</uncertainty>
+          <value>5075.23220645601</value>
+          <uncertainty>680.2877656188316</uncertainty>
           <confidenceLevel>95.0</confidenceLevel>
         </depth>
         <depthType>from location</depthType>
         <originUncertainty>
           <preferredDescription>confidence ellipsoid</preferredDescription>
-          <horizontalUncertainty>446.6423466621197</horizontalUncertainty>
+          <horizontalUncertainty>446.6287567811451</horizontalUncertainty>
           <confidenceLevel>95.0</confidenceLevel>
           <confidenceEllipsoid>
-            <semiMajorAxisLength>688.120227417485</semiMajorAxisLength>
-            <semiMinorAxisLength>283.49979588165763</semiMinorAxisLength>
-            <semiIntermediateAxisLength>450.4445075149751</semiIntermediateAxisLength>
-            <majorAxisPlunge>83.86206362276205</majorAxisPlunge>
-            <majorAxisAzimuth>58.17256847091829</majorAxisAzimuth>
-            <majorAxisRotation>50.858345165787114</majorAxisRotation>
+            <semiMajorAxisLength>688.4617392416553</semiMajorAxisLength>
+            <semiMinorAxisLength>283.4781796292426</semiMinorAxisLength>
+            <semiIntermediateAxisLength>450.42547342573465</semiIntermediateAxisLength>
+            <majorAxisPlunge>83.87669375121392</majorAxisPlunge>
+            <majorAxisAzimuth>58.028763916922685</majorAxisAzimuth>
+            <majorAxisRotation>50.71935720054094</majorAxisRotation>
           </confidenceEllipsoid>
         </originUncertainty>
-        <arrival publicID="smi:local/a603d485-7d38-4e68-ab59-580fd671b579">
+        <arrival publicID="smi:local/3f314295-3f5b-4c39-8ffa-6cbfa57573a9">
           <pickID>smi:local/ac41bf20-e8dc-4cc2-a578-89ca299ac57d</pickID>
           <phase>P</phase>
-          <timeResidual>-0.13408073551974908</timeResidual>
-          <timeWeight>0.9943620351554324</timeWeight>
+          <timeResidual>-0.13378125755142456</timeResidual>
+          <timeWeight>0.9943617025149826</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/05adaff9-707e-4dbc-870d-1a924d11691e">
+        <arrival publicID="smi:local/007132b7-7ce6-466a-8921-7159fe52aa37">
           <pickID>smi:local/4a5a6691-298b-480a-9064-9e527dc404d1</pickID>
           <phase>S</phase>
-          <timeResidual>-0.06032342315232242</timeResidual>
-          <timeWeight>0.9943620351554324</timeWeight>
+          <timeResidual>-0.0601593444543731</timeResidual>
+          <timeWeight>0.9943617025149826</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/0f3a0a65-88a0-422a-b268-6f7f591d7201">
+        <arrival publicID="smi:local/039f7305-eae0-40ae-97f7-7d808b7e6522">
           <pickID>smi:local/6b479574-7de8-4fff-becf-dd136a466b45</pickID>
           <phase>P</phase>
-          <timeResidual>0.24937251469189903</timeResidual>
-          <timeWeight>0.9144060892971717</timeWeight>
+          <timeResidual>0.24950852266826118</timeResidual>
+          <timeWeight>0.9144098429757781</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/ea1c8287-0073-44ff-8928-eb302ff4fa25">
+        <arrival publicID="smi:local/d79dddee-e18d-4f3b-a946-b182c3ba4b09">
           <pickID>smi:local/fb27b03b-8f57-45c6-8f86-af2a479daf54</pickID>
           <phase>P</phase>
-          <timeResidual>-0.03045379749024235</timeResidual>
-          <timeWeight>0.9671144747065847</timeWeight>
+          <timeResidual>-0.03027607137849131</timeResidual>
+          <timeWeight>0.9671163691325086</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/ddb3e5c8-b566-45a3-8b4e-49f3e33768f0">
+        <arrival publicID="smi:local/b169781b-bee8-44a2-928a-d6115412f488">
           <pickID>smi:local/306cb34e-b8f9-4408-8f9c-fe1220c727df</pickID>
           <phase>S</phase>
-          <timeResidual>-0.10720178879340736</timeResidual>
-          <timeWeight>0.9671144747065847</timeWeight>
+          <timeResidual>-0.1073496667137519</timeResidual>
+          <timeWeight>0.9671163691325086</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/f6ba759a-8ff2-4367-9968-71dde833a797">
+        <arrival publicID="smi:local/7bcc6b5b-37bd-4b51-832d-863dd6a79b7b">
           <pickID>smi:local/580b6545-18ea-495a-8171-51d24fb9790e</pickID>
           <phase>P</phase>
-          <timeResidual>-0.17055034722186324</timeResidual>
-          <timeWeight>0.9937867580614123</timeWeight>
+          <timeResidual>-0.17005768807101074</timeResidual>
+          <timeWeight>0.9937866634222213</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/bcdc0de4-d6b7-42b9-a5c8-edb2609cfc1a">
+        <arrival publicID="smi:local/0af1a628-c022-447a-bba9-1f1dba000ee1">
           <pickID>smi:local/e0e8e167-9353-4379-9d60-2455f98e7704</pickID>
           <phase>S</phase>
-          <timeResidual>-0.19638763777167512</timeResidual>
-          <timeWeight>0.9937867580614123</timeWeight>
+          <timeResidual>-0.19588009399972428</timeResidual>
+          <timeWeight>0.9937866634222213</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/075d5e46-c672-488a-a111-77b6bbbe061e">
+        <arrival publicID="smi:local/119fadd1-b625-4cbf-867b-8cf3adebaa04">
           <pickID>smi:local/cb672a85-a58b-4bc3-a1bd-f7b60c15eb2d</pickID>
           <phase>P</phase>
-          <timeResidual>0.19676726528693145</timeResidual>
-          <timeWeight>0.9966278105271755</timeWeight>
+          <timeResidual>0.197126253724754</timeResidual>
+          <timeWeight>0.9966276097022423</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/cd803868-656f-4d92-8299-c31a47bf1f70">
+        <arrival publicID="smi:local/8a88247c-85cc-4756-871e-9fc9f4399545">
           <pickID>smi:local/d2ef355e-9cc2-45fb-91af-35cf07f696c0</pickID>
           <phase>S</phase>
-          <timeResidual>0.5867797936585788</timeResidual>
-          <timeWeight>0.9966278105271755</timeWeight>
+          <timeResidual>0.5870485604601328</timeResidual>
+          <timeWeight>0.9966276097022423</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/b4a6957f-ae8b-4baf-aa0c-fb4b7cb8e895">
+        <arrival publicID="smi:local/6ba7dcdc-8640-4580-90e3-2c73d5d2f78d">
           <pickID>smi:local/65649ad1-8403-4049-bacb-6192adada0c2</pickID>
           <phase>P</phase>
-          <timeResidual>-0.25272383531323506</timeResidual>
-          <timeWeight>0.9878466054159691</timeWeight>
+          <timeResidual>-0.25293058415614134</timeResidual>
+          <timeWeight>0.9878461845967164</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/dc19a0f4-fefa-4a5a-8d6a-ade478d7aeb0">
+        <arrival publicID="smi:local/e9521f52-6858-48e1-86cd-95f8487d66ea">
           <pickID>smi:local/147587c0-c710-484f-8303-edbeb3253835</pickID>
           <phase>S</phase>
-          <timeResidual>-0.1483764299353787</timeResidual>
-          <timeWeight>0.9878466054159691</timeWeight>
+          <timeResidual>-0.1491897188306801</timeResidual>
+          <timeWeight>0.9878461845967164</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/c6335470-1464-4438-9ef7-d61787505722">
+        <arrival publicID="smi:local/57abe9fa-7bf7-4ecb-be88-5d2833fba275">
           <pickID>smi:local/4324125e-eae7-44fa-9a0b-9599094893f9</pickID>
           <phase>P</phase>
-          <timeResidual>-0.24029422299311598</timeResidual>
-          <timeWeight>0.9927444398451142</timeWeight>
+          <timeResidual>-0.23948012712151723</timeResidual>
+          <timeWeight>0.9927448532620492</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/a1aeeb6e-f842-478a-9114-d616bb11a1f0">
+        <arrival publicID="smi:local/efaa6299-c574-4872-ae10-5cb246e10334">
           <pickID>smi:local/4d7be1e8-0dec-472d-a250-e398de1fffe2</pickID>
           <phase>S</phase>
-          <timeResidual>0.457156463705223</timeResidual>
-          <timeWeight>0.9927444398451142</timeWeight>
+          <timeResidual>0.4573987089129812</timeResidual>
+          <timeWeight>0.9927448532620492</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/e6791bb5-c5b4-4e96-8e17-0d47c9b074fb">
+        <arrival publicID="smi:local/79ee9e7d-9460-4ab5-93f4-f8d67737fc33">
           <pickID>smi:local/e845a20c-8016-41b0-9be8-303e3e536551</pickID>
           <phase>P</phase>
-          <timeResidual>-0.21127270204082915</timeResidual>
-          <timeWeight>0.9941870126603002</timeWeight>
+          <timeResidual>-0.21052219912705716</timeResidual>
+          <timeWeight>0.994187287038308</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/37da11f4-584c-4d48-a73a-9b9c7a940f20">
+        <arrival publicID="smi:local/31cda43d-1a7c-4762-9615-5260b09b0b0d">
           <pickID>smi:local/436141c0-d88e-4221-b0d6-08bc1dc6c4bd</pickID>
           <phase>S</phase>
-          <timeResidual>-0.06670483228796975</timeResidual>
-          <timeWeight>0.9941870126603002</timeWeight>
+          <timeResidual>-0.06573881540912652</timeResidual>
+          <timeWeight>0.994187287038308</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/5998a4f1-8806-482d-9ae0-5e06cfc63d82">
+        <arrival publicID="smi:local/4ce26fa1-33aa-42ed-a1ce-e3779e6d8be5">
           <pickID>smi:local/461fdc03-4b78-4ce8-a3a3-671ccc12fad2</pickID>
           <phase>P</phase>
-          <timeResidual>-0.18996796643788727</timeResidual>
-          <timeWeight>0.7577577421905202</timeWeight>
+          <timeResidual>-0.18983428296493443</timeResidual>
+          <timeWeight>0.7577657338001857</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/ed4210a1-a827-4c09-a948-754b89e09471">
+        <arrival publicID="smi:local/5847e0d3-2f63-4921-a0fc-faed9740cb89">
           <pickID>smi:local/274821cd-9dc6-4e4d-a455-22ae58098ec1</pickID>
           <phase>P</phase>
-          <timeResidual>0.24318685312063337</timeResidual>
-          <timeWeight>0.9393675194110295</timeWeight>
+          <timeResidual>0.24331365233260982</timeResidual>
+          <timeWeight>0.9393701598189269</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/bd84808b-ccfb-432b-80d9-0bbc393281fe">
+        <arrival publicID="smi:local/23abb919-a3ed-469f-84a9-a3f4ed5500a2">
           <pickID>smi:local/8aa051d2-d52f-4323-8724-52d933942d2c</pickID>
           <phase>S</phase>
-          <timeResidual>0.04801425959973926</timeResidual>
-          <timeWeight>0.9393675194110295</timeWeight>
+          <timeResidual>0.04777819665719818</timeResidual>
+          <timeWeight>0.9393701598189269</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/ff5a1b63-b5ab-4ead-8a17-05eea015db81">
+        <arrival publicID="smi:local/c616b613-e19c-4424-8b65-4e3f47ac1bd5">
           <pickID>smi:local/9d528530-73fe-4cf9-a819-347d576e39d7</pickID>
           <phase>P</phase>
-          <timeResidual>0.24886204214890828</timeResidual>
-          <timeWeight>0.9957217099488705</timeWeight>
+          <timeResidual>0.24919140695211883</timeResidual>
+          <timeWeight>0.9957214604514764</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/21e344e2-f121-4935-8bdf-18fc75c73892">
+        <arrival publicID="smi:local/f48b2165-9a83-43a2-a0b1-784e4ed525a4">
           <pickID>smi:local/016d847c-996a-482c-a8f9-fd5ab4b6b60d</pickID>
           <phase>S</phase>
-          <timeResidual>0.11471212410913445</timeResidual>
-          <timeWeight>0.9957217099488705</timeWeight>
+          <timeResidual>0.11492890973645231</timeResidual>
+          <timeWeight>0.9957214604514764</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/dee8dcea-9b64-404e-98b7-bd0a62020f0c">
+        <arrival publicID="smi:local/079ede85-44d2-47dc-8c41-ee66add6f6ad">
           <pickID>smi:local/d3c66272-3595-4ebc-87d2-7f66803d203d</pickID>
           <phase>P</phase>
-          <timeResidual>-0.09803521508197832</timeResidual>
-          <timeWeight>0.9960935004779242</timeWeight>
+          <timeResidual>-0.09737635668850775</timeResidual>
+          <timeWeight>0.9960935843346811</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/8170ae84-3bc0-448c-ae38-9ac9dce507ea">
+        <arrival publicID="smi:local/7682340f-0d98-4b6e-a3a0-ac9e9a9ebd5e">
           <pickID>smi:local/2d818fc9-4e70-4426-8ba7-7f068689b69e</pickID>
           <phase>S</phase>
-          <timeResidual>0.2708986682999388</timeResidual>
-          <timeWeight>0.9960935004779242</timeWeight>
+          <timeResidual>0.2717013503637986</timeResidual>
+          <timeWeight>0.9960935843346811</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/d4f0e32f-ba12-40db-b83b-9c723d84fb4a">
+        <arrival publicID="smi:local/4f7b0f17-7b9f-4252-95fb-07885c640d7f">
           <pickID>smi:local/027b1812-0379-4e7f-92c8-1a025d93a7f9</pickID>
           <phase>P</phase>
-          <timeResidual>-0.06834236583312947</timeResidual>
-          <timeWeight>0.9954852509897705</timeWeight>
+          <timeResidual>-0.06774815647784305</timeResidual>
+          <timeWeight>0.9954852564245126</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/c8e97baa-e291-494c-b79a-66a3e55ff3ed">
+        <arrival publicID="smi:local/b489e39d-3781-4b80-a807-5b732c7c1ff0">
           <pickID>smi:local/fd567f79-0182-4359-a361-c118a2ee4450</pickID>
           <phase>S</phase>
-          <timeResidual>-0.05072492214762647</timeResidual>
-          <timeWeight>0.9954852509897705</timeWeight>
+          <timeResidual>-0.05003727028896954</timeResidual>
+          <timeWeight>0.9954852564245126</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/b93591b9-5524-4449-8659-2515b4fd0b49">
+        <arrival publicID="smi:local/7ae19c5b-0551-478b-848f-4633e97257cf">
           <pickID>smi:local/a35a2b72-52a3-40e0-9028-70e943eaef04</pickID>
           <phase>P</phase>
-          <timeResidual>-0.18504571348488064</timeResidual>
-          <timeWeight>0.978915524294142</timeWeight>
+          <timeResidual>-0.18528206355663457</timeResidual>
+          <timeWeight>0.9789146535560417</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/b8cce14a-4a09-4bcd-b6e3-f7c9458799ca">
+        <arrival publicID="smi:local/c1bf9c6d-5b33-48c2-90ea-c4eb2f941902">
           <pickID>smi:local/7d726e05-1790-44e9-b293-ff9b4c0aa1e8</pickID>
           <phase>P</phase>
-          <timeResidual>-0.011841330225102809</timeResidual>
-          <timeWeight>0.9316437657846047</timeWeight>
+          <timeResidual>-0.011666474361881285</timeResidual>
+          <timeWeight>0.9316474424607735</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/835347f1-27d1-4b7b-a87e-2bac5561b164">
+        <arrival publicID="smi:local/dc910bea-99dc-4a16-8a5b-6f1cc0adf38f">
           <pickID>smi:local/20937cc0-1e1f-469b-b95c-91a799e02073</pickID>
           <phase>S</phase>
-          <timeResidual>-0.10930310201300131</timeResidual>
-          <timeWeight>0.9316437657846047</timeWeight>
+          <timeResidual>-0.10945599997596744</timeResidual>
+          <timeWeight>0.9316474424607735</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/f9176c2c-955b-4ca3-b4f7-7352be47402b">
+        <arrival publicID="smi:local/0853a430-18ec-4e1c-8928-a5d153466d79">
           <pickID>smi:local/14c57dfa-55bc-4af7-894d-9de7b6592a8c</pickID>
           <phase>P</phase>
-          <timeResidual>0.18809932399458695</timeResidual>
-          <timeWeight>0.9572812294895708</timeWeight>
+          <timeResidual>0.18827658571338013</timeResidual>
+          <timeWeight>0.9572836486078302</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/fdd8b4d7-e73b-400c-981a-72b545a7af9d">
+        <arrival publicID="smi:local/07195508-a804-4ead-bf74-6871d6217beb">
           <pickID>smi:local/eac04be0-49ed-428c-b16c-6a46661940e3</pickID>
           <phase>S</phase>
-          <timeResidual>-0.26190787628254597</timeResidual>
-          <timeWeight>0.9572812294895708</timeWeight>
+          <timeResidual>-0.26205655734102606</timeResidual>
+          <timeWeight>0.9572836486078302</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/37fe6607-b3bb-4025-b689-e067ab2105d3">
+        <arrival publicID="smi:local/908c021b-a2fb-41d9-b145-b65a7166eb0f">
           <pickID>smi:local/847a21f8-7732-4cc4-a730-3872f3462adf</pickID>
           <phase>P</phase>
-          <timeResidual>0.2319953401741195</timeResidual>
-          <timeWeight>0.9901314600202982</timeWeight>
+          <timeResidual>0.23186007970358524</timeResidual>
+          <timeWeight>0.9901312902335513</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/3a1acddf-a063-4b9f-878a-5fdc843453d2">
+        <arrival publicID="smi:local/d111db1e-2788-444a-90c6-439808032cb3">
           <pickID>smi:local/aa9d27f6-0e4f-44fa-957c-e698a69f2ba9</pickID>
           <phase>P</phase>
-          <timeResidual>-0.23270280990497483</timeResidual>
-          <timeWeight>0.9802769298844416</timeWeight>
+          <timeResidual>-0.232908069238972</timeResidual>
+          <timeWeight>0.9802762619013183</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/e13ab8fb-b1f9-4c5e-bd75-a729f56d8371">
+        <arrival publicID="smi:local/5bdb6d7c-5e0b-42be-9db8-f96907615b44">
           <pickID>smi:local/07462f27-9ac3-40e2-85dd-30d9f75720ab</pickID>
           <phase>P</phase>
-          <timeResidual>0.30885690553813383</timeResidual>
-          <timeWeight>0.9913054431680085</timeWeight>
+          <timeResidual>0.30893074751469385</timeResidual>
+          <timeWeight>0.9913053630797808</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/62951d9c-6fd1-46ee-9884-7f865b8c9d78">
+        <arrival publicID="smi:local/3f259716-b073-4e3b-93e8-9ebaece39267">
           <pickID>smi:local/1638bcc0-29aa-470d-969b-a9395bc662ac</pickID>
           <phase>S</phase>
-          <timeResidual>0.3259264152394543</timeResidual>
-          <timeWeight>0.9913054431680085</timeWeight>
+          <timeResidual>0.3252933350953562</timeResidual>
+          <timeWeight>0.9913053630797808</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/2cc7ff31-3fad-4962-bbcf-9f69534d1a54">
+        <arrival publicID="smi:local/b0a1ce0e-a1cc-4907-8d90-116df5b5a1b5">
           <pickID>smi:local/ce86f50c-fe11-43ae-b2cf-2842e2e3c380</pickID>
           <phase>P</phase>
-          <timeResidual>-0.0017624297639597941</timeResidual>
-          <timeWeight>0.9978419118994115</timeWeight>
+          <timeResidual>-0.0009423470971272607</timeResidual>
+          <timeWeight>0.9978419292212937</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/fe1249da-3fcf-406a-acd4-0b4bcfd0b827">
+        <arrival publicID="smi:local/6b44042b-ccb9-4fb3-8bd4-38383d8feb27">
           <pickID>smi:local/940c9c6a-1f0a-488a-ac3f-753b3617c132</pickID>
           <phase>S</phase>
-          <timeResidual>0.0743182048027613</timeResidual>
-          <timeWeight>0.9978419118994115</timeWeight>
+          <timeResidual>0.07540280576255665</timeResidual>
+          <timeWeight>0.9978419292212937</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/e3e95c26-65a0-432d-9eca-24b7e15b2a0b">
+        <arrival publicID="smi:local/d0ff9906-e4dc-407a-8a21-2917e19f9823">
           <pickID>smi:local/f143ba84-d1a5-4b19-96e6-40bb5712948e</pickID>
           <phase>P</phase>
-          <timeResidual>-0.023778264445049047</timeResidual>
-          <timeWeight>0.9582388413824336</timeWeight>
+          <timeResidual>-0.02401016385758581</timeResidual>
+          <timeWeight>0.9582372143534118</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/a20c5e19-55ea-45d6-83b9-2c108942a92c">
+        <arrival publicID="smi:local/c3cd6ce1-8330-4a73-84ce-d9a82166ce40">
           <pickID>smi:local/e86cd9c8-d5c2-4bbf-8e1a-7159c655a8bb</pickID>
           <phase>S</phase>
-          <timeResidual>-0.2372610452727848</timeResidual>
-          <timeWeight>0.9582388413824336</timeWeight>
+          <timeResidual>-0.2381178564947426</timeResidual>
+          <timeWeight>0.9582372143534118</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/f25d65d8-4c42-4c21-b9f8-652363c8d87e">
+        <arrival publicID="smi:local/e591048f-8c45-465b-a383-fbb462bf622a">
           <pickID>smi:local/7531119f-ec86-4b47-a26f-0784262deb86</pickID>
           <phase>P</phase>
-          <timeResidual>-0.010691716583790978</timeResidual>
-          <timeWeight>0.9846627755179167</timeWeight>
+          <timeResidual>-0.010873382961877454</timeResidual>
+          <timeWeight>0.9846623417615301</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/0fc96b2b-d29d-421c-8909-2f5c8dd68f37">
+        <arrival publicID="smi:local/579bb17f-d1df-409a-aab0-642b86472cac">
           <pickID>smi:local/c85b15d1-0b05-4168-9865-dce2496e4cc0</pickID>
           <phase>P</phase>
-          <timeResidual>-0.1273488845831121</timeResidual>
-          <timeWeight>0.9934384760019997</timeWeight>
+          <timeResidual>-0.12654909839231987</timeResidual>
+          <timeWeight>0.9934388212068859</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/b1eb75fb-bf24-474b-a811-fc4f9e5753d5">
+        <arrival publicID="smi:local/44203846-a182-445f-b1cd-e6918de0e434">
           <pickID>smi:local/1379c56e-13eb-4edb-9c8b-b041b9c42267</pickID>
           <phase>S</phase>
-          <timeResidual>0.10320244507365217</timeResidual>
-          <timeWeight>0.9934384760019997</timeWeight>
+          <timeResidual>0.10414031210653008</timeResidual>
+          <timeWeight>0.9934388212068859</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/10db61ee-3347-4264-b1fe-077e56d4128f">
+        <arrival publicID="smi:local/543c51ed-a27c-4680-8cfe-0d61e45d1c2f">
           <pickID>smi:local/8546c041-5c71-466d-b58e-57cb25a67d80</pickID>
           <phase>P</phase>
-          <timeResidual>-0.14745140244404542</timeResidual>
-          <timeWeight>0.9937257387939691</timeWeight>
+          <timeResidual>-0.1466537909246428</timeResidual>
+          <timeWeight>0.9937261041718988</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/7be9504b-8b15-49bc-aab1-fb985cfd09eb">
+        <arrival publicID="smi:local/f2a7c4eb-553b-40a0-b094-88d9589c616e">
           <pickID>smi:local/06af97b4-709f-4fd3-8db0-b7c2d004be3c</pickID>
           <phase>S</phase>
-          <timeResidual>-0.09585262440378628</timeResidual>
-          <timeWeight>0.9937257387939691</timeWeight>
+          <timeResidual>-0.09480282617419</timeResidual>
+          <timeWeight>0.9937261041718988</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/5e6daed3-f26e-423d-9f46-1c9b6b091bd1">
+        <arrival publicID="smi:local/765a8586-e289-4b66-b7fc-f279e08f5687">
           <pickID>smi:local/05a04989-90ca-4af1-b323-97c267cf681a</pickID>
           <phase>P</phase>
-          <timeResidual>-0.005231561701888765</timeResidual>
-          <timeWeight>0.9834066657536272</timeWeight>
+          <timeResidual>-0.005527630210568901</timeResidual>
+          <timeWeight>0.9834057350863216</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/b5e12433-477e-4413-8523-a5f1692c25c7">
+        <arrival publicID="smi:local/89a8349b-49b8-407c-89a9-df0283f402c5">
           <pickID>smi:local/5f897c55-0b95-4f1b-925e-2049e66989ed</pickID>
           <phase>P</phase>
-          <timeResidual>-0.11507669557761169</timeResidual>
-          <timeWeight>0.995023858165063</timeWeight>
+          <timeResidual>-0.11476972962137832</timeResidual>
+          <timeWeight>0.995023561021682</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/574ce79f-6579-4806-88a9-19cdff8e506d">
+        <arrival publicID="smi:local/f477d1eb-bd49-4570-a779-0ddb900a1dd5">
           <pickID>smi:local/41cd5653-0fe2-4de0-a1b1-2152e4f59d7b</pickID>
           <phase>S</phase>
-          <timeResidual>0.05658012538724577</timeResidual>
-          <timeWeight>0.995023858165063</timeWeight>
+          <timeResidual>0.05675735763266232</timeResidual>
+          <timeWeight>0.995023561021682</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/23cf78d5-1316-4e03-a728-912fc4473cd0">
+        <arrival publicID="smi:local/566be47e-937c-453a-bd98-0ea0922a541f">
           <pickID>smi:local/29c80438-714c-4236-8742-fdb3ad21dcbf</pickID>
           <phase>P</phase>
-          <timeResidual>0.015712007048621857</timeResidual>
-          <timeWeight>0.9781026916956604</timeWeight>
+          <timeResidual>0.01549914389455509</timeResidual>
+          <timeWeight>0.9781019124245955</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/a89eb189-daa0-46a8-91a0-c051e0f9a8c8">
+        <arrival publicID="smi:local/5a7ebbc6-7460-4779-8215-21288d1cfb71">
           <pickID>smi:local/9938f92e-4c8b-4a62-8ea6-f69503798a13</pickID>
           <phase>S</phase>
-          <timeResidual>0.3586145434273611</timeResidual>
-          <timeWeight>0.9781026916956604</timeWeight>
+          <timeResidual>0.357790674091337</timeResidual>
+          <timeWeight>0.9781019124245955</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/9898330c-48a8-4f40-8083-92efa17fb4bd">
+        <arrival publicID="smi:local/5a240b08-a613-4e36-a8ef-894f227f3175">
           <pickID>smi:local/0bd7af49-98ab-47d5-84a0-1f3b85ac7d78</pickID>
           <phase>P</phase>
-          <timeResidual>0.10375953921076286</timeResidual>
-          <timeWeight>0.9979657741827593</timeWeight>
+          <timeResidual>0.10434489711033734</timeResidual>
+          <timeWeight>0.9979656615116632</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/57d7b8f4-de09-4f67-8f13-846e10a07fb1">
+        <arrival publicID="smi:local/d5e43593-ef68-46ea-bd2a-10d48a5361d8">
           <pickID>smi:local/48ee901f-6f5b-413d-a9c9-0c13c4f3de63</pickID>
           <phase>S</phase>
-          <timeResidual>0.2485559570395095</timeResidual>
-          <timeWeight>0.9979657741827593</timeWeight>
+          <timeResidual>0.24922185619391524</timeResidual>
+          <timeWeight>0.9979656615116632</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/07e1b0c9-eb41-4401-88f0-aed1b8e87fbb">
+        <arrival publicID="smi:local/7a14fdab-99b2-4235-b21b-067cb7da9993">
           <pickID>smi:local/f4681ec8-f4a9-48fd-b7b1-288a32b13254</pickID>
           <phase>P</phase>
-          <timeResidual>0.04301528212253425</timeResidual>
-          <timeWeight>0.9978181650272758</timeWeight>
+          <timeResidual>0.04374974525045827</timeResidual>
+          <timeWeight>0.9978181437903649</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/9978fd31-8279-4709-9d03-96ba822c5f2c">
+        <arrival publicID="smi:local/02edf363-1750-4c55-8529-66cfc0825990">
           <pickID>smi:local/2cc40187-2dcf-4cf6-abc2-53d7a9c1fae8</pickID>
           <phase>S</phase>
-          <timeResidual>-0.12042345888778705</timeResidual>
-          <timeWeight>0.9978181650272758</timeWeight>
+          <timeResidual>-0.11949095493827677</timeResidual>
+          <timeWeight>0.9978181437903649</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/4057b300-785e-4245-8f85-663072057a17">
+        <arrival publicID="smi:local/6a610e4b-d15b-475b-9e94-678a1861f8e7">
           <pickID>smi:local/825c3f8a-7de6-47b9-8f95-4c2b252e9231</pickID>
           <phase>P</phase>
-          <timeResidual>0.05625567081056104</timeResidual>
-          <timeWeight>0.9695160851660162</timeWeight>
+          <timeResidual>0.0564195015245712</timeResidual>
+          <timeWeight>0.969517744856632</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/4e68e5bf-1c5f-447f-9b4d-2cee5b63502c">
+        <arrival publicID="smi:local/c719822b-fd34-442f-b267-9f1d56431889">
           <pickID>smi:local/faf41631-7a54-4883-b84c-c63de97670a2</pickID>
           <phase>S</phase>
-          <timeResidual>0.005694983503531148</timeResidual>
-          <timeWeight>0.9695160851660162</timeWeight>
+          <timeResidual>0.0055230038770126555</timeResidual>
+          <timeWeight>0.969517744856632</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/2024a6f7-788a-494e-b47b-c7d4e258e0bd">
+        <arrival publicID="smi:local/7cf0b02d-8177-4829-982c-32685161657d">
           <pickID>smi:local/5b2ff0c9-342e-44d9-adfd-cb1e8921845e</pickID>
           <phase>P</phase>
-          <timeResidual>-0.056943629784608873</timeResidual>
-          <timeWeight>0.9678005991186593</timeWeight>
+          <timeResidual>-0.05676569756138505</timeResidual>
+          <timeWeight>0.9678024575526947</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/e480b2f1-3261-47c7-90ad-46059c4f000a">
+        <arrival publicID="smi:local/153cefb8-9a49-4f66-b903-ab62568b4cd7">
           <pickID>smi:local/ee32af6a-a902-4bc9-80c8-3306199c2c1d</pickID>
           <phase>S</phase>
-          <timeResidual>-0.15271890468857663</timeResidual>
-          <timeWeight>0.9678005991186593</timeWeight>
+          <timeResidual>-0.15286642596443656</timeResidual>
+          <timeWeight>0.9678024575526947</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/29f6146e-7d14-464d-ab88-af936ea44613">
+        <arrival publicID="smi:local/2fb9c885-e180-4d63-946e-07d7c09c8e2d">
           <pickID>smi:local/83961bd4-e84f-4374-a35d-b21800999633</pickID>
           <phase>P</phase>
-          <timeResidual>0.06447810681321542</timeResidual>
-          <timeWeight>0.9757303891611406</timeWeight>
+          <timeResidual>0.06428622090990999</timeResidual>
+          <timeWeight>0.9757296508170058</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/c0c2b3ce-7c83-45ad-8141-380ab423155e">
+        <arrival publicID="smi:local/8871cd3c-775b-431d-8dd7-e7ddbe5fada8">
           <pickID>smi:local/6bd86480-2a7c-4821-a7b9-08c9eb93d0d2</pickID>
           <phase>S</phase>
-          <timeResidual>0.48022646873987895</timeResidual>
-          <timeWeight>0.9757303891611406</timeWeight>
+          <timeResidual>0.4794389018455796</timeResidual>
+          <timeWeight>0.9757296508170058</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/04d82ee8-1196-4eb0-8867-2369f2033165">
+        <arrival publicID="smi:local/c1620eb9-acea-47b0-b657-09c93e7bf2f9">
           <pickID>smi:local/fd5f68c5-a5af-4f7c-b683-7c3bcb1f9afc</pickID>
           <phase>P</phase>
-          <timeResidual>-0.034029361637337274</timeResidual>
-          <timeWeight>0.9953602212423888</timeWeight>
+          <timeResidual>-0.03371577852394836</timeResidual>
+          <timeWeight>0.9953599440770426</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/aff73371-0573-4c40-8f5c-825f0e416722">
+        <arrival publicID="smi:local/f59c1fe5-b137-425e-9b0e-baa5f94aed6b">
           <pickID>smi:local/3562d9bf-6b33-490e-a751-64b41c28f19c</pickID>
           <phase>S</phase>
-          <timeResidual>0.27191273761599355</timeResidual>
-          <timeWeight>0.9953602212423888</timeWeight>
+          <timeResidual>0.27210162651165426</timeResidual>
+          <timeWeight>0.9953599440770426</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/9c3073f4-d001-4085-a2e6-322c7c2c0ec1">
+        <arrival publicID="smi:local/dd3ad05d-7e84-4e17-865f-1a29a0cd3725">
           <pickID>smi:local/cf5357ea-a676-473a-9f5d-b6f611d49af2</pickID>
           <phase>P</phase>
-          <timeResidual>-0.3388113462582858</timeResidual>
-          <timeWeight>0.9885661854815654</timeWeight>
+          <timeResidual>-0.33899676529497924</timeResidual>
+          <timeWeight>0.9885658488451963</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/05a009ec-8aa8-47eb-b715-109a60c68106">
+        <arrival publicID="smi:local/4cf676b0-6328-40fa-afe0-8f227731bbb0">
           <pickID>smi:local/f04a0aff-a62d-4c6e-be3c-75df7f280489</pickID>
           <phase>S</phase>
-          <timeResidual>-0.11962224397031207</timeResidual>
-          <timeWeight>0.9885661854815654</timeWeight>
+          <timeResidual>-0.12039862051384986</timeResidual>
+          <timeWeight>0.9885658488451963</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/8f5706fc-9926-45a6-9b33-4f31f682ab41">
+        <arrival publicID="smi:local/36ee40f5-2b8a-4cca-930a-bd1b21274106">
           <pickID>smi:local/d58574cf-f62a-4b90-9fb2-e285db9ac61c</pickID>
           <phase>P</phase>
-          <timeResidual>0.3556045719101615</timeResidual>
-          <timeWeight>0.9951087866703074</timeWeight>
+          <timeResidual>0.35627793919189354</timeResidual>
+          <timeWeight>0.995108925188782</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/c506dc93-4211-43f4-a622-f20b0a6bb68b">
+        <arrival publicID="smi:local/874688f5-b12a-469b-b6c0-2ed6f4ee54c2">
           <pickID>smi:local/8099c680-6a19-4d14-bb1b-5dd122c5d154</pickID>
           <phase>S</phase>
-          <timeResidual>0.708924764998752</timeResidual>
-          <timeWeight>0.9951087866703074</timeWeight>
+          <timeResidual>0.709753536024408</timeResidual>
+          <timeWeight>0.995108925188782</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/ac85d28a-dc71-4883-a907-cbc390572ae2">
+        <arrival publicID="smi:local/5c9d6afb-8d96-4c60-9854-2621cb5785d5">
           <pickID>smi:local/d265e3c3-b118-49e4-afc0-4aa5b379b393</pickID>
           <phase>P</phase>
-          <timeResidual>0.14439465832098897</timeResidual>
-          <timeWeight>0.9722035559784288</timeWeight>
+          <timeResidual>0.14423529523830503</timeResidual>
+          <timeWeight>0.9722029307568872</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/5ed14d1f-a9ad-4989-a941-5e064f25e9e5">
+        <arrival publicID="smi:local/e8e04e9c-392b-4580-8d1b-3d4bc498fb2b">
           <pickID>smi:local/7b2d7648-0f61-468b-b88a-0ca2b77aa10d</pickID>
           <phase>S</phase>
-          <timeResidual>0.3155922593010807</timeResidual>
-          <timeWeight>0.9722035559784288</timeWeight>
+          <timeResidual>0.3148609751598208</timeResidual>
+          <timeWeight>0.9722029307568872</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/e1fabe53-f6e5-429e-8b78-aad9ddc078aa">
+        <arrival publicID="smi:local/b4561081-0d2c-4376-bd10-91ab64a3d99f">
           <pickID>smi:local/109f3d99-8639-4383-8f31-67d43b32d4ea</pickID>
           <phase>P</phase>
-          <timeResidual>0.3130823626555248</timeResidual>
-          <timeWeight>0.9701184958799602</timeWeight>
+          <timeResidual>0.31325970883953147</timeResidual>
+          <timeWeight>0.970120222522112</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/82df82ef-a997-4fbb-8e31-47e05abbf38a">
+        <arrival publicID="smi:local/746acf52-b9bf-479a-9fcf-44ccb5910ef4">
           <pickID>smi:local/392a79a4-c070-4cee-951f-589ed914d204</pickID>
           <phase>P</phase>
-          <timeResidual>-0.013163979963561445</timeResidual>
-          <timeWeight>0.9828649677366152</timeWeight>
+          <timeResidual>-0.013056025299990281</timeResidual>
+          <timeWeight>0.982865687526636</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/5ccfe0ca-5f64-4f7b-9a86-30111ee48c71">
+        <arrival publicID="smi:local/02c9eb53-e425-4f6d-9ef3-f1e2c834af18">
           <pickID>smi:local/7b582987-8c6a-4f46-bcab-07dcde1df581</pickID>
           <phase>P</phase>
-          <timeResidual>-0.11305151522373436</timeResidual>
-          <timeWeight>0.9673188827684076</timeWeight>
+          <timeResidual>-0.11326993881030667</timeResidual>
+          <timeWeight>0.9673176958063304</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/b2e7a994-9492-4d0d-9991-c057f7bf090a">
+        <arrival publicID="smi:local/0735281f-e12d-4cd1-93da-9481c528a3e1">
           <pickID>smi:local/6aaefe88-e4ee-44f8-ad0e-c15dafebf2cc</pickID>
           <phase>S</phase>
-          <timeResidual>-0.19093554138916602</timeResidual>
-          <timeWeight>0.9673188827684076</timeWeight>
+          <timeResidual>-0.19176903257453048</timeResidual>
+          <timeWeight>0.9673176958063304</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/67e95707-d2e3-4203-a001-9b64ec12ad5b">
+        <arrival publicID="smi:local/4f27e8e6-e4b5-4fa7-a179-8cee89731b1a">
           <pickID>smi:local/b0390ee6-2ebf-43f3-8983-7abaf5dbf006</pickID>
           <phase>P</phase>
-          <timeResidual>-0.26259214699795663</timeResidual>
-          <timeWeight>0.9902170988246984</timeWeight>
+          <timeResidual>-0.2624140914238158</timeResidual>
+          <timeWeight>0.9902176826504157</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/09d3ade1-0e67-4faf-9fa1-33ba009c58f3">
+        <arrival publicID="smi:local/46cbee87-5195-439c-96ff-24f9fa86f663">
           <pickID>smi:local/a4db4196-9c36-47b8-8576-d2839abb643d</pickID>
           <phase>S</phase>
-          <timeResidual>0.18813669710528913</timeResidual>
-          <timeWeight>0.9902170988246984</timeWeight>
+          <timeResidual>0.1879893332010738</timeResidual>
+          <timeWeight>0.9902176826504157</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/a28aeb3e-28a0-4a32-801c-c89b8bff8173">
+        <arrival publicID="smi:local/9dad4c12-f1ac-4c9e-b50d-7fc2767edcce">
           <pickID>smi:local/9d190207-57d6-40d5-bdd4-ef50a68cf78c</pickID>
           <phase>P</phase>
-          <timeResidual>-0.0682847635413788</timeResidual>
-          <timeWeight>0.9951878246514472</timeWeight>
+          <timeResidual>-0.06750321662011771</timeResidual>
+          <timeWeight>0.995188034791149</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/449f3b80-f6a7-44f7-a91c-c74ef19a5ba2">
+        <arrival publicID="smi:local/207f2b51-b3df-4e21-a94e-72bbda6eb94d">
           <pickID>smi:local/22dbb610-fcda-4410-bd40-c1f42bf9716f</pickID>
           <phase>S</phase>
-          <timeResidual>0.4489412699511224</timeResidual>
-          <timeWeight>0.9951878246514472</timeWeight>
+          <timeResidual>0.4499620132126445</timeResidual>
+          <timeWeight>0.995188034791149</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/b342ff75-82e5-4791-b193-49f3c9f86f7d">
+        <arrival publicID="smi:local/e6269852-618a-4948-9cec-4573e3209e2c">
           <pickID>smi:local/d0a53074-d337-41d4-a0b5-809091f7b9a1</pickID>
           <phase>P</phase>
-          <timeResidual>-0.5261674821289688</timeResidual>
-          <timeWeight>0.9916514501530844</timeWeight>
+          <timeResidual>-0.5257928786038519</timeResidual>
+          <timeWeight>0.9916511853267362</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/bfbec6f4-a954-44f5-8c7a-c5479045bcea">
+        <arrival publicID="smi:local/d125d3ed-1809-47d4-a257-1ee0fa5b0c33">
           <pickID>smi:local/c1807e7d-0ced-4f2c-9eab-e09221871ed3</pickID>
           <phase>P</phase>
-          <timeResidual>0.041933704779087755</timeResidual>
-          <timeWeight>0.9966254994478162</timeWeight>
+          <timeResidual>0.04254926275278592</timeResidual>
+          <timeWeight>0.9966254896031231</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/8eb0d263-9cf4-4dfc-ab79-75a4a6565481">
+        <arrival publicID="smi:local/5358d427-ab00-4849-86ff-63f44c7a0cd3">
           <pickID>smi:local/58c6cf85-6caf-4c6c-ba4e-9423bf9fa476</pickID>
           <phase>S</phase>
-          <timeResidual>-0.009620056737134064</timeResidual>
-          <timeWeight>0.9966254994478162</timeWeight>
+          <timeResidual>-0.00889521011351846</timeResidual>
+          <timeWeight>0.9966254896031231</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/a686969b-8c56-42a9-a7fc-21ad44e89634">
+        <arrival publicID="smi:local/dc71173b-2c0f-400c-84af-9d091ae8d0b2">
           <pickID>smi:local/52b1ddd0-01d0-43b3-96ab-dedb91301ff7</pickID>
           <phase>P</phase>
-          <timeResidual>-0.09395009077606264</timeResidual>
-          <timeWeight>0.9970265928067747</timeWeight>
+          <timeResidual>-0.09312489756639941</timeResidual>
+          <timeWeight>0.9970267048947957</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/611ddb30-d7ee-494a-a011-d7b68a83302a">
+        <arrival publicID="smi:local/df0729ce-5da3-4736-81dc-913c6c2da62b">
           <pickID>smi:local/d334e14b-01c6-46a4-8816-f61468f1698e</pickID>
           <phase>S</phase>
-          <timeResidual>0.420896999176815</timeResidual>
-          <timeWeight>0.9970265928067747</timeWeight>
+          <timeResidual>0.4219939359816891</timeResidual>
+          <timeWeight>0.9970267048947957</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/5b8329e8-cf4e-473f-b0d0-98ac7f4979cc">
+        <arrival publicID="smi:local/a83b49ad-a445-47ee-96c7-c23e02aa3dd3">
           <pickID>smi:local/3b970402-100e-4ad9-addf-5d7c6c36496e</pickID>
           <phase>P</phase>
-          <timeResidual>-0.22432231974397965</timeResidual>
-          <timeWeight>0.9942891126002605</timeWeight>
+          <timeResidual>-0.22382576203207805</timeResidual>
+          <timeWeight>0.9942890640178286</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/748f7351-a7fd-476f-b8c7-3373d9642499">
+        <arrival publicID="smi:local/ec0e3748-95a4-407b-955e-5a88fe1a49ed">
           <pickID>smi:local/2fdc2ac5-dbcc-4716-9d03-b3597a9dc534</pickID>
           <phase>S</phase>
-          <timeResidual>-0.42888406705420046</timeResidual>
-          <timeWeight>0.9942891126002605</timeWeight>
+          <timeResidual>-0.42836943796858584</timeResidual>
+          <timeWeight>0.9942890640178286</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/dba9ceac-9671-4f70-bfb0-6afbadd2666d">
+        <arrival publicID="smi:local/94af851f-01fc-4f19-a5a0-42863f74aca6">
           <pickID>smi:local/c4218276-f8b7-436f-86d7-ccbdbe6588c4</pickID>
           <phase>P</phase>
-          <timeResidual>-0.0026084825730201544</timeResidual>
-          <timeWeight>0.9976448315005644</timeWeight>
+          <timeResidual>-0.001994268308949998</timeResidual>
+          <timeWeight>0.9976447675439236</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/3b8fecd2-8230-4782-b37f-21eb0c81110d">
+        <arrival publicID="smi:local/c35e0a2e-2ead-4dc5-8e51-f723535e066a">
           <pickID>smi:local/f596d3bd-8ee5-425c-889f-25d4187f0b6c</pickID>
           <phase>P</phase>
-          <timeResidual>-0.22272085354891047</timeResidual>
-          <timeWeight>0.9863016423210131</timeWeight>
+          <timeResidual>-0.22297508568851043</timeResidual>
+          <timeWeight>0.9863010104405228</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/17a1f0ee-71a8-4a04-a47a-a0eb5de132f9">
+        <arrival publicID="smi:local/6c346444-a165-4d92-ac9e-d66d7860669f">
           <pickID>smi:local/19bf60a9-470f-4e96-837f-cfc024666674</pickID>
           <phase>S</phase>
-          <timeResidual>0.12999213705172252</timeResidual>
-          <timeWeight>0.9863016423210131</timeWeight>
+          <timeResidual>0.129096675820481</timeResidual>
+          <timeWeight>0.9863010104405228</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/815a115c-4b82-4197-82a2-076cf2a270f3">
+        <arrival publicID="smi:local/504d6f96-b15b-4329-849d-2be35f200970">
           <pickID>smi:local/1f6fa56f-8254-453c-99e3-82d95c711bfe</pickID>
           <phase>P</phase>
-          <timeResidual>0.08619926713584469</timeResidual>
-          <timeWeight>0.9584381763009509</timeWeight>
+          <timeResidual>0.08595283226977735</timeResidual>
+          <timeWeight>0.9584364153272983</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/ae883a9a-9c8f-4f9a-bf93-91cb046b1cf5">
+        <arrival publicID="smi:local/5921495a-1643-4498-adfc-31f3a62bd406">
           <pickID>smi:local/bd2ad2b9-8ef3-4d63-bfe0-df2b2ebf3ab1</pickID>
           <phase>P</phase>
-          <timeResidual>-0.40869088573296963</timeResidual>
-          <timeWeight>0.8138511225397559</timeWeight>
+          <timeResidual>-0.4085196116008518</timeResidual>
+          <timeWeight>0.8138592246855955</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/c902d211-e4ed-4798-9c21-3dae7d4518c6">
+        <arrival publicID="smi:local/2547d767-028b-4a3e-a2a8-d35761082618">
           <pickID>smi:local/83a81c92-7a91-464c-a7a2-4f2f46f8adf3</pickID>
           <phase>P</phase>
-          <timeResidual>-0.05212611982934234</timeResidual>
-          <timeWeight>0.9248368798286076</timeWeight>
+          <timeResidual>-0.0519514924060509</timeResidual>
+          <timeWeight>0.9248408801818092</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/94e7fc12-753e-4839-b3c6-9e8327ca5a5f">
+        <arrival publicID="smi:local/f3d0ec46-d057-42c9-93c9-d26b0f0a5d13">
           <pickID>smi:local/463d5da4-400c-4069-9776-2a9ccab0709d</pickID>
           <phase>P</phase>
-          <timeResidual>-0.1124772115540793</timeResidual>
-          <timeWeight>0.9512998050424863</timeWeight>
+          <timeResidual>-0.11272144878174117</timeResidual>
+          <timeWeight>0.9512977892247068</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/95adbbb8-acda-4cb1-910b-73c9fc9e2ea4">
+        <arrival publicID="smi:local/01ba654a-748e-4a7f-9d01-732b5bf039d8">
           <pickID>smi:local/06f9c265-903a-4e1e-93a8-cdd8a97972ac</pickID>
           <phase>S</phase>
-          <timeResidual>-0.09021411319769257</timeResidual>
-          <timeWeight>0.9512998050424863</timeWeight>
+          <timeResidual>-0.09109227524568553</timeResidual>
+          <timeWeight>0.9512977892247068</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/37702842-d407-4756-98d0-0c693fdbf21b">
+        <arrival publicID="smi:local/c6bc0f73-ddbc-4552-a79e-e2856a07fe15">
           <pickID>smi:local/e48ae1e1-8d76-4bd3-896e-7e5adb70e952</pickID>
           <phase>P</phase>
-          <timeResidual>-0.22445499921282774</timeResidual>
-          <timeWeight>0.841018113790966</timeWeight>
+          <timeResidual>-0.22428259539556095</timeResidual>
+          <timeWeight>0.8410254059623344</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/3a05bafc-dc73-4193-90d9-847d46d4af18">
+        <arrival publicID="smi:local/2f422679-77e6-473b-b3e5-eb0bdca49e6e">
           <pickID>smi:local/11938dc1-1b23-41ee-91d6-e14ab56c7c0e</pickID>
           <phase>P</phase>
-          <timeResidual>-0.054298085669750584</timeResidual>
-          <timeWeight>0.9968000995351726</timeWeight>
+          <timeResidual>-0.05388201114367952</timeResidual>
+          <timeWeight>0.9967999419327845</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/e4d38724-26ba-4ad5-b14e-d93404f1cfa3">
+        <arrival publicID="smi:local/c2868f4f-c87f-4ad2-867e-66382dc86206">
           <pickID>smi:local/053e2f7c-5da1-4f7e-9177-c5e448050525</pickID>
           <phase>S</phase>
-          <timeResidual>0.17610111359998193</timeResidual>
-          <timeWeight>0.9968000995351726</timeWeight>
+          <timeResidual>0.17647113329238273</timeResidual>
+          <timeWeight>0.9967999419327845</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/6a346a9c-264e-4544-8fdc-02c13f1f188d">
+        <arrival publicID="smi:local/378604c5-68bf-47e4-a5b0-0ac490366d05">
           <pickID>smi:local/80a13de2-a8a0-4c22-bae7-d99b10ed7108</pickID>
           <phase>P</phase>
-          <timeResidual>-0.29882486962924837</timeResidual>
-          <timeWeight>0.9915154975528356</timeWeight>
+          <timeResidual>-0.2980461240131316</timeResidual>
+          <timeWeight>0.9915159754147151</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/998cd963-8a97-4578-9cff-d42b7ddcc267">
+        <arrival publicID="smi:local/8ec83767-2cd2-4c0c-bc0b-b06e07d0f9ad">
           <pickID>smi:local/cd57e936-e84c-44d0-bf82-7a73be4931e7</pickID>
           <phase>S</phase>
-          <timeResidual>0.12713978019412764</timeResidual>
-          <timeWeight>0.9915154975528356</timeWeight>
+          <timeResidual>0.12737675334885523</timeResidual>
+          <timeWeight>0.9915159754147151</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/7784de63-4f79-4e26-85a4-7d263b1ffdc8">
+        <arrival publicID="smi:local/0a03263f-3b26-4521-9815-f2fb9a6baf2d">
           <pickID>smi:local/6f7ead8f-329b-4371-a46f-86d487bd267e</pickID>
           <phase>P</phase>
-          <timeResidual>0.2005192761351573</timeResidual>
-          <timeWeight>0.9871183974630476</timeWeight>
+          <timeResidual>0.20036494283501405</timeResidual>
+          <timeWeight>0.9871181177894628</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/0d18755e-831c-4119-8228-c3b4b5bf8669">
+        <arrival publicID="smi:local/3edb4079-7796-428f-bf6a-8b161897db1a">
           <pickID>smi:local/8ee9a980-dce3-435c-92a8-0b4b12141649</pickID>
           <phase>P</phase>
-          <timeResidual>-0.016252695361685277</timeResidual>
-          <timeWeight>0.993984168934278</timeWeight>
+          <timeResidual>-0.015438002899986536</timeResidual>
+          <timeWeight>0.9939844979454744</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/d32648c5-9882-4271-9c8a-cb5a592142a7">
+        <arrival publicID="smi:local/e36738de-e729-4c3f-8278-99c650dff999">
           <pickID>smi:local/b572fe38-d700-482c-9e0b-0710ca2079ee</pickID>
           <phase>S</phase>
-          <timeResidual>0.03624510582990048</timeResidual>
-          <timeWeight>0.993984168934278</timeWeight>
+          <timeResidual>0.037325020464619385</timeResidual>
+          <timeWeight>0.9939844979454744</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/2f2f9fd9-7c72-4424-ba55-cc3bae45a6b7">
+        <arrival publicID="smi:local/6f355dff-8cdf-465c-af41-a56d92febcb0">
           <pickID>smi:local/acf681f5-bc99-4a5e-b6d3-92017b1fbb7b</pickID>
           <phase>P</phase>
-          <timeResidual>-0.17381318475746</timeResidual>
-          <timeWeight>0.9855719780292019</timeWeight>
+          <timeResidual>-0.1740268795302118</timeResidual>
+          <timeWeight>0.9855714557550488</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/86652f0f-b92c-49aa-9e08-e30dd5598e17">
+        <arrival publicID="smi:local/2eaffd5e-e485-4655-b738-b72f3e7dd306">
           <pickID>smi:local/100a28b4-c70f-4551-9ea7-44d031d350b7</pickID>
           <phase>P</phase>
-          <timeResidual>-0.10678131342523045</timeResidual>
-          <timeWeight>0.9899166723976385</timeWeight>
+          <timeResidual>-0.10634613673632032</timeResidual>
+          <timeWeight>0.9899172605404749</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/a0253776-a264-401d-927b-73dd79df8e7f">
+        <arrival publicID="smi:local/df85b0fa-1549-40dc-9565-65f8e63157b1">
           <pickID>smi:local/588ae77b-f36c-41b8-8a59-97128e91bb45</pickID>
           <phase>S</phase>
-          <timeResidual>0.08795748318773278</timeResidual>
-          <timeWeight>0.9899166723976385</timeWeight>
+          <timeResidual>0.08780031990312764</timeResidual>
+          <timeWeight>0.9899172605404749</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/7b30ef52-38c1-4177-b474-9d74a2f7ad59">
+        <arrival publicID="smi:local/7ef70b7b-cb1d-4e49-a29f-9e6e721fb4d6">
           <pickID>smi:local/055437ed-6027-492f-bbfa-ecfeef30d5b1</pickID>
           <phase>P</phase>
-          <timeResidual>-0.30506250922507583</timeResidual>
-          <timeWeight>0.9902421860296138</timeWeight>
+          <timeResidual>-0.3048838916370542</timeResidual>
+          <timeWeight>0.9902418834447879</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/c860efd5-42ae-4f8a-b6b6-7fc2ef57a170">
+        <arrival publicID="smi:local/21c44e7c-4358-4246-aad1-22a99d707363">
           <pickID>smi:local/fe0a8027-ea66-4ecf-8654-5ed7b6032b0f</pickID>
           <phase>S</phase>
-          <timeResidual>-0.12857639302612967</timeResidual>
-          <timeWeight>0.9902421860296138</timeWeight>
+          <timeResidual>-0.12936375771106157</timeResidual>
+          <timeWeight>0.9902418834447879</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/999f5140-b520-45e3-b077-96f738758093">
+        <arrival publicID="smi:local/3840df00-72b6-40f5-94eb-3d7aae2beba8">
           <pickID>smi:local/817a3816-54ed-4a0b-ac4a-febdc7ef502e</pickID>
           <phase>P</phase>
-          <timeResidual>-0.4214607495697411</timeResidual>
-          <timeWeight>0.9925341946833954</timeWeight>
+          <timeResidual>-0.4210474592655</timeResidual>
+          <timeWeight>0.9925340143238778</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/515042ea-e31b-41b6-993d-5e471ef8476d">
+        <arrival publicID="smi:local/e23f9c53-4792-449a-aea4-673768acc0e5">
           <pickID>smi:local/d548eee1-adbb-4ab3-89b3-fb563ec4b68e</pickID>
           <phase>S</phase>
-          <timeResidual>-0.4412440851562245</timeResidual>
-          <timeWeight>0.9925341946833954</timeWeight>
+          <timeResidual>-0.44086430635951857</timeResidual>
+          <timeWeight>0.9925340143238778</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/cc4c08b7-2dcf-4dab-b79a-7e3b8cfebc34">
+        <arrival publicID="smi:local/b886c57e-dc76-4e19-8223-b35274e3428d">
           <pickID>smi:local/94d2927f-8042-4236-a14f-a48245376759</pickID>
           <phase>P</phase>
-          <timeResidual>0.0565199943164405</timeResidual>
-          <timeWeight>0.9724964434249728</timeWeight>
+          <timeResidual>0.0566975511748673</timeResidual>
+          <timeWeight>0.9724980398543991</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/46244960-73b7-4ab9-8c9f-146f12f3cc6f">
+        <arrival publicID="smi:local/35c9c995-8494-4dad-96b0-81c2c077a0a5">
           <pickID>smi:local/384326d8-68ad-46fa-9cd9-4f76858db550</pickID>
           <phase>P</phase>
-          <timeResidual>0.08665094922033845</timeResidual>
-          <timeWeight>0.8304489457847634</timeWeight>
+          <timeResidual>0.08680316408251088</timeResidual>
+          <timeWeight>0.8304559235072458</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/2ca245df-ae3d-4f5e-a3c4-e272378b1cea">
+        <arrival publicID="smi:local/b12be9e8-bbb2-444a-81b4-75d7a2bde4e8">
           <pickID>smi:local/7766f6f0-750e-4396-84de-c8864b2eff85</pickID>
           <phase>P</phase>
-          <timeResidual>-0.12272487811541666</timeResidual>
-          <timeWeight>0.9737076201126162</timeWeight>
+          <timeResidual>-0.1229600408673086</timeResidual>
+          <timeWeight>0.9737065504102069</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/c707cfb9-f5d8-4aa2-b933-6f2e17f738fe">
+        <arrival publicID="smi:local/56a869b9-c6ff-4d3c-9b13-3e7141c12f7f">
           <pickID>smi:local/246c7d80-228e-4947-ac33-0aeb7c4207e4</pickID>
           <phase>P</phase>
-          <timeResidual>-0.0013775860921727556</timeResidual>
-          <timeWeight>0.9960753402463308</timeWeight>
+          <timeResidual>-0.0010461608461183047</timeResidual>
+          <timeWeight>0.9960751039381347</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/00dd5e3b-ac56-44ca-8d68-24de4e73d2d1">
+        <arrival publicID="smi:local/b162f00d-21ef-4257-80e4-1ef39ed998db">
           <pickID>smi:local/5133a0d8-1154-46cf-98d2-75557dbf4382</pickID>
           <phase>P</phase>
-          <timeResidual>-0.04907551191172388</timeResidual>
-          <timeWeight>0.9833794812374468</timeWeight>
+          <timeResidual>-0.04889758469255234</timeResidual>
+          <timeWeight>0.9833804636069577</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/54ae5e01-3b13-44cd-b70c-c256c5789177">
+        <arrival publicID="smi:local/d1975f25-d5a5-44de-bd6c-36901c0c9dff">
           <pickID>smi:local/d1c25773-bbaa-4c56-8dac-52e9114eac51</pickID>
           <phase>S</phase>
-          <timeResidual>-0.04732588489827805</timeResidual>
-          <timeWeight>0.9833794812374468</timeWeight>
+          <timeResidual>-0.04747341564841179</timeResidual>
+          <timeWeight>0.9833804636069577</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/0761e024-3974-41bf-bf8d-88b34f3b9e0f">
+        <arrival publicID="smi:local/84b28518-3536-474a-85d7-996201df8dcb">
           <pickID>smi:local/f07773ef-d9de-490b-a9fa-f2fa4f73c832</pickID>
           <phase>P</phase>
-          <timeResidual>-0.16033911565292414</timeResidual>
-          <timeWeight>0.9869899416019479</timeWeight>
+          <timeResidual>-0.16056570270603743</timeResidual>
+          <timeWeight>0.9869894286770537</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/9a64abf7-6258-4c28-b4ec-619fdfbc65e8">
+        <arrival publicID="smi:local/37b5be01-95e7-4e33-ae5a-647163884c74">
           <pickID>smi:local/d95389e6-e96c-4d0c-b8ff-c5f1e3e5cf39</pickID>
           <phase>S</phase>
-          <timeResidual>0.4059890882588313</timeResidual>
-          <timeWeight>0.9869899416019479</timeWeight>
+          <timeResidual>0.40514146831118225</timeResidual>
+          <timeWeight>0.9869894286770537</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/e0699a24-5c08-4849-b93b-d17fab9a7c1a">
+        <arrival publicID="smi:local/7852fbd9-a728-48bc-b63e-73423b0e47ab">
           <pickID>smi:local/346a3d48-86a3-444d-bedf-25220fc82261</pickID>
           <phase>P</phase>
-          <timeResidual>-0.12510748271585115</timeResidual>
-          <timeWeight>0.9820499569873213</timeWeight>
+          <timeResidual>-0.12538787228220372</timeResidual>
+          <timeWeight>0.9820490205241457</timeWeight>
         </arrival>
-        <arrival publicID="smi:local/9db85323-b91c-4e81-9e69-c1e6ebf1facc">
+        <arrival publicID="smi:local/dbf3456c-cfe2-4c2c-a1de-af8a871cc48c">
           <pickID>smi:local/4920f8c1-4814-4c8c-8a08-810b60ed5bf5</pickID>
           <phase>S</phase>
-          <timeResidual>0.0009533581265763758</timeResidual>
-          <timeWeight>0.9820499569873213</timeWeight>
+          <timeResidual>1.263036197940437e-05</timeResidual>
+          <timeWeight>0.9820490205241457</timeWeight>
         </arrival>
       </origin>
       <magnitude publicID="smi:org.gfz-potsdam.de/geofon/gsiOrigin202403240403.54.046407.26472#netMag.M">

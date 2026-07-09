@@ -1,5 +1,5 @@
-locator.locations_setup
-=======================
+hypy.locator.locations\_setup module
+====================================
 
 .. automodule:: hypy.locator.locations_setup
    :members:

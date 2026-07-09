@@ -1,5 +1,5 @@
-utils.seismic
-=============
+hypy.utils.seismic module
+=========================
 
 .. automodule:: hypy.utils.seismic
    :members:

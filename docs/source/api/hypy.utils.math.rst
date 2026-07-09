@@ -1,5 +1,5 @@
-utils.math
-==========
+hypy.utils.math package
+=======================
 
 .. automodule:: hypy.utils.math
    :members:
@@ -12,5 +12,5 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   utils.math.derivatives <hypy.utils.math.derivatives>
-   utils.math.interpolation <hypy.utils.math.interpolation>
+   hypy.utils.math.derivatives
+   hypy.utils.math.interpolation

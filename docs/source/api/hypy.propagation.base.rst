@@ -1,5 +1,5 @@
-propagation.base
-================
+hypy.propagation.base module
+============================
 
 .. automodule:: hypy.propagation.base
    :members:

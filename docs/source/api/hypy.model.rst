@@ -1,5 +1,5 @@
-model
-=====
+hypy.model package
+==================
 
 .. automodule:: hypy.model
    :members:
@@ -12,5 +12,5 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   model.layered <hypy.model.layered>
-   model.volumetric <hypy.model.volumetric>
+   hypy.model.layered
+   hypy.model.volumetric

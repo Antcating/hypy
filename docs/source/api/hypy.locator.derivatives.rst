@@ -1,5 +1,5 @@
-locator.derivatives
-===================
+hypy.locator.derivatives module
+===============================
 
 .. automodule:: hypy.locator.derivatives
    :members:

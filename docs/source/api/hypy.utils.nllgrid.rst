@@ -1,5 +1,5 @@
-utils.nllgrid
-=============
+hypy.utils.nllgrid package
+==========================
 
 .. automodule:: hypy.utils.nllgrid
    :members:
@@ -12,4 +12,4 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   utils.nllgrid.nllgrid <hypy.utils.nllgrid.nllgrid>
+   hypy.utils.nllgrid.nllgrid

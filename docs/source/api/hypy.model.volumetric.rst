@@ -1,5 +1,5 @@
-model.volumetric
-================
+hypy.model.volumetric package
+=============================
 
 .. automodule:: hypy.model.volumetric
    :members:
@@ -12,5 +12,5 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   model.volumetric.netcdf <hypy.model.volumetric.netcdf>
-   model.volumetric.nllgrid <hypy.model.volumetric.nllgrid>
+   hypy.model.volumetric.netcdf
+   hypy.model.volumetric.nllgrid

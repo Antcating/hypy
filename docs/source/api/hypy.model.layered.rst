@@ -1,5 +1,5 @@
-model.layered
-=============
+hypy.model.layered package
+==========================
 
 .. automodule:: hypy.model.layered
    :members:
@@ -12,4 +12,4 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   model.layered.tvel <hypy.model.layered.tvel>
+   hypy.model.layered.tvel

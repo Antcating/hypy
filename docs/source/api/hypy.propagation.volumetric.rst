@@ -1,5 +1,5 @@
-propagation.volumetric
-======================
+hypy.propagation.volumetric package
+===================================
 
 .. automodule:: hypy.propagation.volumetric
    :members:

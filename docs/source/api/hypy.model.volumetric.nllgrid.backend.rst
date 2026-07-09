@@ -1,5 +1,5 @@
-model.volumetric.nllgrid.backend
-================================
+hypy.model.volumetric.nllgrid.backend module
+============================================
 
 .. automodule:: hypy.model.volumetric.nllgrid.backend
    :members:

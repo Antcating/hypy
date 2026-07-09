@@ -1,5 +1,5 @@
-utils.math.interpolation
-========================
+hypy.utils.math.interpolation module
+====================================
 
 .. automodule:: hypy.utils.math.interpolation
    :members:

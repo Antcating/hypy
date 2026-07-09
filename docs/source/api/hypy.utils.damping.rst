@@ -1,5 +1,5 @@
-utils.damping
-=============
+hypy.utils.damping module
+=========================
 
 .. automodule:: hypy.utils.damping
    :members:

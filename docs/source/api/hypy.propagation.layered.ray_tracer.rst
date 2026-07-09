@@ -1,5 +1,5 @@
-propagation.layered.ray_tracer
-==============================
+hypy.propagation.layered.ray\_tracer package
+============================================
 
 .. automodule:: hypy.propagation.layered.ray_tracer
    :members:
@@ -12,6 +12,6 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   propagation.layered.ray_tracer.pyrocko <hypy.propagation.layered.ray_tracer.pyrocko>
-   propagation.layered.ray_tracer.taup <hypy.propagation.layered.ray_tracer.taup>
-   propagation.layered.ray_tracer.tracer <hypy.propagation.layered.ray_tracer.tracer>
+   hypy.propagation.layered.ray_tracer.hypo
+   hypy.propagation.layered.ray_tracer.pyrocko
+   hypy.propagation.layered.ray_tracer.taup

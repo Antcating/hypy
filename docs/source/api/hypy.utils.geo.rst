@@ -1,5 +1,5 @@
-utils.geo
-=========
+hypy.utils.geo module
+=====================
 
 .. automodule:: hypy.utils.geo
    :members:

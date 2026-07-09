@@ -1,5 +1,5 @@
-logger
-======
+hypy.logger module
+==================
 
 .. automodule:: hypy.logger
    :members:

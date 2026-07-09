@@ -1,5 +1,5 @@
-propagation.layered.grid.tau.grid
-=================================
+hypy.propagation.layered.grid.tau.grid module
+=============================================
 
 .. automodule:: hypy.propagation.layered.grid.tau.grid
    :members:

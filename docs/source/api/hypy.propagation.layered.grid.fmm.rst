@@ -1,5 +1,5 @@
-propagation.layered.grid.fmm
-============================
+hypy.propagation.layered.grid.fmm package
+=========================================
 
 .. automodule:: hypy.propagation.layered.grid.fmm
    :members:
@@ -12,4 +12,4 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   propagation.layered.grid.fmm.grid <hypy.propagation.layered.grid.fmm.grid>
+   hypy.propagation.layered.grid.fmm.grid

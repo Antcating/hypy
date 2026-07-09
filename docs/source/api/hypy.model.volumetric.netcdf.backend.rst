@@ -1,5 +1,5 @@
-model.volumetric.netcdf.backend
-===============================
+hypy.model.volumetric.netcdf.backend module
+===========================================
 
 .. automodule:: hypy.model.volumetric.netcdf.backend
    :members:

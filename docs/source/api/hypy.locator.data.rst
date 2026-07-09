@@ -1,5 +1,5 @@
-locator.data
-============
+hypy.locator.data module
+========================
 
 .. automodule:: hypy.locator.data
    :members:

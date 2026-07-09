@@ -1,5 +1,5 @@
-model.volumetric.netcdf
-=======================
+hypy.model.volumetric.netcdf package
+====================================
 
 .. automodule:: hypy.model.volumetric.netcdf
    :members:
@@ -12,4 +12,4 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   model.volumetric.netcdf.backend <hypy.model.volumetric.netcdf.backend>
+   hypy.model.volumetric.netcdf.backend

@@ -1,5 +1,5 @@
-model.volumetric.nllgrid
-========================
+hypy.model.volumetric.nllgrid package
+=====================================
 
 .. automodule:: hypy.model.volumetric.nllgrid
    :members:
@@ -12,4 +12,4 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   model.volumetric.nllgrid.backend <hypy.model.volumetric.nllgrid.backend>
+   hypy.model.volumetric.nllgrid.backend

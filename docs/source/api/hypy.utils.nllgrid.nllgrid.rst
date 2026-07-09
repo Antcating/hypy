@@ -1,5 +1,5 @@
-utils.nllgrid.nllgrid
-=====================
+hypy.utils.nllgrid.nllgrid module
+=================================
 
 .. automodule:: hypy.utils.nllgrid.nllgrid
    :members:
