@@ -2,7 +2,7 @@
 
 import numbers
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Iterable, Optional
 
 import numpy as np
 
@@ -89,7 +89,7 @@ class LocatorConfig:
     Per-run knobs (weighting, error model, RNG seed) live in :class:`RunConfig`.
     """
 
-    phases: tuple
+    phases: Iterable[str]
     min_picks_per_event: int
     default_time_error: float
     derivative_method: DerivativeMethodLiteral
