@@ -143,6 +143,17 @@ class DataHandler:
         self.inv = inventory
         self.events = copy.deepcopy(list(events))
         self.n_events = len(events)
+
+        # Filter-out irrelevant phases from the inventory
+        for event in events:
+            for pick in event.picks:
+                if pick.phase_hint not in self.phases:
+                    logger.warning(
+                        f"Skipping pick {pick.waveform_id.network_code}.{pick.waveform_id.station_code} {pick.phase_hint}: "  # noqa: E501
+                        f"phase not in {self.phases}."
+                    )
+                    event.picks.remove(pick)
+
         # Map ("NET", "STA") → (latitude, longitude, elevation)
         inventory_station_map: dict[tuple[str, str], tuple[float, float, float]] = {
             (net.code, sta.code): (sta.latitude, sta.longitude, sta.elevation)
