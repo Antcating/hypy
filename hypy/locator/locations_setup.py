@@ -43,8 +43,13 @@ def init_locations(
     -----
     The initialization intentionally uses a small set of deterministic seed
     locations plus a lightweight randomized depth sample so the first inversion
-    pass starts from reasonable event hypotheses.
+    pass starts from reasonable event hypotheses. The random depth sampling is
+    drawn from a local generator seeded with ``config.seed``, so a fixed seed
+    makes the whole location run reproducible.
     """
+    # Local random generator so runs are reproducible when config.seed is set,
+    # without mutating NumPy's global random state.
+    rng = np.random.default_rng(config.seed)
 
     def _seed_candidates_for_event(
         event: Event, trial_depth_km: float, max_depth_km: Optional[float]
@@ -88,17 +93,17 @@ def init_locations(
             dtype=float,
         )
 
-        # 1) centroid
+        # centroid
         lat_centroid = float(np.mean(station_latlon[:, 0]))
         lon_centroid = float(np.mean(station_latlon[:, 1]))
         seeds.append((lat_centroid, lon_centroid))
 
-        # 2) component-wise median
+        # component-wise median
         lat_median = float(np.median(station_latlon[:, 0]))
         lon_median = float(np.median(station_latlon[:, 1]))
         seeds.append((lat_median, lon_median))
 
-        # 3) earliest-pick station (by full scan)
+        # earliest-pick station (by full scan)
         earliest_station_index = min(
             selected_station_indices,
             key=lambda idx: min(
@@ -139,7 +144,7 @@ def init_locations(
         # FIXME: This random sampling sometimes produces candidates with no valid tt.
         depth_grid_candidates = {
             round(x, 2)
-            for x in np.random.normal(loc=initial_depth_km, scale=5.0, size=10)
+            for x in rng.normal(loc=initial_depth_km, scale=5.0, size=10)
             if min_depth < x < max_depth_km
         }
 

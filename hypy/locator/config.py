@@ -160,6 +160,7 @@ class LocatorConfig:
     derivative_delta_km: float = 0.5
     dim: int = 4
     n_phases: int = field(init=False)
+    seed: Optional[int] = None
 
     def __post_init__(self) -> None:
         """Compute derived values and validate post-init constraints."""

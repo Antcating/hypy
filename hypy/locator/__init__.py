@@ -70,6 +70,10 @@ class EventLocator:
     error_coefficient : float, optional
         HYPOINVERSE-style coefficient applied to RMS in the error variance
         estimate ``RDERR^2 + (error_coefficient * RMS)^2``. Default is 1.0.
+    seed : Optional[int], optional
+        Seed for the random number generator used during location
+        initialization. Set this to an integer to make location runs
+        reproducible. If None, results are non-deterministic. Default is None.
     _precalculate_velocities : bool, optional
         If True, precomputes velocity profiles for all events to speed up travel-time
         calculations. Requires max_depth_km and depth_step_km to be set. Default is False.
@@ -92,6 +96,7 @@ class EventLocator:
         default_time_error: float = 0.1,
         log_level: int = INFO,
         log_file: Optional[str] = None,
+        seed: Optional[int] = None,
         _precalculate_velocities: bool = False,
     ):
         get_logger("hypy", level=log_level, log_file=log_file)
@@ -121,6 +126,7 @@ class EventLocator:
             full_data_covariance=bool(full_data_covariance),
             correlation_length_km=float(correlation_length_km),
             error_coefficient=float(error_coefficient),
+            seed=seed,
         )
 
         # Initialize Data handling
