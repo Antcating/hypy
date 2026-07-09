@@ -98,14 +98,7 @@ class EventLocator:
             precalculate_velocities=bool(_precalculate_velocities),
         )
 
-        # Initialize Data handling
-        self.data = DataHandler(
-            phases=self.config.phases,
-            min_picks_per_event=self.config.min_picks_per_event,
-            default_time_error=self.config.default_time_error,
-            dim=self.config.dim,
-            fix_depth_km=self.config.fix_depth_km,
-        )
+        self.data = DataHandler(config=self.config)
 
         backend_feature_flags = propagation_engine.feature_flags
         # backend_required_model_features = forward_engine.required_model_features

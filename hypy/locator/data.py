@@ -15,6 +15,7 @@ from hypy.logger import logger
 
 from ..utils.geo import gps2dist_azimuth_nb
 from ..utils.weighting import time_error_weight
+from .config import LocatorConfig
 from .types import Catalog, Event, Inventory
 
 
@@ -28,72 +29,19 @@ class DataHandler:
 
     Parameters
     ----------
-    phases : tuple
-        Seismic phases to use for travel-time calculations (e.g., ("P", "S")).
-    min_picks_per_event : int
-        Minimum number of picks required per event to attempt location.
-        Events with fewer picks will be marked as invalid
-        and skipped during inversion.
-    default_time_error : float
-        Default time error to use for picks without associated errors.
-        Used as a floor for time errors to avoid zero or negative weights.
-    dim : int
-        Dimensionality of the inversion problem (x, y, z, t0).
-    fix_depth_km : Optional[float], optional
-        Depth to fix for all events, by default None
-        If set, this will override any event-specific depth settings
-        and fix depth during inversion to the specified value (in km).
-        This is a common practice when depth is poorly constrained or
-        when the depth is known (e.g., solving for controlled explosions).
+    config : LocatorConfig
+        Shared, immutable construction-time configuration.
     """
 
-    def __init__(
-        self,
-        phases: tuple,
-        min_picks_per_event: int,
-        default_time_error: float,
-        dim: int,
-        fix_depth_km: Optional[float] = None,
-    ) -> None:
+    def __init__(self, config: LocatorConfig) -> None:
+        # Shared, immutable construction-time configuration.
+        self.config = config
+
         # Per-solve data containers
 
-        # Phases to use for travel-time calculations.
-        # This can be used to limit the inversion to a subset of phases,
-        # even if the input catalog contains picks for more phases.
-        self.phases: tuple = phases
-        self.n_phases = len(phases)
-
-        # Minimum number of picks required per event to attempt location.
-        # Events with fewer picks will be marked as invalid
-        # and skipped during inversion.
-        # The lowest reasonable value is equal to the dimensionality of the problem.
-        # For example, if the depth is fixed for all events,
-        # the effective dimensionality is reduced by one, so the minimum number
-        # of picks can also be reduced by one.
-        self.min_picks_per_event = min_picks_per_event
-
-        # If a pick does not have an associated time error,
-        # this default error (in seconds) will be used.
-        self.default_time_error = default_time_error
-
-        # Whether to fix event depths during inversion.
-        # This is a common practice when the problem is severely underconstrained,
-        # e.g. due to sparse station coverage or lack of depth-sensitive phases.
-        # Note: this is a global setting that applies to all events. If you want
-        # to fix depth for some events but not others, individual events
-        # with operator-assigned depths in the input catalog will also be depth-fixed,
-        # regardless of this setting.
-        # Note: the solver will still compute depth updates, but they will be ignored
-        # when applying the update to the event locations. This means that fixing depth
-        # will not reduce the computational cost of the inversion,
-        # but it can help stabilize the solution when depth is poorly constrained.
-        self.fix_depth_km = fix_depth_km
+        # An event is depth-fixed if global `fix_depth_km` is set OR its last
+        # origin has an operator-assigned depth (populated in ``load_data``).
         self.fixed_depth_mask: list = []
-
-        # Dimensionality of the inversion problem (x, y, z, t0)
-        # Note: for now, only 4D is supported,
-        # but this could be made flexible in the future if needed.
-        self.dim = dim
 
         # Inventory
         self.inv: Inventory
@@ -118,6 +66,42 @@ class DataHandler:
         self.locations = np.empty((0, 3), dtype=float)
         self.origin_times = np.empty((0,), dtype=float)
         self.time_refs = np.empty((0,), dtype=float)
+
+    def _require_config(self) -> LocatorConfig:
+        """Return the shared config, raising if it has not been set yet."""
+        if self.config is None:
+            raise ValueError("Config is not loaded yet.")
+        return self.config
+
+    @property
+    def phases(self) -> tuple:
+        """Seismic phases used for travel-time calculations (from config)."""
+        return self._require_config().phases
+
+    @property
+    def n_phases(self) -> int:
+        """Number of seismic phases used (from config)."""
+        return self._require_config().n_phases
+
+    @property
+    def dim(self) -> int:
+        """Dimensionality of the inversion problem, e.g. 4 for (x, y, z, t0)."""
+        return self._require_config().dim
+
+    @property
+    def fix_depth_km(self) -> Optional[float]:
+        """Global depth to fix for all events during inversion (from config)."""
+        return self._require_config().fix_depth_km
+
+    @property
+    def min_picks_per_event(self) -> int:
+        """Minimum number of picks required per event to attempt location."""
+        return self._require_config().min_picks_per_event
+
+    @property
+    def default_time_error(self) -> float:
+        """Default (floor) time error for picks without a valid error."""
+        return self._require_config().default_time_error
 
     def load_data(
         self, inventory: Inventory, events: Union[List[Event], Catalog]
