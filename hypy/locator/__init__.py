@@ -4,7 +4,7 @@ Public API for hypy.locator.
 Exposes EventLocator as a composition-based orchestrator.
 """
 
-from typing import List, Optional, Tuple, Union
+from typing import Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -65,7 +65,7 @@ class EventLocator:
     def __init__(
         self,
         propagation_engine: PropagationEngine,
-        phases: Tuple[str, ...] = ("P", "S"),
+        phases: Iterable[str] = ("p", "s"),
         derivative_method: DerivativeMethodLiteral = "numerical",
         fix_depth_km: Optional[float] = None,
         min_picks_per_event: int = 4,
@@ -76,9 +76,21 @@ class EventLocator:
     ):
         get_logger("hypy", level=log_level, log_file=log_file)
 
+        if not isinstance(phases, Iterable) or not all(
+            isinstance(phase, str) for phase in phases
+        ):
+            raise ValueError(
+                f"Phases must be an iterable of strings, got {type(phases)}."  # noqa: E501
+            )
+        phases = tuple(phase.lower() for phase in phases)
+        if any(phase not in propagation_engine.phases for phase in phases):
+            raise ValueError(
+                f"Propagation engine phases {propagation_engine.phases} do not match provided phases {phases}."  # noqa: E501
+            )
+
         # Build immutable, construction-time configuration
         self.config = LocatorConfig(
-            phases=tuple(phases),
+            phases=phases,
             min_picks_per_event=min_picks_per_event,
             default_time_error=default_time_error,
             derivative_method=derivative_method,
