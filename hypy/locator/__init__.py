@@ -12,8 +12,8 @@ from ..logger import get_logger
 from ..propagation import PropagationEngine
 from .config import (
     LocatorConfig,
+    RunConfig,
     configure_distance_weighting,
-    validate_solver,
 )
 from .data import DataHandler
 from .derivatives import DerivativesHandler
@@ -49,34 +49,17 @@ class EventLocator:
         Minimum number of picks required per event to attempt location. Default is 4.
     default_time_error : float, optional
         Minimum pick time error (in seconds). Used if pick error is not given. Default is 0.1 s.
-    distance_weight_start : Optional[float], optional
-        Distance (in km) at which distance-based weighting starts to be applied. If None,
-        no distance weighting is applied. Default is None.
-    distance_weight_end : Optional[float], optional
-        Distance (in km) at which distance-based weighting reaches its minimum. If None,
-        no distance weighting is applied. Default is None.
-    weight_start : float, optional
-        Weight factor at distance_weight_start. Default is 0.99.
-    weight_end : float, optional
-        Weight factor at distance_weight_end. Default is 0.01.
     fix_depth_km : Optional[float], optional
         If not None, event depths are fixed during inversion. Default is None.
-    full_data_covariance : bool, optional
-        If True, compute event uncertainty using a correlated observation covariance
-        model instead of diagonal row weighting. Default is False.
-    correlation_length_km : float, optional
-        Correlation length in km used in the exponential observation covariance
-        model when full_data_covariance is enabled. Default is 1.0.
-    error_coefficient : float, optional
-        HYPOINVERSE-style coefficient applied to RMS in the error variance
-        estimate ``RDERR^2 + (error_coefficient * RMS)^2``. Default is 1.0.
-    seed : Optional[int], optional
-        Seed for the random number generator used during location
-        initialization. Set this to an integer to make location runs
-        reproducible. If None, results are non-deterministic. Default is None.
     _precalculate_velocities : bool, optional
         If True, precomputes velocity profiles for all events to speed up travel-time
         calculations. Requires max_depth_km and depth_step_km to be set. Default is False.
+
+    Notes
+    -----
+    Per-run knobs (distance weighting, observation error model, and the RNG seed)
+    are not set here; they are passed to :meth:`locate` so they can be varied
+    between runs on the same loaded data without rebuilding the locator.
     """  # noqa: E501
 
     def __init__(
@@ -84,35 +67,16 @@ class EventLocator:
         propagation_engine: PropagationEngine,
         phases: Tuple[str, ...] = ("P", "S"),
         derivative_method: DerivativeMethodLiteral = "numerical",
-        distance_weight_start_km: Optional[float] = None,
-        distance_weight_end_km: Optional[float] = None,
-        weight_start: Optional[float] = 0.99,
-        weight_end: Optional[float] = 0.01,
         fix_depth_km: Optional[float] = None,
-        full_data_covariance: bool = False,
-        correlation_length_km: float = 1.0,
-        error_coefficient: float = 1.0,
         min_picks_per_event: int = 4,
         default_time_error: float = 0.1,
         log_level: int = INFO,
         log_file: Optional[str] = None,
-        seed: Optional[int] = None,
         _precalculate_velocities: bool = False,
     ):
         get_logger("hypy", level=log_level, log_file=log_file)
 
-        if derivative_method not in {"numerical", "analytical"}:
-            raise ValueError(
-                "Unsupported derivative method: "
-                f"{derivative_method!r}. Valid values are 'numerical' and 'analytical'."
-            )
-
-        # Calculate distance weighting parameters
-        distance_weighting_enabled, k, x0 = configure_distance_weighting(
-            distance_weight_start_km, distance_weight_end_km, weight_start, weight_end
-        )
-
-        # Build immutable configuration
+        # Build immutable, construction-time configuration
         self.config = LocatorConfig(
             phases=tuple(phases),
             min_picks_per_event=min_picks_per_event,
@@ -120,13 +84,6 @@ class EventLocator:
             derivative_method=derivative_method,
             fix_depth_km=fix_depth_km,
             precalculate_velocities=bool(_precalculate_velocities),
-            distance_weighting_enabled=distance_weighting_enabled,
-            k=k,
-            x0=x0,
-            full_data_covariance=bool(full_data_covariance),
-            correlation_length_km=float(correlation_length_km),
-            error_coefficient=float(error_coefficient),
-            seed=seed,
         )
 
         # Initialize Data handling
@@ -205,6 +162,14 @@ class EventLocator:
         solve_airquakes: bool = False,
         safe_iteration_limit: int = 20,
         trial_depth_km: float = 10.0,
+        distance_weight_start_km: Optional[float] = None,
+        distance_weight_end_km: Optional[float] = None,
+        weight_start: Optional[float] = 0.99,
+        weight_end: Optional[float] = 0.01,
+        full_data_covariance: bool = False,
+        correlation_length_km: float = 1.0,
+        error_coefficient: float = 1.0,
+        seed: Optional[int] = None,
     ) -> Tuple[Union[List[Event], Catalog], np.ndarray]:
         """
         Run the full location pipeline.
@@ -218,8 +183,8 @@ class EventLocator:
 
         Parameters
         ----------
-        solver : Literal["lsqr", "svd"], optional
-            Solver method. Default is "lsqr".
+        solver : SolverLiteral, optional
+            Solver method (see :data:`SolverLiteral`). Default is "lsqr".
         max_iterations : int, optional
             Maximum number of inversion iterations. Default is 1000.
         conv_threshold : float, optional
@@ -230,6 +195,29 @@ class EventLocator:
             Iteration number after which depth constraints become strict. Default is 20.
         trial_depth_km : float, optional
             Initial trial depth (km) for seed generation. Default is 10.0.
+        distance_weight_start_km : Optional[float], optional
+            Distance (in km) at which distance-based weighting starts to be applied.
+            If None, no distance weighting is applied. Default is None.
+        distance_weight_end_km : Optional[float], optional
+            Distance (in km) at which distance-based weighting reaches its minimum.
+            If None, no distance weighting is applied. Default is None.
+        weight_start : float, optional
+            Weight factor at distance_weight_start_km. Default is 0.99.
+        weight_end : float, optional
+            Weight factor at distance_weight_end_km. Default is 0.01.
+        full_data_covariance : bool, optional
+            If True, compute event uncertainty using a correlated observation
+            covariance model instead of diagonal row weighting. Default is False.
+        correlation_length_km : float, optional
+            Correlation length in km used in the exponential observation covariance
+            model when full_data_covariance is enabled. Default is 1.0.
+        error_coefficient : float, optional
+            HYPOINVERSE-style coefficient applied to RMS in the error variance
+            estimate ``RDERR^2 + (error_coefficient * RMS)^2``. Default is 1.0.
+        seed : Optional[int], optional
+            Seed for the random number generator used during location
+            initialization. Set this to an integer to make this location run
+            reproducible. If None, results are non-deterministic. Default is None.
 
         Returns
         -------
@@ -237,11 +225,27 @@ class EventLocator:
             events: List[Event] or Catalog with appended Origin objects.
             invalid_indices: np.ndarray of event indices that could not be located.
         """
-        solver = validate_solver(solver)
+        # Calculate distance weighting parameters
+        distance_weighting_enabled, k, x0 = configure_distance_weighting(
+            distance_weight_start_km, distance_weight_end_km, weight_start, weight_end
+        )
+
+        # Build immutable, per-run configuration
+        run_config = RunConfig(
+            distance_weighting_enabled=distance_weighting_enabled,
+            k=k,
+            x0=x0,
+            full_data_covariance=bool(full_data_covariance),
+            correlation_length_km=float(correlation_length_km),
+            error_coefficient=float(error_coefficient),
+            solver=solver,
+            seed=seed,
+        )
 
         init_locations(
             self.data,
             self.config,
+            run_config,
             self.derivative_engine,
             trial_depth_km,
             self.propagation_backend.distance_step_km,
@@ -252,9 +256,10 @@ class EventLocator:
             config=self.config,
             data=self.data,
             derivative_engine=self.derivative_engine,
+            run_config=run_config,
         )
         inversion_results = inversion_engine.run_iterations(
-            solver=solver,
+            solver=run_config.solver,
             max_iterations=max_iterations,
             conv_threshold=conv_threshold,
             solve_airquakes=solve_airquakes,
@@ -266,6 +271,7 @@ class EventLocator:
             self.config,
             self.data,
             inversion_results,
+            run_config,
         )
 
         exporter = OriginExporter(config=self.config, data=self.data)

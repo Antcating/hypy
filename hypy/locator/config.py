@@ -1,79 +1,17 @@
-"""Main configuration and validation logic for the event locator.
+"""Handling configurations for the event locator."""
 
-This module defines the LocatorConfig dataclass, which holds all the immutable
-settings for the event locator. It also includes validation functions to ensure
-that the provided configuration parameters are valid and compatible with each other.
-
-Returns
--------
-tuple
-    A tuple containing:
-    - mode: Mode of operation (ModeLiteral).
-    - engine: Ray tracing engine (EngineLiteral).
-    - derivative_method: Method for computing derivatives (DerivativeMethodLiteral).
-
-Raises
-------
-ValueError
-    If the provided mode is not supported.
-ValueError
-    If the provided engine is not supported for the specified mode.
-ValueError
-    If the provided derivative_method is not supported for the mode and engine.
-FileNotFoundError
-    If a required file is not found.
-ValueError
-    If a provided file has an unsupported format.
-ValueError
-    If an unsupported solver is specified.
-ValueError
-    If distance weighting parameters are invalid.
-ValueError
-    If precomputation arguments are invalid.
-ValueError
-    If weight_start or weight_end are not in (0, 1).
-"""
-
+import numbers
 from dataclasses import dataclass, field
 from typing import Optional
 
 import numpy as np
 
-from .types import DerivativeMethodLiteral, SolverLiteral
-
-VALID_SOLVERS = {"lsqr", "svd"}
-
-
-def validate_solver(solver: str) -> SolverLiteral:
-    """Validate that the provided solver is supported, and return it.
-
-    There are specific valid solvers, defined in VALID_SOLVERS:
-
-    * ``lsqr`` uses ``scipy.sparse.linalg.lsmr`` for large sparse systems.
-    * ``svd`` uses ``scipy.linalg.svd`` and is generally less scalable.
-
-    Parameters
-    ----------
-    solver : str
-        solver to use for the linear system in the location inversion.
-
-    Returns
-    -------
-    SolverLiteral
-        The validated solver.
-
-    Raises
-    ------
-    ValueError
-        If the provided solver is not supported.
-    """
-    if isinstance(solver, str):
-        if solver.lower() not in VALID_SOLVERS:
-            raise ValueError(
-                f"Unsupported solver: {solver!r}. Use one of: {', '.join(VALID_SOLVERS)}."  # noqa: E501
-            )
-        return solver.lower()  # type: ignore[return-value]
-    raise ValueError(f"Solver must be a string, got {type(solver)}.")
+from .types import (
+    VALID_DERIVATIVE_METHODS,
+    VALID_SOLVERS,
+    DerivativeMethodLiteral,
+    SolverLiteral,
+)
 
 
 def configure_distance_weighting(
@@ -141,10 +79,14 @@ def configure_distance_weighting(
 @dataclass(frozen=True)
 class LocatorConfig:
     """
-    Immutable configuration for the event locator.
+    Immutable, construction-time configuration for the event locator.
 
-    Holds all settings that do not change during a locate() run.
-    Created once in EventLocator.__init__ and shared (read-only) with all components.
+    Holds settings that define the *identity* of a locator: the data layout,
+    the physical/model assumptions, and the components built from them. These
+    do not change between ``locate()`` calls on the same locator. Created once
+    in ``EventLocator.__init__`` and shared (read-only) with all components.
+
+    Per-run knobs (weighting, error model, RNG seed) live in :class:`RunConfig`.
     """
 
     phases: tuple
@@ -153,21 +95,72 @@ class LocatorConfig:
     derivative_method: DerivativeMethodLiteral
     fix_depth_km: Optional[float]
     precalculate_velocities: bool
-    distance_weighting_enabled: bool
-    k: Optional[float]
-    x0: Optional[float]
-    full_data_covariance: bool = False
-    correlation_length_km: float = 1.0
-    error_coefficient: float = 1.0
     derivative_delta_km: float = 0.5
     dim: int = 4
     n_phases: int = field(init=False)
-    seed: Optional[int] = None
 
     def __post_init__(self) -> None:
         """Compute derived values and validate post-init constraints."""
-        if self.correlation_length_km <= 0.0:
-            raise ValueError("correlation_length_km must be > 0.")
-        if self.error_coefficient < 0.0:
-            raise ValueError("error_coefficient must be >= 0.")
+        # Set number of phases from the phases tuple
         object.__setattr__(self, "n_phases", len(self.phases))
+
+        # Validate derivative method
+        self.validate_derivative_method()
+
+    def validate_derivative_method(self) -> None:
+        """Validate the derivative method."""
+        if isinstance(self.derivative_method, str):
+            if self.derivative_method.lower() not in VALID_DERIVATIVE_METHODS:
+                raise ValueError(
+                    f"Unsupported derivative method: {self.derivative_method!r}. Use one of: {', '.join(sorted(VALID_DERIVATIVE_METHODS))}."  # noqa: E501
+                )
+        else:
+            raise ValueError(
+                f"Derivative method must be a string, got {type(self.derivative_method)}."  # noqa: E501
+            )
+        return self.derivative_method.lower()
+
+
+@dataclass(frozen=True)
+class RunConfig:
+    """
+    Immutable, per-run configuration for a single ``locate()`` call.
+
+    Holds knobs that only take effect while a location run is executing and can
+    be varied freely between runs on the same loaded data without rebuilding any
+    component: distance weighting, the observation error model, and the RNG seed
+    used for location initialization. Built inside ``EventLocator.locate`` from
+    its arguments and passed (read-only) to the run-time components.
+    """
+
+    distance_weighting_enabled: bool = False
+    k: Optional[float] = None
+    x0: Optional[float] = None
+    full_data_covariance: bool = False
+    correlation_length_km: float = 1.0
+    error_coefficient: float = 1.0
+    seed: Optional[int] = None
+    solver: SolverLiteral = "lsqr"
+
+    def __post_init__(self) -> None:
+        """Validate post-init constraints."""
+        if self.full_data_covariance:
+            if (
+                not isinstance(self.correlation_length_km, numbers.Real)
+                or self.correlation_length_km <= 0.0
+            ):
+                raise ValueError("correlation_length_km must be > 0.")
+            if (
+                not isinstance(self.error_coefficient, numbers.Real)
+                or self.error_coefficient < 0.0
+            ):
+                raise ValueError("error_coefficient must be >= 0.")
+
+        if isinstance(self.solver, str):
+            if self.solver.lower() not in VALID_SOLVERS:
+                raise ValueError(
+                    f"Unsupported solver: {self.solver!r}. Use one of: {', '.join(sorted(VALID_SOLVERS))}."  # noqa: E501
+                )
+        else:
+            raise ValueError(f"Solver must be a string, got {type(self.solver)}.")
+        return self.solver.lower()

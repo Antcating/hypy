@@ -4,7 +4,7 @@ from typing import Optional
 
 from hypy.logger import logger  # type: ignore[import-not-found]
 
-from .config import LocatorConfig
+from .config import LocatorConfig, RunConfig
 from .data import DataHandler
 from .derivatives import DerivativesHandler
 from .types import Event, np
@@ -13,6 +13,7 @@ from .types import Event, np
 def init_locations(
     data: DataHandler,
     config: LocatorConfig,
+    run_config: RunConfig,
     derivative_engine: DerivativesHandler,
     trial_depth_km: float,
     depth_step_km: Optional[float],
@@ -26,6 +27,8 @@ def init_locations(
         Shared event data container that receives initial locations.
     config : LocatorConfig
         Locator configuration controlling depth handling and pick filtering.
+    run_config : RunConfig
+        Per-run configuration providing the RNG seed for reproducible seeding.
     derivative_engine : DerivativesHandler
         Travel-time derivative helper used to score candidate hypocenters.
     trial_depth_km : float
@@ -44,12 +47,12 @@ def init_locations(
     The initialization intentionally uses a small set of deterministic seed
     locations plus a lightweight randomized depth sample so the first inversion
     pass starts from reasonable event hypotheses. The random depth sampling is
-    drawn from a local generator seeded with ``config.seed``, so a fixed seed
+    drawn from a local generator seeded with ``run_config.seed``, so a fixed seed
     makes the whole location run reproducible.
     """
-    # Local random generator so runs are reproducible when config.seed is set,
+    # Local random generator so runs are reproducible when run_config.seed is set,
     # without mutating NumPy's global random state.
-    rng = np.random.default_rng(config.seed)
+    rng = np.random.default_rng(run_config.seed)
 
     def _seed_candidates_for_event(
         event: Event, trial_depth_km: float, max_depth_km: Optional[float]

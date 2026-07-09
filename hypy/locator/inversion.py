@@ -9,7 +9,7 @@ from scipy.sparse.linalg import lsmr
 from hypy.logger import logger
 
 from ..utils.damping import update_damping_factor
-from .config import LocatorConfig
+from .config import LocatorConfig, RunConfig
 from .data import DataHandler
 from .derivatives import DerivativesHandler
 from .types import InversionResults, SolverLiteral
@@ -49,10 +49,12 @@ class InversionEngine:
         config: LocatorConfig,
         data: DataHandler,
         derivative_engine: DerivativesHandler,
+        run_config: RunConfig,
     ) -> None:
         self.config = config
         self.data = data
         self.derivative_engine = derivative_engine
+        self.run_config = run_config
 
     def _clip_updates(
         self,
@@ -188,6 +190,7 @@ class InversionEngine:
         >>> print(results.residuals_flat.shape)
         """
         config = self.config
+        run_config = self.run_config
         data = self.data
 
         def _compute_residuals_and_rms(valid_rows: np.ndarray):
@@ -211,7 +214,7 @@ class InversionEngine:
             f"Using {self.derivative_engine.tracer.name} forward engine "
             f"for travel-time calculations."
         )
-        logger.info(f"Distance weighting: {config.distance_weighting_enabled}")
+        logger.info(f"Distance weighting: {run_config.distance_weighting_enabled}")
         logger.info(f"Fix depth: {config.fix_depth_km}")
         logger.info(f"Precalculate velocities: {config.precalculate_velocities}")
 
@@ -227,7 +230,7 @@ class InversionEngine:
         for iteration_index in range(max_iterations):
             if not derivatives_built:
                 valid_rows = self.derivative_engine.build_derivative_matrix(
-                    data, config
+                    data, config, run_config
                 )
                 derivatives_built = True
             if len(valid_rows) == 0:
@@ -323,7 +326,7 @@ class InversionEngine:
 
                 # Rebuild derivatives and recompute RMS AFTER trial update
                 valid_rows_trial = self.derivative_engine.build_derivative_matrix(
-                    data, config
+                    data, config, run_config
                 )
                 if len(valid_rows_trial) == 0:
                     logger.warning(
@@ -400,7 +403,7 @@ class InversionEngine:
                     )
 
                 valid_rows = self.derivative_engine.build_derivative_matrix(
-                    data, config
+                    data, config, run_config
                 )
                 derivatives_built = True
                 if len(valid_rows) == 0:
@@ -451,7 +454,9 @@ class InversionEngine:
 
         # Ensure final derivatives / travel times / valid rows correspond to final state
         if not derivatives_built:
-            valid_rows = self.derivative_engine.build_derivative_matrix(data, config)
+            valid_rows = self.derivative_engine.build_derivative_matrix(
+                data, config, run_config
+            )
         residuals_flat, rms = _compute_residuals_and_rms(valid_rows)
 
         residuals_flat_weighted = residuals_flat * data.time_error_W

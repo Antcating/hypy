@@ -8,7 +8,7 @@ from hypy.logger import logger  # type: ignore[import-not-found]
 
 from ..propagation import PropagationEngine
 from ..utils.weighting import distance_weight
-from .config import LocatorConfig
+from .config import LocatorConfig, RunConfig
 from .data import DataHandler
 
 
@@ -64,7 +64,7 @@ class DerivativesHandler:
         )
 
     def build_derivative_matrix(
-        self, data: DataHandler, config: LocatorConfig
+        self, data: DataHandler, config: LocatorConfig, run_config: RunConfig
     ) -> np.ndarray:
         """Build the global derivative matrix for all events, stations, and phases.
 
@@ -76,7 +76,7 @@ class DerivativesHandler:
         # Reset per-iteration inversion state so skipped stations are zeroed out.
         data.jacobian_matrix[:] = 0.0
         data.theoretical_travel_times[:] = 0.0
-        if config.distance_weighting_enabled:
+        if run_config.distance_weighting_enabled:
             data.distance_W[:] = 0.0
         else:
             data.distance_W[:] = 1.0
@@ -144,9 +144,9 @@ class DerivativesHandler:
                         theoretical_travel_time
                     )
 
-                    if config.distance_weighting_enabled:
+                    if run_config.distance_weighting_enabled:
                         data.distance_W[row_index] = distance_weight(
-                            distance_km, k=config.k, x0=config.x0
+                            distance_km, k=run_config.k, x0=run_config.x0
                         )
 
                     data.jacobian_matrix[row_index, col0 + 0] = dt_dy  # type: ignore[index]

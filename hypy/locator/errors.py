@@ -4,7 +4,7 @@ from typing import Optional
 
 import numpy as np
 
-from .config import LocatorConfig
+from .config import LocatorConfig, RunConfig
 from .data import DataHandler
 from .types import ErrorResults, InversionResults
 
@@ -410,6 +410,7 @@ def compute_error_ellipsoids(
     config: LocatorConfig,
     data: DataHandler,
     inversion_results: InversionResults,
+    run_config: RunConfig,
 ) -> ErrorResults:
     """Compute error ellipsoids for all events in the inversion result.
 
@@ -417,6 +418,9 @@ def compute_error_ellipsoids(
     ----------
     inversion_results : InversionResults
         Outputs of the location inversion step.
+    run_config : RunConfig
+        Per-run configuration providing the observation error model
+        (``full_data_covariance``, ``correlation_length_km``, ``error_coefficient``).
 
     Returns
     -------
@@ -426,7 +430,7 @@ def compute_error_ellipsoids(
     """
     validate_inversion_results(config, data, inversion_results)
 
-    use_full_covariance = bool(getattr(config, "full_data_covariance", False))
+    use_full_covariance = run_config.full_data_covariance
     jacobian_matrix = inversion_results.jacobian_matrix
     residuals_flat = inversion_results.residuals_flat.reshape(-1)
 
@@ -468,7 +472,7 @@ def compute_error_ellipsoids(
                 station_indices=station_indices,
                 phase_indices=phase_indices,
                 station_distances_km=np.asarray(data.station_distances_km, dtype=float),
-                corr_length_km=float(getattr(config, "correlation_length_km", 1.0)),
+                corr_length_km=run_config.correlation_length_km,
             )
             if observation_covariance is None:
                 continue
@@ -479,7 +483,7 @@ def compute_error_ellipsoids(
             pick_errors=event_pick_errors,
             dim=dim,
             observation_covariance=observation_covariance,
-            error_coefficient=float(getattr(config, "error_coefficient", 1.0)),
+            error_coefficient=run_config.error_coefficient,
         )
         if errinfo is None:
             continue
