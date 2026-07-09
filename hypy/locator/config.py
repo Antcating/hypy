@@ -67,11 +67,13 @@ def validate_solver(solver: str) -> SolverLiteral:
     ValueError
         If the provided solver is not supported.
     """
-    if solver.lower() not in VALID_SOLVERS:
-        raise ValueError(
-            f"Unsupported solver: {solver!r}. Use one of: {', '.join(VALID_SOLVERS)}."
-        )
-    return solver.lower()  # type: ignore[return-value]
+    if isinstance(solver, str):
+        if solver.lower() not in VALID_SOLVERS:
+            raise ValueError(
+                f"Unsupported solver: {solver!r}. Use one of: {', '.join(VALID_SOLVERS)}."  # noqa: E501
+            )
+        return solver.lower()  # type: ignore[return-value]
+    raise ValueError(f"Solver must be a string, got {type(solver)}.")
 
 
 def configure_distance_weighting(
