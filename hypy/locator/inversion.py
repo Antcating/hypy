@@ -459,12 +459,6 @@ class InversionEngine:
             )
         residuals_flat, rms = _compute_residuals_and_rms(valid_rows)
 
-        residuals_flat_weighted = residuals_flat * data.time_error_W
-
-        jacobian_matrix_weighted = (
-            data.jacobian_matrix * data.time_error_W[:, np.newaxis]
-        )
-
         logger.info(
             f"Location iterations completed in {iteration_index + 1} iterations."
         )
@@ -476,9 +470,6 @@ class InversionEngine:
 
         return InversionResults(
             jacobian_matrix=data.jacobian_matrix,
-            jacobian_matrix_weighted=jacobian_matrix_weighted,
             valid_rows=valid_rows,
             residuals_flat=residuals_flat,
-            residuals_flat_weighted=residuals_flat_weighted,
-            damping=best_damping,
         )
