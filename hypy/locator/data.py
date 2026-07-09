@@ -131,7 +131,7 @@ class DataHandler:
         # Filter-out irrelevant phases from the inventory
         for event in events:
             for pick in event.picks:
-                if pick.phase_hint not in self.phases:
+                if pick.phase_hint.lower() not in self.phases:
                     logger.warning(
                         f"Skipping pick {pick.waveform_id.network_code}.{pick.waveform_id.station_code} {pick.phase_hint}: "  # noqa: E501
                         f"phase not in {self.phases}."
