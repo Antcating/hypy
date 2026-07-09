@@ -89,13 +89,39 @@ class LocatorConfig:
     Per-run knobs (weighting, error model, RNG seed) live in :class:`RunConfig`.
     """
 
+    # Phases to use for travel-time calculations.
+    # This can be used to limit the inversion to a subset of phases,
+    # even if the input catalog contains picks for more phases.
     phases: Iterable[str]
+    # Minimum number of picks required per event to attempt location.
+    # Events with fewer picks will be marked as invalid
+    # and skipped during inversion.
+    # The lowest reasonable value is equal to the dimensionality of the problem.
+    # For example, if the depth is fixed for all events,
+    # the effective dimensionality is reduced by one, so the minimum number
+    # of picks can also be reduced by one.
     min_picks_per_event: int
+    # If a pick does not have an associated time error,
+    # this default error (in seconds) will be used.
     default_time_error: float
     derivative_method: DerivativeMethodLiteral
+    # Whether to fix event depths during inversion.
+    # This is a common practice when the problem is severely underconstrained,
+    # e.g. due to sparse station coverage or lack of depth-sensitive phases.
+    # Note: this is a global setting that applies to all events. If you want
+    # to fix depth for some events but not others, individual events
+    # with operator-assigned depths in the input catalog will also be depth-fixed,
+    # regardless of this setting.
+    # Note: the solver will still compute depth updates, but they will be ignored
+    # when applying the update to the event locations. This means that fixing depth
+    # will not reduce the computational cost of the inversion,
+    # but it can help stabilize the solution when depth is poorly constrained.
     fix_depth_km: Optional[float]
     precalculate_velocities: bool
     derivative_delta_km: float = 0.5
+    # Dimensionality of the inversion problem (x, y, z, t0)
+    # Note: for now, only 4D is supported,
+    # but this could be made flexible in the future if needed.
     dim: int = 4
     n_phases: int = field(init=False)
 
