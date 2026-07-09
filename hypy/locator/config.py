@@ -127,8 +127,14 @@ class LocatorConfig:
 
     def __post_init__(self) -> None:
         """Compute derived values and validate post-init constraints."""
-        # Set number of phases from the phases tuple
+        # Set number of phases from the phases iterable
         object.__setattr__(self, "n_phases", len(self.phases))
+        # Convert phases to lowercase
+        object.__setattr__(
+            self,
+            "phases",
+            tuple(phase.lower() for phase in self.phases),
+        )
 
         # Validate derivative method
         self.validate_derivative_method()
