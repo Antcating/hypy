@@ -1,6 +1,6 @@
 """Layered propagation model base classes."""
 
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -14,8 +14,8 @@ from hypy.utils.math import finite_difference_derivative
 class LayeredPropagationEngine(PropagationEngine):
     """Base class for layered 1D propagation backends."""
 
-    def __init__(self, model: VelocityModel):
-        super().__init__(model)
+    def __init__(self, model: VelocityModel, **kwargs: Any):
+        super().__init__(model, **kwargs)
 
     @property
     def dim(self) -> int:

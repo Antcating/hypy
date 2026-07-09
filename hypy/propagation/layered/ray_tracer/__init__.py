@@ -1,6 +1,7 @@
 """Layered ray tracing module for seismic wave propagation."""
 
 from collections import OrderedDict
+from typing import Any
 
 from hypy.model import VelocityModel
 from hypy.propagation.layered import LayeredPropagationEngine
@@ -21,8 +22,9 @@ class LayeredRayTracer(LayeredPropagationEngine):
         *,
         arrival_cache_size: int = 200_000,
         arrival_cache_precision_km: float = 1.0e-6,
+        **kwargs: Any,
     ):
-        super().__init__(model)
+        super().__init__(model, **kwargs)
 
         if arrival_cache_size < 0:
             raise ValueError("arrival_cache_size must be non-negative.")
