@@ -8,6 +8,7 @@ import numpy as np
 
 from .types import (
     VALID_DERIVATIVE_METHODS,
+    VALID_DIMENSIONS,
     VALID_SOLVERS,
     DerivativeMethodLiteral,
     SolverLiteral,
@@ -136,6 +137,10 @@ class LocatorConfig:
         )
         object.__setattr__(self, "n_phases", len(self.phases))
 
+        if self.dim not in VALID_DIMENSIONS:
+            raise ValueError(
+                f"dim must be one of: {', '.join(str(d) for d in sorted(VALID_DIMENSIONS))}."  # noqa: E501
+            )
         # Validate derivative method
         self.validate_derivative_method()
 
