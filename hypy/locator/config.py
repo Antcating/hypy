@@ -188,11 +188,11 @@ class RunConfig:
             ):
                 raise ValueError("error_coefficient must be >= 0.")
 
-        if isinstance(self.solver, str):
-            if self.solver.lower() not in VALID_SOLVERS:
-                raise ValueError(
-                    f"Unsupported solver: {self.solver!r}. Use one of: {', '.join(sorted(VALID_SOLVERS))}."  # noqa: E501
-                )
-        else:
+        if not isinstance(self.solver, str):
             raise ValueError(f"Solver must be a string, got {type(self.solver)}.")
-        return self.solver.lower()
+        normalized_solver = self.solver.lower()
+        if normalized_solver not in VALID_SOLVERS:
+            raise ValueError(
+                f"Unsupported solver: {self.solver!r}. Use one of: {', '.join(sorted(VALID_SOLVERS))}."  # noqa: E501
+            )
+        object.__setattr__(self, "solver", normalized_solver)
