@@ -140,17 +140,17 @@ class LocatorConfig:
         self.validate_derivative_method()
 
     def validate_derivative_method(self) -> None:
-        """Validate the derivative method."""
-        if isinstance(self.derivative_method, str):
-            if self.derivative_method.lower() not in VALID_DERIVATIVE_METHODS:
-                raise ValueError(
-                    f"Unsupported derivative method: {self.derivative_method!r}. Use one of: {', '.join(sorted(VALID_DERIVATIVE_METHODS))}."  # noqa: E501
-                )
-        else:
+        """Validate the derivative method and normalize it to lowercase."""
+        if not isinstance(self.derivative_method, str):
             raise ValueError(
                 f"Derivative method must be a string, got {type(self.derivative_method)}."  # noqa: E501
             )
-        return self.derivative_method.lower()
+        normalized = self.derivative_method.lower()
+        if normalized not in VALID_DERIVATIVE_METHODS:
+            raise ValueError(
+                f"Unsupported derivative method: {self.derivative_method!r}. Use one of: {', '.join(sorted(VALID_DERIVATIVE_METHODS))}."  # noqa: E501
+            )
+        object.__setattr__(self, "derivative_method", normalized)
 
 
 @dataclass(frozen=True)
