@@ -33,6 +33,7 @@ DerivativeMethodLiteral = Literal["numerical", "analytical"]
 
 VALID_SOLVERS: frozenset[str] = frozenset(get_args(SolverLiteral))
 VALID_DERIVATIVE_METHODS: frozenset[str] = frozenset(get_args(DerivativeMethodLiteral))
+VALID_DIMENSIONS: frozenset[int] = frozenset(get_args(DimLiteral))
 
 
 @dataclass
