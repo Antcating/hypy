@@ -54,6 +54,9 @@ def gps2dist_azimuth_nb(
         lat2_rad
     ) * np.cos(d_lon_rad)
     azimuth = np.degrees(np.arctan2(y, x)) % 360
+    # Normalize to [0, 360)
+    if azimuth >= 360.0:
+        azimuth = 0.0
 
     # Back azimuth
     y_back = -np.sin(d_lon_rad) * np.cos(lan1_rad)
@@ -61,6 +64,9 @@ def gps2dist_azimuth_nb(
         lan1_rad
     ) * np.cos(-d_lon_rad)
     back_azimuth = np.degrees(np.arctan2(y_back, x_back)) % 360
+    # Normalize to [0, 360)
+    if back_azimuth >= 360.0:
+        back_azimuth = 0.0
 
     return distance, azimuth, back_azimuth
 
