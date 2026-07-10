@@ -141,6 +141,16 @@ class LocatorConfig:
             raise ValueError(
                 f"dim must be one of: {', '.join(str(d) for d in sorted(VALID_DIMENSIONS))}."  # noqa: E501
             )
+
+        if self.default_time_error <= 0.0:
+            raise ValueError("default_time_error must be > 0.0.")
+
+        if self.derivative_delta_km <= 0.0:
+            raise ValueError("derivative_delta_km must be > 0.0.")
+
+        if self.min_picks_per_event <= 0:
+            raise ValueError("min_picks_per_event must be > 0.")
+
         # Validate derivative method
         self.validate_derivative_method()
 
