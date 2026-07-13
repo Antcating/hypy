@@ -9,6 +9,7 @@ from obspy.taup.taup_create import build_taup_model  # type: ignore[import-untyp
 
 from hypy.model import VelocityModel
 from hypy.utils.math import velocity_from_layers
+from hypy.utils.seismic import normalize_phase
 
 
 class TvelModel(VelocityModel):
@@ -75,14 +76,7 @@ class TvelModel(VelocityModel):
 
     @staticmethod
     def _phase_key(phase: str) -> str:
-        phase_lower = phase.strip().lower()
-        if phase_lower.startswith("p"):
-            return "p"
-        if phase_lower.startswith("s"):
-            return "s"
-        raise ValueError(
-            f"Unsupported phase: {phase}. Supported phases are 'P' and 'S'."
-        )
+        return normalize_phase(phase)
 
     def _precompute_velocity_profiles_1d(
         self,
