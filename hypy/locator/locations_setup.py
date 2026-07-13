@@ -330,7 +330,16 @@ def init_locations(
                 f"t0_abs={t0_abs:.3f}s"
             )
         else:
-            # Fallback: use the station of the earliest pick and estimate origin time
+            # Fallback: use the station of the earliest pick and estimate origin time.
+            # After the known-station filter above an event can be left with no
+            # usable picks (e.g. every pick came from a station absent from the
+            # inventory); there is nothing to seed from in that case.
+            if not event.picks:
+                logger.warning(
+                    "Event %d has no picks from known stations; skipping seed.",
+                    event_index,
+                )
+                continue
             first_pick = min(event.picks, key=lambda pk: pk.time)
             net_code = first_pick.waveform_id.network_code
             sta_code = first_pick.waveform_id.station_code
