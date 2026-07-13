@@ -33,6 +33,7 @@ from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
 
 from hypy.logger import logger
 from hypy.propagation.layered.ray_tracer import LayeredRayTracer
+from hypy.utils.seismic import normalize_phase
 
 
 class PyrockoRayTracer(LayeredRayTracer):
@@ -101,16 +102,8 @@ class PyrockoRayTracer(LayeredRayTracer):
         ValueError
             If an error occurs during arrival computation.
         """
-        if phase.lower() == "p":
-            phases = ["p", "P"]
-            phase_key = "p"
-        elif phase.lower() == "s":
-            phases = ["s", "S"]
-            phase_key = "s"
-        else:
-            raise ValueError(
-                f"Unsupported phase: {phase}. Supported phases are 'P' and 'S'."
-            )
+        phase_key = normalize_phase(phase)
+        phases = [phase_key, phase_key.upper()]
 
         distance_km = float(abs(arc_distance_km))
         cache_key = self._arrival_cache_key(
