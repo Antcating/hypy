@@ -25,6 +25,7 @@ from hypy.model import TvelModel
 from hypy.propagation.layered import LayeredPropagationEngine
 from hypy.utils.geo import gps2dist_azimuth_nb
 from hypy.utils.math import interp_quant
+from hypy.utils.seismic import normalize_phase
 
 
 class FmmTravelTimeGrid1D(LayeredPropagationEngine):
@@ -60,7 +61,7 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
         self.engine = "skfmm"
         self.model = model
         self.model_name = model.model_name
-        self.phases = phases
+        self.phases = [normalize_phase(phase) for phase in phases]
         self.max_depth = max_depth
         self.max_distance = max_distance
         self.depth_step = depth_step
@@ -257,24 +258,46 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
             Path(fname).parent.mkdir(parents=True, exist_ok=True)
             self.save(fname)
 
-    def compute_travel_time(self, phase: str, depth: float, distance: float) -> float:
+    def _resolve_phase_table(self, phase: str, tables: Dict[str, np.ndarray]) -> str:
+        """Return the stored phase key matching ``phase`` or raise ``ValueError``.
+
+        Phase lookup is normalized so the grid accepts ``"p"``/``"P"``/``"Pn"``
+        interchangeably, matching every other propagation backend.
+        """
+        wanted = normalize_phase(phase)
+        for stored in tables:
+            if normalize_phase(stored) == wanted:
+                return stored
+        raise ValueError(f"Phase {phase!r} not in available phases: {list(tables)}.")
+
+    def compute_travel_time(
+        self, distance_km: float, depth_km: float, phase: str
+    ) -> float:
         """Interpolate the first-arrival travel time for a phase."""
+        key = self._resolve_phase_table(phase, self.travel_time_tables)
         return interp_quant(
-            depth,
-            distance,
+            depth_km,
+            distance_km,
             self.depth_grid,
             self.distance_grid,
-            self.travel_time_tables[phase],
+            self.travel_time_tables[key],
         )
 
-    def compute_takeoff_angle(self, phase: str, depth: float, distance: float) -> float:
-        """Interpolate the takeoff angle for a phase."""
+    def compute_takeoff_angle(
+        self, distance_km: float, depth_km: float, phase: str
+    ) -> float:
+        """Interpolate the takeoff angle for a phase.
+
+        FMM tables carry a takeoff angle of zero everywhere by design; the value
+        is still returned as a float for parity with the other grids/tracers.
+        """
+        key = self._resolve_phase_table(phase, self.takeoff_angle_tables)
         return interp_quant(
-            depth,
-            distance,
+            depth_km,
+            distance_km,
             self.depth_grid,
             self.distance_grid,
-            self.takeoff_angle_tables[phase],
+            self.takeoff_angle_tables[key],
         )
 
     def get_arrival(
@@ -295,8 +318,8 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
         tuple of float or None
             ``(arc_distance_km, travel_time_s, takeoff_angle_deg, azimuth_deg)``.
         """
-        if phase not in self.phases:
-            raise ValueError(f"Phase {phase} not in available phases: {self.phases}")
+        # Validate the phase up front (raises ``ValueError`` for unknown phases).
+        self._resolve_phase_table(phase, self.travel_time_tables)
 
         dist_m, azimuth_deg, _ = gps2dist_azimuth_nb(
             source_latitude,
@@ -317,9 +340,9 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
 
         source_depth_eff_km = source_depth_km + receiver_elevation_m / 1000.0
 
-        time = self.compute_travel_time(phase, source_depth_eff_km, arc_distance_km)
+        time = self.compute_travel_time(arc_distance_km, source_depth_eff_km, phase)
         takeoff_angle = self.compute_takeoff_angle(
-            phase, source_depth_eff_km, arc_distance_km
+            arc_distance_km, source_depth_eff_km, phase
         )
 
         if np.isnan(time) or np.isnan(takeoff_angle):
@@ -341,14 +364,14 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
         Returns
         -------
         tuple of float
-            ``(travel_time_s, takeoff_angle_deg)``.
+            ``(travel_time_s, takeoff_angle_deg)``.  The takeoff angle is ``0.0``
+            by design for the FMM tables but is always returned as a float, for
+            parity with the ray-tracer backends.
         """
-        if phase not in self.phases:
-            raise ValueError(f"Phase {phase} not in available phases: {self.phases}")
-
-        time = self.compute_travel_time(phase, source_depth_km, arc_distance_km)
+        arc_distance_km = abs(arc_distance_km)
+        time = self.compute_travel_time(arc_distance_km, source_depth_km, phase)
         takeoff_angle = self.compute_takeoff_angle(
-            phase, source_depth_km, arc_distance_km
+            arc_distance_km, source_depth_km, phase
         )
 
         if np.isnan(time) or np.isnan(takeoff_angle):
@@ -357,10 +380,7 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
                 f"at depth {source_depth_km} and distance {arc_distance_km}."
             )
 
-        return (
-            time,
-            None,
-        )  # takeoff angle is not meaningful for scikit-fmm tables, set to None
+        return float(time), float(takeoff_angle)
 
     def compute_derivatives(
         self,
