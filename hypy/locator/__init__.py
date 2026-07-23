@@ -8,6 +8,8 @@ from typing import Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 
+from hypy.utils.seismic import normalize_phase
+
 from ..logger import get_logger
 from ..propagation import PropagationEngine
 from .config import (
@@ -82,7 +84,7 @@ class EventLocator:
             raise ValueError(
                 f"Phases must be an iterable of strings, got {type(phases)}."  # noqa: E501
             )
-        phases = tuple(phase.lower() for phase in phases)
+        phases = tuple(normalize_phase(phase) for phase in phases)
         if any(phase not in propagation_engine.phases for phase in phases):
             raise ValueError(
                 f"Propagation engine phases {propagation_engine.phases} do not match provided phases {phases}."  # noqa: E501
