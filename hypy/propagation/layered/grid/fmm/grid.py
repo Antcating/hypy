@@ -50,10 +50,10 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
         self,
         model: TvelModel,
         phases: Iterable[str],
-        max_depth: float,
-        max_distance: float,
-        depth_step: float,
-        distance_step: float,
+        max_depth_km: float,
+        max_distance_km: float,
+        depth_step_km: float,
+        distance_step_km: float,
         overwrite: bool = False,
     ):
         super().__init__(model)
@@ -62,10 +62,10 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
         self.model = model
         self.model_name = model.model_name
         self.phases = [normalize_phase(phase) for phase in phases]
-        self.max_depth = max_depth
-        self.max_distance = max_distance
-        self.depth_step = depth_step
-        self.distance_step = distance_step
+        self.max_depth = max_depth_km
+        self.max_distance = max_distance_km
+        self.depth_step = depth_step_km
+        self.distance_step = distance_step_km
 
         self.depth_grid: np.ndarray
         self.distance_grid: np.ndarray
