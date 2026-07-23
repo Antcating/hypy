@@ -4,6 +4,7 @@ from examples.common import plot_arrivals_with_weights, plot_solution
 from hypy.locator import EventLocator
 from hypy.model.layered.tvel import TvelModel
 from hypy.propagation.layered.grid.tau import TauTravelTimeGrid
+from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
 
 phases = ["P", "S"]
 
@@ -17,7 +18,7 @@ grid = TauTravelTimeGrid(
     max_distance_km=300.0,
     depth_step_km=1.0,
     distance_step_km=1.0,
-    engine="taup",
+    tracer=TauPRayTracer(model=model),
 )
 
 locator = EventLocator(

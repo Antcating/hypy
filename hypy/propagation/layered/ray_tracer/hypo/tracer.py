@@ -30,10 +30,15 @@ from hypy.propagation.layered.ray_tracer import LayeredRayTracer
 class HypoRayTracer(LayeredRayTracer):
     """Fast first-arrival ray tracer for TVEL 1-D local P/S models.
 
-    The model is treated as a stack of horizontal homogeneous layers.  For TVEL
-    models that contain velocity gradients, ``TvelModel`` exposes a layer-top
-    sample for this tracer, so the ray tracing here is a local homogeneous-layer
-    approximation rather than a full gradient-layer integration.
+    The spherical model is mapped onto a flat-layered geometry with the standard
+    earth-flattening transform (``z_flat = R * ln(R / (R - z))`` and
+    ``v_flat = v * R / (R - z)``) and finely resampled at ``layer_step_km``
+    intervals.  The stack of thin homogeneous flat layers reproduces the
+    spherical diving-ray and head-wave travel times of the full-physics backends
+    (e.g. TauP/pyrocko) to well within a millisecond-level relative tolerance,
+    while remaining fast enough for location iterations.  Epicentral distance is
+    a surface arc length and is unchanged by the transform, and takeoff angles
+    are preserved by earth flattening.
 
     Public methods return the same hypy-format arrivals as the other layered
     ray tracers: travel time in seconds and takeoff angle in degrees.  Internally
@@ -43,6 +48,9 @@ class HypoRayTracer(LayeredRayTracer):
 
     where ``theta`` is measured from vertical in a layer with velocity ``v``.
     A single ``p`` is shared by all segments of a ray in a 1-D layered medium.
+
+    The per-point solve and the :meth:`build_travel_time_table` grid builder run
+    as compiled numba kernels.
 
     Additional keyword arguments are forwarded to ``LayeredRayTracer``.  Use
     ``arrival_cache_size`` and ``arrival_cache_precision_km`` there to configure
@@ -58,6 +66,7 @@ class HypoRayTracer(LayeredRayTracer):
         }
     )
     required_model_features = frozenset({"model.profile.1d", "model.profile.1d"})
+    name = "hypo"
 
     def __init__(
         self,
@@ -65,6 +74,7 @@ class HypoRayTracer(LayeredRayTracer):
         *,
         max_distance_km: float = 300.0,
         max_depth_km: float = 50.0,
+        layer_step_km: float = 1.0,
         eps: float = 1.0e-12,
         **kwargs: Any,
     ) -> None:
@@ -72,6 +82,8 @@ class HypoRayTracer(LayeredRayTracer):
 
         if max_distance_km <= 0.0 or max_depth_km <= 0.0:
             raise ValueError("max_distance_km and max_depth_km must be positive.")
+        if layer_step_km <= 0.0:
+            raise ValueError("layer_step_km must be positive.")
 
         if type(model) is not TvelModel:
             raise ValueError(
@@ -81,8 +93,13 @@ class HypoRayTracer(LayeredRayTracer):
 
         self.max_distance_km = max_distance_km
         self.max_depth_km = max_depth_km
+        self.layer_step_km = float(layer_step_km)
+        # Radius of the (spherical) planet used for the earth-flattening
+        # transform that maps the spherical model onto the flat-layered geometry
+        # this tracer solves in.
+        self._radius_km = model.radius_of_planet_km
         self._phase_profile_cache: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-        self._eps = eps
+        self._eps = float(eps)
 
     def get_arrival_1d(
         self,
