@@ -113,18 +113,31 @@ class LayeredPropagationEngine(PropagationEngine):
         delta: float,
         method: str = "central",
     ) -> tuple[float, float, float, float]:
-        """Compute spatial slowness derivatives using finite differences."""
+        """Compute spatial slowness derivatives using finite differences.
+
+        Near the physical boundaries (zero epicentral distance and the free
+        surface) a centered stencil would sample non-physical negative distance
+        or depth, which the 1-D forward models reject.  In those cases the
+        stencil degrades to a one-sided forward difference.
+        """
+        dist_method = method
+        if method == "central" and arc_distance_km - delta < 0.0:
+            dist_method = "forward"
         dt_ddist = finite_difference_derivative(
             lambda d: self.get_arrival_1d(d, source_depth_km, phase)[0],
             arc_distance_km,
             delta,
-            method=method,
+            method=dist_method,
         )
+
+        depth_method = method
+        if method == "central" and source_depth_km - delta < 0.0:
+            depth_method = "forward"
         dt_ddepth = finite_difference_derivative(
             lambda z: self.get_arrival_1d(arc_distance_km, z, phase)[0],
             source_depth_km,
             delta,
-            method=method,
+            method=depth_method,
         )
         az_rad = np.deg2rad(azimuth_deg)
 
