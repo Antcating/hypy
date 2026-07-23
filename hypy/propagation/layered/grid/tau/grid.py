@@ -41,6 +41,7 @@ from hypy.model import VelocityModel
 from hypy.propagation.layered import LayeredPropagationEngine
 from hypy.utils.geo import gps2dist_azimuth_nb
 from hypy.utils.math import interp_quant
+from hypy.utils.seismic import normalize_phase
 
 
 class TauTravelTimeGrid(LayeredPropagationEngine):
@@ -97,7 +98,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         super().__init__(model)
         model_name = Path(model.model_path).stem
         self.tracer: LayeredPropagationEngine
-        self.phases = phases
+        self.phases = [normalize_phase(phase) for phase in phases]
         self.max_depth_km = max_depth_km
         self.max_distance_km = max_distance_km
         self.depth_step_km = depth_step_km
@@ -289,6 +290,18 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
             logger.info(f"Saving travel-time tables to {fname}")
             self.save(fname)
 
+    def _resolve_phase_table(self, phase: str) -> str:
+        """Return the stored phase key matching ``phase`` or raise ``ValueError``.
+
+        Lookup is normalized so ``"p"``/``"P"``/``"Pn"`` are accepted
+        interchangeably, matching every other propagation backend.
+        """
+        wanted = normalize_phase(phase)
+        for stored in self.travel_time_tables:
+            if normalize_phase(stored) == wanted:
+                return stored
+        raise ValueError(f"Phase {phase!r} not in available phases: {self.phases}")
+
     def compute_travel_time(
         self, distance_km: float, depth_km: float, phase: str
     ) -> float:
@@ -315,12 +328,13 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         float
             The computed travel time.
         """
+        key = self._resolve_phase_table(phase)
         return interp_quant(
             depth_km,
             distance_km,
             self.depth_grid,
             self.distance_grid,
-            self.travel_time_tables[phase],
+            self.travel_time_tables[key],
         )
 
     def compute_takeoff_angle(
@@ -349,12 +363,13 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         float
             The computed takeoff angle.
         """
+        key = self._resolve_phase_table(phase)
         return interp_quant(
             depth_km,
             distance_km,
             self.depth_grid,
             self.distance_grid,
-            self.takeoff_angle_tables[phase],
+            self.takeoff_angle_tables[key],
         )
 
     def get_arrival(
@@ -413,8 +428,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         ValueError
             If no travel time or takeoff angle is found for the given configuration.
         """
-        if phase not in self.phases:
-            raise ValueError(f"Phase {phase} not in available phases: {self.phases}")
+        self._resolve_phase_table(phase)
 
         dist_m, azimuth_deg, _ = gps2dist_azimuth_nb(
             source_latitude,
@@ -482,8 +496,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         ValueError
             If no travel time or takeoff angle is found for the given configuration.
         """
-        if phase not in self.phases:
-            raise ValueError(f"Phase {phase} not in available phases: {self.phases}")
+        self._resolve_phase_table(phase)
         # Normalize distrance to positive values (valid for 1D models)
         arc_distance_km = abs(arc_distance_km)
         time = self.compute_travel_time(arc_distance_km, source_depth_km, phase)
