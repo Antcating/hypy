@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 import hypy.locator.errors as error_module
-from hypy.locator.config import LocatorConfig
+from hypy.locator.config import LocatorConfig, RunConfig
 from hypy.locator.data import DataHandler
 from hypy.locator.errors import (
     build_observation_covariance_from_stations,
@@ -36,15 +36,17 @@ def _build_single_event_inputs(
     n_stations: int,
     n_phases: int = 1,
     full_data_covariance: bool = False,
-) -> tuple[LocatorConfig, DataHandler]:
+) -> tuple[LocatorConfig, DataHandler, RunConfig]:
     config = cast(
         LocatorConfig,
         SimpleNamespace(
             dim=4,
             n_phases=n_phases,
-            full_data_covariance=full_data_covariance,
-            correlation_length_km=1.0,
         ),
+    )
+    run_config = RunConfig(
+        full_data_covariance=full_data_covariance,
+        correlation_length_km=1.0,
     )
     data = cast(
         DataHandler,
@@ -56,7 +58,7 @@ def _build_single_event_inputs(
             station_distances_km=np.zeros((n_stations, n_stations), dtype=float),
         ),
     )
-    return config, data
+    return config, data, run_config
 
 
 def test_filter_input_rows_with_row_level_pick_errors() -> None:
@@ -346,7 +348,7 @@ def test_compute_event_errors_supports_exactly_determined_solution() -> None:
 
 
 def test_compute_error_ellipsoids_raises_for_malformed_inversion_results() -> None:
-    config, data = _build_single_event_inputs(n_stations=4)
+    config, data, run_config = _build_single_event_inputs(n_stations=4)
 
     with pytest.raises(ValueError, match="A_final must be a 2D array"):
         compute_error_ellipsoids(
@@ -354,12 +356,10 @@ def test_compute_error_ellipsoids_raises_for_malformed_inversion_results() -> No
             data,
             InversionResults(
                 jacobian_matrix=np.zeros(4, dtype=float),
-                jacobian_matrix_weighted=np.zeros(4, dtype=float),
                 valid_rows=np.arange(4, dtype=int),
                 residuals_flat=np.zeros(4, dtype=float),
-                residuals_flat_weighted=np.zeros(4, dtype=float),
-                damping=0.1,
             ),
+            run_config,
         )
 
     with pytest.raises(ValueError, match="columns but expected"):
@@ -368,12 +368,10 @@ def test_compute_error_ellipsoids_raises_for_malformed_inversion_results() -> No
             data,
             InversionResults(
                 jacobian_matrix=np.zeros((4, 5), dtype=float),
-                jacobian_matrix_weighted=np.zeros((4, 5), dtype=float),
                 valid_rows=np.arange(4, dtype=int),
                 residuals_flat=np.zeros(4, dtype=float),
-                residuals_flat_weighted=np.zeros(4, dtype=float),
-                damping=0.1,
             ),
+            run_config,
         )
 
     with pytest.raises(ValueError, match="has length"):
@@ -382,12 +380,10 @@ def test_compute_error_ellipsoids_raises_for_malformed_inversion_results() -> No
             data,
             InversionResults(
                 jacobian_matrix=np.eye(4, dtype=float),
-                jacobian_matrix_weighted=np.eye(4, dtype=float),
                 valid_rows=np.arange(4, dtype=int),
                 residuals_flat=np.zeros(3, dtype=float),
-                residuals_flat_weighted=np.zeros(3, dtype=float),
-                damping=0.1,
             ),
+            run_config,
         )
 
 
@@ -396,8 +392,9 @@ def test_compute_error_ellipsoids_skips_invalid_rows_and_events(
 ) -> None:
     config = cast(
         LocatorConfig,
-        SimpleNamespace(dim=4, n_phases=1, full_data_covariance=False),
+        SimpleNamespace(dim=4, n_phases=1),
     )
+    run_config = RunConfig(full_data_covariance=False)
     data = cast(
         DataHandler,
         SimpleNamespace(
@@ -413,15 +410,12 @@ def test_compute_error_ellipsoids_skips_invalid_rows_and_events(
     jacobian_matrix_weighted[3, 5] = 1.0
     inv = InversionResults(
         jacobian_matrix=np.zeros_like(jacobian_matrix_weighted),
-        jacobian_matrix_weighted=jacobian_matrix_weighted,
         valid_rows=np.array([-1, 0, 2, 3, 99], dtype=int),
         residuals_flat=np.full(4, 0.2, dtype=float),
-        residuals_flat_weighted=np.full(4, 0.2, dtype=float),
-        damping=0.1,
     )
 
     monkeypatch.setattr(error_module, "compute_event_errors", lambda **_: None)
-    out = compute_error_ellipsoids(config, data, inv)
+    out = compute_error_ellipsoids(config, data, inv, run_config)
 
     assert np.allclose(out.spatial_covariances, 0.0)
     assert np.isnan(out.erz_erh).all()
@@ -432,8 +426,9 @@ def test_compute_error_ellipsoids_uses_full_design_row_indices(
 ) -> None:
     config = cast(
         LocatorConfig,
-        SimpleNamespace(dim=4, n_phases=1, full_data_covariance=False),
+        SimpleNamespace(dim=4, n_phases=1),
     )
+    run_config = RunConfig(full_data_covariance=False)
     data = cast(
         DataHandler,
         SimpleNamespace(
@@ -449,11 +444,8 @@ def test_compute_error_ellipsoids_uses_full_design_row_indices(
     jacobian_matrix_weighted[2, 1] = 1.0
     inv = InversionResults(
         jacobian_matrix=jacobian_matrix_weighted.copy(),
-        jacobian_matrix_weighted=jacobian_matrix_weighted,
         valid_rows=np.array([0, 2], dtype=int),
         residuals_flat=np.array([0.1, np.nan, 0.2, np.nan], dtype=float),
-        residuals_flat_weighted=np.array([0.1, np.nan, 0.2, np.nan], dtype=float),
-        damping=0.1,
     )
 
     captured: dict[str, np.ndarray] = {}
@@ -479,7 +471,7 @@ def test_compute_error_ellipsoids_uses_full_design_row_indices(
         }
 
     monkeypatch.setattr(error_module, "compute_event_errors", fake_compute_event_errors)
-    out = compute_error_ellipsoids(config, data, inv)
+    out = compute_error_ellipsoids(config, data, inv, run_config)
 
     assert np.allclose(captured["jacobian"], jacobian_matrix_weighted[[0, 2], :])
     assert np.allclose(captured["residuals"], np.array([0.1, 0.2], dtype=float))
@@ -493,9 +485,11 @@ def test_error_ellipsoids_full_covariance_observation() -> None:
         SimpleNamespace(
             dim=4,
             n_phases=2,
-            full_data_covariance=True,
-            correlation_length_km=10.0,
         ),
+    )
+    run_config = RunConfig(
+        full_data_covariance=True,
+        correlation_length_km=10.0,
     )
     data = cast(
         DataHandler,
@@ -513,14 +507,11 @@ def test_error_ellipsoids_full_covariance_observation() -> None:
     jacobian_matrix = _build_diagonal_design([2, 2, 1, 1])
     inv = InversionResults(
         jacobian_matrix=jacobian_matrix,
-        jacobian_matrix_weighted=jacobian_matrix.copy(),
         valid_rows=np.arange(jacobian_matrix.shape[0], dtype=int),
         residuals_flat=np.full(jacobian_matrix.shape[0], 0.1, dtype=float),
-        residuals_flat_weighted=np.full(jacobian_matrix.shape[0], 0.1, dtype=float),
-        damping=0.1,
     )
 
-    out = compute_error_ellipsoids(config, data, inv)
+    out = compute_error_ellipsoids(config, data, inv, run_config)
     assert out.spatial_covariances.shape == (1, 3, 3)
     assert out.principal_std.shape == (1, 3)
     assert np.isfinite(out.erz_erh[0, 1])
