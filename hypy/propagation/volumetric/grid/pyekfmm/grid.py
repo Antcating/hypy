@@ -15,6 +15,7 @@ from hypy.model.volumetric import (
     build_velocity_grid_provider,
 )
 from hypy.propagation.volumetric import VolumetricPropagationEngine
+from hypy.utils.seismic import normalize_phase
 
 
 @dataclass(frozen=True)
@@ -79,12 +80,9 @@ class FmmTravelTimeGrid3D(VolumetricPropagationEngine):
 
     @staticmethod
     def _normalize_phase(phase: str) -> str:
-        phase_code = phase.strip().upper()
-        if phase_code not in {"P", "S"}:
-            raise ValueError(
-                f"Unsupported phase: {phase!r}. Supported phases are 'P' and 'S'."
-            )
-        return phase_code
+        # Uses the shared normalizer, then upper-cases to the ``P``/``S`` code
+        # expected by the volumetric grid providers.
+        return normalize_phase(phase).upper()
 
     @staticmethod
     def _project_to_xy(projected: object) -> tuple[float, float]:
