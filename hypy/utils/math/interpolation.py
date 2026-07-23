@@ -222,6 +222,8 @@ def interp_quant(
             f"[{distance_grid[0]}, {distance_grid[-1]}]"
         )
 
+    if depth < 0:
+        raise ValueError(f"Depth {depth} is negative. Depth must be non-negative.")
     # Clamp depth to minimum grid value
     # TODO: consider raising an error instead
     depth = max(depth, depth_grid[0])
