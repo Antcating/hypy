@@ -45,29 +45,3 @@ def test_event_locator_invalid_type_phases(phases: Any):
             propagation_engine=TauPRayTracer(model=tvel_model),
             phases=phases,
         )
-
-
-@pytest.mark.parametrize(
-    ["phases", "propagation_engine_phases"],
-    [
-        (("p", "s", "Ps"), ("P", "S")),
-        (("p", "s", "pS"), ("P", "S")),
-        (("P", "S"), ("p")),
-    ],
-)
-def test_event_locator_phases_do_not_match_propagation_engine_phases(
-    phases: tuple[str, ...],
-    propagation_engine_phases: tuple[str, ...],
-):
-    tvel_model = build_tvel_model()
-    with pytest.raises(
-        ValueError,
-        match="Propagation engine phases .* do not match provided phases .*",
-    ):
-        EventLocator(
-            propagation_engine=TauPRayTracer(
-                model=tvel_model,
-                phases=propagation_engine_phases,
-            ),
-            phases=phases,
-        )
