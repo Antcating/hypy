@@ -74,10 +74,6 @@ class TvelModel(VelocityModel):
             build_taup_model(tvel_file_path.as_posix())
             return TauPyModel(model_name)
 
-    @staticmethod
-    def _phase_key(phase: str) -> str:
-        return normalize_phase(phase)
-
     def _precompute_velocity_profiles_1d(
         self,
         phases: Sequence[str],
@@ -95,7 +91,7 @@ class TvelModel(VelocityModel):
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         for phase in phases:
-            phase_lower = self._phase_key(phase)
+            phase_lower = normalize_phase(phase)
             cache_file = cache_dir / (
                 f"tvel_profile_{self.model_name}_{phase_lower}_"
                 f"{max_depth}_{depth_step}.npz"
@@ -204,7 +200,7 @@ class TvelModel(VelocityModel):
         model.  Velocities are sampled from
         the top of each TauP layer, i.e. the value just below each interface.
         """
-        phase_lower = self._phase_key(phase)
+        phase_lower = normalize_phase(phase)
         self._initialize_layer_arrays()
 
         if phase_lower == "p":
@@ -254,7 +250,7 @@ class TvelModel(VelocityModel):
 
     def get_velocity_1d(self, depth: float, phase: str) -> float:
         """Return velocity (km/s) at depth for signed phase."""
-        phase_lower = self._phase_key(phase)
+        phase_lower = normalize_phase(phase)
 
         if self.velocity_profiles and phase_lower in self.velocity_profiles:
             depths, v_profile = self.velocity_profiles[phase_lower]
