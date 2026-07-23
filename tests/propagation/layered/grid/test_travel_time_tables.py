@@ -10,9 +10,13 @@ import pytest
 
 from hypy.model.layered.tvel import TvelModel
 from hypy.propagation.layered.grid import TauTravelTimeGrid
+from hypy.propagation.layered.ray_tracer.hypo.tracer import HypoRayTracer
+from hypy.propagation.layered.ray_tracer.pyrocko.tracer import PyrockoRayTracer
+from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
+from hypy.utils.seismic import normalize_phase
 
 
-@pytest.fixture(scope="session", params=["taup", "pyrocko"])
+@pytest.fixture(scope="session", params=["taup", "pyrocko", "hypo"])
 def travel_time_tables(
     request, overwrite=False
 ) -> Callable[[list[str], bool], TauTravelTimeGrid]:
@@ -23,10 +27,20 @@ def travel_time_tables(
     max_distance = 1000.0
     depth_step = 10.0
     distance_step = 50.0
-    engine = request.param
+    tracer_name = request.param
 
     def _create_tables(phases, overwrite=False) -> TauTravelTimeGrid:
         model = TvelModel(model_path)
+        if tracer_name == "taup":
+            tracer = TauPRayTracer(model=model)
+        elif tracer_name == "pyrocko":
+            tracer = PyrockoRayTracer(model=model)
+        elif tracer_name == "hypo":
+            tracer = HypoRayTracer(
+                model=model, max_distance_km=max_distance, max_depth_km=max_depth
+            )
+        else:
+            raise ValueError(f"Unsupported tracer: {tracer.name}")
         return TauTravelTimeGrid(
             model=model,
             phases=phases,
@@ -34,14 +48,14 @@ def travel_time_tables(
             max_distance_km=max_distance,
             depth_step_km=depth_step,
             distance_step_km=distance_step,
-            engine=engine,
+            tracer=tracer,
             overwrite=overwrite,
         )
 
     return _create_tables
 
 
-@pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
+@pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]], ids=["P", "S", "P,S"])
 def test_table_creation(
     travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
     phases: list[str],
@@ -52,7 +66,7 @@ def test_table_creation(
     assert tables.distance_grid is not None
     assert tables.travel_time_tables is not None
     for phase in phases:
-        assert phase in tables.travel_time_tables
+        assert normalize_phase(phase) in tables.travel_time_tables
 
 
 def test_table_reuse(
@@ -70,11 +84,12 @@ def test_table_reuse(
     assert tables2.distance_grid is not None
     assert tables2.travel_time_tables is not None
     for phase in ["P", "S"]:
-        assert phase in tables1.travel_time_tables
-        assert phase in tables2.travel_time_tables
+        assert normalize_phase(phase) in tables1.travel_time_tables
+        assert normalize_phase(phase) in tables2.travel_time_tables
         # Check that the tables are the same object (i.e., reused)
         assert np.array_equal(
-            tables1.travel_time_tables[phase], tables2.travel_time_tables[phase]
+            tables1.travel_time_tables[normalize_phase(phase)],
+            tables2.travel_time_tables[normalize_phase(phase)],
         )
 
 
@@ -92,14 +107,16 @@ def test_invalid_engine():
         obspy_path = Path(obspy.__file__).parents[0].as_posix()
         model_path = os.path.join(obspy_path, "taup/data/iasp91.tvel")
         model = TvelModel(model_path)
+        invalid_tracer = HypoRayTracer(model=model)
+        invalid_tracer.get_arrival_1d = None
         TauTravelTimeGrid(
             model=model,
             phases=["P"],
-            max_depth=100.0,
-            max_distance=1000.0,
-            depth_step=10.0,
-            distance_step=50.0,
-            engine="invalid_engine",
+            max_depth_km=100.0,
+            max_distance_km=1000.0,
+            depth_step_km=10.0,
+            distance_step_km=50.0,
+            tracer=invalid_tracer,
             overwrite=True,
         )
 
@@ -116,7 +133,7 @@ def test_save_emply_table(
         tables.save(save_path)
 
 
-@pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
+@pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]], ids=["P", "S", "P,S"])
 def test_compute_travel_time(
     travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
     phases: list[str],
@@ -135,7 +152,7 @@ def test_compute_travel_time(
         assert pytest.approx(travel_time_s, rel=1e-3) == 117.19924749280987
 
 
-@pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
+@pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]], ids=["P", "S", "P,S"])
 def test_compute_takeoff_angle(
     travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
     phases: list[str],
@@ -195,7 +212,7 @@ def test_get_arrival_1d_out_of_bounds(
             tables.get_arrival_1d(distance, depth, "S")
 
 
-@pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
+@pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]], ids=["P", "S", "P,S"])
 def test_get_arrival_1d_negative_distance(
     travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
     phases: list[str],
@@ -216,7 +233,7 @@ def test_get_arrival_1d_negative_distance(
         assert pytest.approx(angle_neg_s, rel=1e-1) == angle_pos_s
 
 
-@pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
+@pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]], ids=["P", "S", "P,S"])
 def test_invalid_phase_1d(
     travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
     phases: list[str],
@@ -229,7 +246,7 @@ def test_invalid_phase_1d(
         tables.get_arrival_1d(distance, depth, "X")
 
 
-@pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]])
+@pytest.mark.parametrize("phases", [["P"], ["S"], ["P", "S"]], ids=["P", "S", "P,S"])
 def test_get_arrival(
     travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
     phases: list[str],
@@ -280,7 +297,7 @@ def test_get_arrival(
         assert pytest.approx(azimuth_deg_s, rel=1e-1) == 90.0
 
 
-@pytest.mark.parametrize("phases", [["P"], ["S"]])
+@pytest.mark.parametrize("phases", [["P"], ["S"]], ids=["P", "S"])
 def test_get_arrival_invalid_phase(
     travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
     phases: list[str],
@@ -305,7 +322,7 @@ def test_get_arrival_invalid_phase(
         )
 
 
-@pytest.mark.parametrize("phases", [["P"], ["S"]])
+@pytest.mark.parametrize("phases", [["P"], ["S"]], ids=["P", "S"])
 def test_get_arrival_out_of_bounds(
     travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
     phases: list[str],
@@ -342,7 +359,7 @@ def test_get_arrival_out_of_bounds(
             )
 
 
-@pytest.mark.parametrize("phases", [["P"], ["S"]])
+@pytest.mark.parametrize("phases", [["P"], ["S"]], ids=["P", "S"])
 def test_get_arrival_max_distance_exceeded(
     travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
     phases: list[str],
