@@ -13,7 +13,8 @@ fastest of two families of arrivals:
 * critically refracted head-wave branches along deeper, faster layers.
 
 This is the same broad class of local 1-D travel-time logic used by classic
-local-earthquake locators.
+local-earthquake locators.  The per-point solver and the batch grid builder are
+compiled with numba; see :mod:`hypy.propagation.layered.ray_tracer.hypo._kernels`.
 """
 
 from __future__ import annotations
@@ -25,6 +26,11 @@ import numpy as np
 from hypy.logger import logger
 from hypy.model.layered.tvel import TvelModel
 from hypy.propagation.layered.ray_tracer import LayeredRayTracer
+from hypy.propagation.layered.ray_tracer.hypo._kernels import (
+    build_table,
+    solve_one_point,
+)
+from hypy.utils.seismic import normalize_phase
 
 
 class HypoRayTracer(LayeredRayTracer):
@@ -112,6 +118,7 @@ class HypoRayTracer(LayeredRayTracer):
         Negative distance is mirrored to positive distance because this 1-D
         calculation depends only on offset magnitude, not azimuth.
         """
+        phase_key = normalize_phase(phase)
         if not np.isfinite(arc_distance_km) or not np.isfinite(source_depth_km):
             raise ValueError("Distance and depth must be finite.")
         arc_distance_km = float(abs(arc_distance_km))
@@ -128,7 +135,6 @@ class HypoRayTracer(LayeredRayTracer):
                 f"coverage {self.max_depth_km:.3f} km. Increase max_depth_km."
             )
 
-        phase_key = self._phase_key(phase)
         distance_km = float(arc_distance_km)
         depth_km = float(source_depth_km)
 
@@ -139,13 +145,27 @@ class HypoRayTracer(LayeredRayTracer):
             return cached
 
         tops, velocities = self._phase_profile(phase_key)
-        result = self._solve_one_point(
-            tops=tops,
-            velocities_km_s=velocities,
-            phase=phase_key,
-            source_depth_km=depth_km,
-            distance_km=distance_km,
+        # ``v_source`` is the gradient-interpolated velocity at the source depth;
+        # the kernel uses it only for the takeoff angle and the head-wave check.
+        # Both the depth and the velocity are earth-flattened so they are
+        # consistent with the flattened layer profile. The epicentral distance
+        # is a surface arc length and is left unchanged by the transform, and
+        # takeoff angles are preserved by earth flattening.
+        v_source = self._flatten_velocity(
+            float(self.velocity_model.get_velocity_1d(depth_km, phase_key)),
+            depth_km,
         )
+        depth_flat = float(self._flatten_depth(depth_km))
+        time_s, angle_deg = solve_one_point(
+            tops,
+            velocities,
+            float(v_source),
+            depth_flat,
+            distance_km,
+            float(tops[-1]),
+            self._eps,
+        )
+        result = (float(time_s), float(angle_deg))
         self._arrival_cache_put(cache_key, result)
         return result
 
@@ -194,355 +214,130 @@ class HypoRayTracer(LayeredRayTracer):
         )
         return arc_distance_km, time_s, takeoff_angle_deg, azimuth_deg
 
-    @staticmethod
-    def _phase_key(phase: str) -> str:
-        """Normalize phase names to the two velocity profiles supported here."""
-        phase_lower = phase.strip().lower()
-        if phase_lower.startswith("p"):
-            return "p"
-        if phase_lower.startswith("s"):
-            return "s"
-        raise ValueError(
-            f"Unsupported phase: {phase}. Supported phases are 'P' and 'S'."
+    def build_travel_time_table(
+        self,
+        phase: str,
+        depth_grid: np.ndarray,
+        distance_grid: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Fill a full ``(depth, distance)`` grid in one parallel compiled call.
+
+        This is the fast path for travel-time table generation: instead of
+        calling :meth:`get_arrival_1d` per grid node, the whole grid is solved in
+        a single numba call parallelized over the depth axis.
+
+        Parameters
+        ----------
+        phase : str
+            Seismic phase (``"P"`` or ``"S"``).
+        depth_grid : np.ndarray
+            1-D array of source depths (km).
+        distance_grid : np.ndarray
+            1-D array of epicentral distances (km).
+
+        Returns
+        -------
+        tuple of np.ndarray
+            ``(travel_time_s, takeoff_angle_deg)`` arrays of shape
+            ``(len(depth_grid), len(distance_grid))``.
+        """
+        phase_key = normalize_phase(phase)
+        tops, velocities = self._phase_profile(phase_key)
+        depth_grid = np.ascontiguousarray(depth_grid, dtype=np.float64)
+        distance_grid = np.ascontiguousarray(distance_grid, dtype=np.float64)
+        # Earth-flatten the source depths and velocities so they match the
+        # flattened layer profile; distances are surface arc lengths and are
+        # left unchanged.
+        v_source_grid = np.ascontiguousarray(
+            [
+                self._flatten_velocity(
+                    self.velocity_model.get_velocity_1d(float(z), phase_key),
+                    float(z),
+                )
+                for z in depth_grid
+            ],
+            dtype=np.float64,
+        )
+        depth_grid_flat = np.ascontiguousarray(
+            self._flatten_depth(depth_grid), dtype=np.float64
+        )
+        return build_table(
+            tops,
+            velocities,
+            v_source_grid,
+            depth_grid_flat,
+            distance_grid,
+            float(tops[-1]),
+            self._eps,
         )
 
+    def _flatten_depth(self, depth_km: float | np.ndarray):
+        """Earth-flattening transform for depth: spherical -> flat.
+
+        ``z_flat = R * ln(R / (R - z))`` maps a spherical-earth depth onto the
+        equivalent flat-earth depth so the flat-layer kernel reproduces the
+        spherical travel times used by the other layered backends.
+        """
+        r = self._radius_km
+        return r * np.log(r / (r - depth_km))
+
+    def _flatten_velocity(
+        self, velocity: float | np.ndarray, depth_km: float | np.ndarray
+    ):
+        """Earth-flattening transform for velocity: ``v_flat = v * R / (R - z)``."""
+        r = self._radius_km
+        return velocity * r / (r - depth_km)
+
+    def _profile_max_depth_km(self) -> float:
+        """Real depth to which the flattened profile is resampled.
+
+        The profile is resampled down to ``max_depth_km`` (the deepest source
+        depth handled by the tracer).  For the local/regional distances this
+        tracer targets, the first-arrival refracted rays turn in the uppermost
+        mantle at or above this depth, so extending the profile deeper is
+        unnecessary and only slows the O(n^2) head-wave search.
+
+        Note: ``max_depth_km`` must be set below the dominant crustal refractor
+        (e.g. the Moho); a value above it would drop the refracted (Pn/Sn)
+        first arrivals at regional distances.  The bound is also clamped well
+        inside the planet radius to keep the earth-flattening transform finite.
+        """
+        return float(min(self.max_depth_km, 0.9 * self._radius_km))
+
     def _phase_profile(self, phase: str) -> tuple[np.ndarray, np.ndarray]:
-        """Return cached layer-top depths and velocities for one phase."""
-        phase_key = self._phase_key(phase)
+        """Return cached, C-contiguous earth-flattened layer profile.
+
+        The model is finely resampled at ``layer_step_km`` intervals and mapped
+        through the earth-flattening transform, so the homogeneous flat-layer
+        kernel approximates the spherical diving rays (and head waves) computed
+        by the full-physics backends.  The arrays are ``float64`` and contiguous
+        so they can be passed directly into the numba kernels without per-call
+        copies.
+        """
+        phase_key = normalize_phase(phase)
         cached = self._phase_profile_cache.get(phase_key)
         if cached is not None:
             return cached
 
-        tops, velocities = self.velocity_model.get_layer_top_profile_1d(
-            phase_key,
-            drop_non_positive_velocity=True,
+        step = self.layer_step_km
+        edges = np.arange(0.0, self._profile_max_depth_km() + step, step)
+        tops_real = edges[:-1]
+        mids_real = 0.5 * (edges[:-1] + edges[1:])
+        vels_real = np.array(
+            [
+                self.velocity_model.get_velocity_1d(float(z), phase_key)
+                for z in mids_real
+            ],
+            dtype=np.float64,
+        )
+        if np.any(vels_real <= 0.0):
+            raise ValueError(
+                f"All {phase.upper()} velocities must be positive for local tracing."
+            )
+
+        tops = np.ascontiguousarray(self._flatten_depth(tops_real), dtype=np.float64)
+        velocities = np.ascontiguousarray(
+            self._flatten_velocity(vels_real, mids_real), dtype=np.float64
         )
         self._phase_profile_cache[phase_key] = (tops, velocities)
         return tops, velocities
-
-    def _solve_one_point(
-        self,
-        *,
-        tops: np.ndarray,
-        velocities_km_s: np.ndarray,
-        phase: str,
-        source_depth_km: float,
-        distance_km: float,
-    ) -> tuple[float, float]:
-        """Compute the first P/S arrival for one depth-distance pair.
-
-        This is the central branch-selection routine.  It first computes the
-        direct/upgoing arrival, then tests each physically possible critically
-        refracted branch and keeps whichever arrival is fastest.
-
-        The returned takeoff angle follows the convention:
-        degrees from the downward vertical at the source. A vertically
-        upgoing ray is therefore 180 degrees, a horizontal ray is
-        near 90 degrees, and downgoing refracted branches have smaller angles.
-        """
-        source_layer = self._layer_index(tops, source_depth_km)
-        source_velocity = float(
-            self.velocity_model.get_velocity_1d(source_depth_km, phase)
-        )
-
-        # Start with the direct branch as the default winner.  In a slow-over-fast
-        # layered model this branch dominates at short offsets; deeper head waves
-        # may overtake it at larger offsets.
-        best_time, best_angle = self._direct_point(
-            tops=tops,
-            velocities=velocities_km_s,
-            source_depth_km=source_depth_km,
-            source_velocity=source_velocity,
-            distance_km=distance_km,
-        )
-
-        # Test homogeneous-layer critically refracted first-arrival branches.
-        #
-        # A head wave can only run along a layer whose velocity is faster than
-        # all layers it must pass through.  For each candidate refractor, the
-        # ray parameter is fixed at the critical value p = 1 / v_refractor.
-        # The ray travels from source to the interface, propagates horizontally
-        # along the top of the refractor, and returns to the surface receiver.
-        start_refractor = source_layer + 1
-        source_on_layer_top = (
-            abs(source_depth_km - float(tops[source_layer])) < 1.0e-9
-            and source_layer > 0
-        )
-        if source_on_layer_top:
-            # If the source lies exactly on an interface, allow the layer below
-            # that interface to be considered as the refractor.  Without this
-            # special case we would skip a valid downgoing critically refracted
-            # branch that starts directly at the discontinuity.
-            start_refractor = source_layer
-
-        for refractor_layer in range(start_refractor, len(velocities_km_s)):
-            interface_depth = float(tops[refractor_layer])
-
-            # Local guard: do not scan the deep mantle/core for local offsets.
-            if (
-                interface_depth
-                > source_depth_km + max(2.0 * distance_km, self.max_depth_km) + 50.0
-            ):
-                break
-
-            refractor_velocity = float(velocities_km_s[refractor_layer])
-            fastest_above = float(np.max(velocities_km_s[:refractor_layer]))
-
-            # Critical refraction into this layer is possible only when the
-            # candidate refractor is strictly faster than the layers above it.
-            # Otherwise the critical angle is not real, or an earlier faster
-            # layer would already provide the controlling head-wave branch.
-            if source_on_layer_top and refractor_layer == source_layer:
-                if refractor_velocity <= fastest_above + 1.0e-10:
-                    continue
-            elif refractor_velocity <= max(fastest_above, source_velocity) + 1.0e-10:
-                continue
-
-            # Critical ray parameter.  Because p is horizontal slowness, the
-            # horizontal part of the head wave contributes distance / velocity,
-            # written here as ``distance * p``.
-            p = 1.0 / refractor_velocity
-            x_legs, t_legs = self._head_wave_legs(
-                tops=tops,
-                velocities=velocities_km_s,
-                source_depth_km=source_depth_km,
-                interface_depth_km=interface_depth,
-                refractor_layer=refractor_layer,
-                p=p,
-            )
-            if not np.isfinite(x_legs) or distance_km < x_legs:
-                # ``x_legs`` is the minimum surface offset consumed by the two
-                # dipping legs.  If the station is closer than that, there is no
-                # room for a physical horizontal head-wave segment.
-                continue
-
-            head_time = t_legs + (distance_km - x_legs) * p
-            if head_time < best_time:
-                best_time = float(head_time)
-                # For a critically refracted branch the takeoff angle at the
-                # source is determined by Snell's law in the source layer:
-                # sin(theta) = p * v_source.  This angle is measured from the
-                # downward vertical, matching the downgoing branch convention.
-                best_angle = float(
-                    np.degrees(np.arcsin(np.clip(p * source_velocity, 0.0, 1.0)))
-                )
-
-        return float(best_time), float(best_angle)
-
-    def _direct_point(
-        self,
-        *,
-        tops: np.ndarray,
-        velocities: np.ndarray,
-        source_depth_km: float,
-        source_velocity: float,
-        distance_km: float,
-    ) -> tuple[float, float]:
-        """Direct upgoing branch from source depth to the surface.
-
-        The direct branch is solved in ray-parameter space.  For a fixed ``p``,
-        each crossed layer contributes a horizontal distance and travel time.
-        The correct direct ray is the ``p`` whose summed horizontal distance
-        equals the requested source-receiver offset.
-
-        In a homogeneous half-space this reduces to the familiar straight-line
-        solution.  In multiple horizontal layers it bends at each interface while
-        preserving the same horizontal slowness ``p``.
-        """
-        if source_depth_km <= self._eps:
-            # Surface source: the direct ray has no vertical layer crossings.
-            time_s = distance_km / float(velocities[0])
-            angle_deg = 180.0 if distance_km <= self._eps else 90.0
-            return float(time_s), angle_deg
-
-        # Only layers between the free surface and source depth participate in
-        # the direct upgoing path.
-        seg_layers, seg_thicknesses = self._segments_between(
-            tops=tops,
-            z0=0.0,
-            z1=source_depth_km,
-        )
-        crossed_velocities = velocities[seg_layers]
-        p_crit = 1.0 / float(np.max(crossed_velocities))
-
-        if distance_km <= self._eps:
-            # Zero-offset receiver: the direct ray is vertical, so time is just
-            # the sum of vertical thickness / velocity through crossed layers.
-            inv_v = 1.0 / crossed_velocities
-            return float(np.sum(seg_thicknesses * inv_v)), 180.0
-
-        # Binary-search p between vertical (p = 0) and the smallest critical
-        # slowness among crossed layers.  Horizontal distance increases
-        # monotonically with p, so this is stable and cheap.
-        lo = 0.0
-        hi = p_crit * (1.0 - self._eps)
-        p = 0.0
-
-        for _ in range(48):
-            p = 0.5 * (lo + hi)
-            x_mid, _t_mid = self._x_t_for_p(
-                velocities=crossed_velocities,
-                thicknesses=seg_thicknesses,
-                p=p,
-            )
-            if x_mid < distance_km:
-                lo = p
-            else:
-                hi = p
-
-        p = 0.5 * (lo + hi)
-        _x_val, time_s = self._x_t_for_p(
-            velocities=crossed_velocities,
-            thicknesses=seg_thicknesses,
-            p=p,
-        )
-        emergence_from_upward_vertical = float(
-            np.degrees(np.arcsin(np.clip(p * source_velocity, 0.0, 1.0)))
-        )
-        # ``emergence_from_upward_vertical`` is the geometric angle of the
-        # upgoing ray.  The public takeoff convention is measured from the
-        # downward vertical, so an upgoing ray is reported as 180 - emergence.
-        takeoff_from_downward_vertical = 180.0 - emergence_from_upward_vertical
-        return float(time_s), takeoff_from_downward_vertical
-
-    @staticmethod
-    def _x_t_for_p(
-        *,
-        velocities: np.ndarray,
-        thicknesses: np.ndarray,
-        p: float,
-    ) -> tuple[float, float]:
-        """Return horizontal distance and time for layer segments at fixed ``p``.
-
-        For one layer of thickness ``h`` and velocity ``v``:
-
-        * vertical slowness is ``eta = sqrt(1 / v**2 - p**2)``;
-        * horizontal distance is ``h * p / eta``;
-        * travel time is ``h / (v**2 * eta)``.
-
-        These are standard flat-layer ray-parameter formulas.  Summing them over
-        all crossed layers gives the total direct-leg distance and travel time.
-        """
-        inv_v = 1.0 / velocities
-        eta = np.sqrt(np.maximum(inv_v * inv_v - p * p, 1.0e-300))
-        x_km = np.sum(thicknesses * p / eta)
-        t_s = np.sum(thicknesses * inv_v * inv_v / eta)
-        return float(x_km), float(t_s)
-
-    def _head_wave_legs(
-        self,
-        *,
-        tops: np.ndarray,
-        velocities: np.ndarray,
-        source_depth_km: float,
-        interface_depth_km: float,
-        refractor_layer: int,
-        p: float,
-    ) -> tuple[float, float]:
-        """Leg distance/time to and from a critically refracting interface.
-
-        A head-wave arrival is split into three pieces:
-
-        1. a slant leg from the source down/up to the refracting interface;
-        2. a horizontal segment along the fast refractor;
-        3. a slant leg from the interface back to the surface receiver.
-
-        This helper computes only the two slant-leg totals.  The horizontal
-        segment is added by ``_solve_one_point`` as
-        ``(distance_km - x_legs) * p``.
-
-        ``layers_up`` represents the receiver-side leg from the interface to the
-        surface.  ``layers_down`` represents the source-side leg when the source
-        is above the refractor.  If the source is at or below the candidate
-        interface, there is no additional downgoing leg to add.
-        """
-        layers_up, thicknesses_up = self._segments_between(
-            tops=tops,
-            z0=0.0,
-            z1=interface_depth_km,
-        )
-        if interface_depth_km > source_depth_km:
-            layers_down, thicknesses_down = self._segments_between(
-                tops=tops,
-                z0=source_depth_km,
-                z1=interface_depth_km,
-            )
-            layers = np.concatenate([layers_up, layers_down])
-            thicknesses = np.concatenate([thicknesses_up, thicknesses_down])
-        else:
-            layers = layers_up
-            thicknesses = thicknesses_up
-
-        x_total = 0.0
-        t_total = 0.0
-        for layer, thickness in zip(layers, thicknesses):
-            if int(layer) >= refractor_layer:
-                # The critically refracted wave travels along the top of the
-                # refractor, not through its interior as a finite-thickness leg.
-                continue
-            v = float(velocities[int(layer)])
-            inv_v = 1.0 / v
-            eta2 = inv_v * inv_v - p * p
-            if eta2 <= 0.0:
-                # Non-positive vertical slowness means this candidate p cannot
-                # propagate through the overlying layer.  Treat the branch as
-                # invalid so the caller can skip it.
-                return np.inf, np.inf
-            eta = float(np.sqrt(eta2))
-            x_total += float(thickness) * p / eta
-            t_total += float(thickness) * inv_v * inv_v / eta
-
-        return x_total, t_total
-
-    def _segments_between(
-        self,
-        *,
-        tops: np.ndarray,
-        z0: float,
-        z1: float,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Describe which layers are crossed between two depths.
-
-        Returns parallel arrays:
-
-        * layer indices into the ``tops``/velocity arrays;
-        * the thickness crossed in each layer.
-
-        The order is shallow to deep regardless of input order.  The ray formulas
-        only need the set of crossed layer thicknesses, so upward and downward
-        traversals can use the same representation.
-        """
-        if z1 < z0:
-            z0, z1 = z1, z0
-        if abs(z1 - z0) <= self._eps:
-            return np.array([], dtype=int), np.array([], dtype=float)
-
-        layers: list[int] = []
-        thicknesses: list[float] = []
-        start_layer = self._layer_index(tops, z0)
-        end_layer = self._layer_index(tops, z1)
-        n_layers = len(tops)
-
-        for layer in range(start_layer, end_layer + 1):
-            top = max(float(tops[layer]), z0)
-            if layer + 1 < n_layers:
-                bottom = min(float(tops[layer + 1]), z1)
-            else:
-                bottom = z1
-            thickness = bottom - top
-            if thickness > self._eps:
-                layers.append(layer)
-                thicknesses.append(thickness)
-
-        return np.asarray(layers, dtype=int), np.asarray(thicknesses, dtype=float)
-
-    @staticmethod
-    def _layer_index(tops: np.ndarray, depth_km: float) -> int:
-        """Return the layer containing ``depth_km``.
-
-        ``tops`` contains monotonically increasing layer-top depths.  A depth
-        exactly on an interface is assigned to the layer below that interface,
-        which matches the velocity lookup convention used for layer-top samples.
-        """
-        idx = int(np.searchsorted(tops, depth_km, side="right") - 1)
-        return max(0, min(idx, len(tops) - 1))
