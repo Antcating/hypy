@@ -16,6 +16,8 @@ class LayeredRayTracer(LayeredPropagationEngine):
     for given source-receiver configurations and seismic phases.
     """
 
+    name: str
+
     def __init__(
         self,
         model: VelocityModel,

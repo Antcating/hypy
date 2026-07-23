@@ -61,6 +61,7 @@ class PyrockoRayTracer(LayeredRayTracer):
         }
     )
     required_model_features = frozenset({"model.profile.1d", "model.profile.1d"})
+    name = "pyrocko"
 
     def __init__(self, model: VelocityModel, **kwargs: Any):
         super().__init__(model, **kwargs)

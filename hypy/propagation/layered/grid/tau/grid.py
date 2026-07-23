@@ -39,6 +39,7 @@ import numpy as np
 from hypy.logger import logger
 from hypy.model import VelocityModel
 from hypy.propagation.layered import LayeredPropagationEngine
+from hypy.propagation.layered.ray_tracer import LayeredRayTracer
 from hypy.utils.geo import gps2dist_azimuth_nb
 from hypy.utils.math import interp_quant
 from hypy.utils.seismic import normalize_phase
@@ -92,12 +93,17 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         max_distance_km: float,
         depth_step_km: float,
         distance_step_km: float,
-        engine: str = "pyrocko",
+        tracer: LayeredRayTracer,
         overwrite: bool = False,
     ):
         super().__init__(model)
         model_name = Path(model.model_path).stem
-        self.tracer: LayeredPropagationEngine
+        self.tracer: LayeredRayTracer = tracer
+        if not callable(getattr(self.tracer, "get_arrival_1d", None)):
+            raise ValueError(
+                f"Tracer {tracer.name} does not support get_arrival_1d method. "
+                "Please use a tracer that supports get_arrival_1d method."
+            )
         self.phases = [normalize_phase(phase) for phase in phases]
         self.max_depth_km = max_depth_km
         self.max_distance_km = max_distance_km
@@ -109,7 +115,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         self.ray_param_tables: Dict[str, np.ndarray] = {}
         self.takeoff_angle_tables: Dict[str, np.ndarray] = {}
 
-        self.load_tables(model_name=model_name, engine=engine, overwrite=overwrite)
+        self.load_tables(model_name=model_name, tracer=tracer, overwrite=overwrite)
 
     def _table_filename(self, model_name: str, engine: str, phase: str) -> str:
         table_root_dir = Path(__file__).parent
@@ -206,7 +212,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
             )
 
     def load_tables(
-        self, model_name: str, engine: str, overwrite: bool = False
+        self, model_name: str, tracer: LayeredRayTracer, overwrite: bool = False
     ) -> None:
         """Load or build the travel-time, ray-parameter, and takeoff angle tables for all phases.
 
@@ -214,7 +220,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         ----------
         model_name : str
             The name of the seismic model.
-        engine : str
+        tracer : LayeredRayTracer
             The engine to use for table generation.
         overwrite : bool, optional
             Whether to overwrite existing table files, by default False
@@ -222,32 +228,17 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         Raises
         ------
         ValueError
-            If an unsupported engine is specified for table generation.
+            If an unsupported tracer is specified for table generation.
         """  # noqa: E501
         for phase in self.phases:
-            fname = self._table_filename(model_name, engine, phase)
+            fname = self._table_filename(model_name, tracer.name, phase)
             if os.path.exists(fname) and not overwrite:
                 logger.info(f"Loading travel-time tables from {fname}")
                 self.load_from_file(fname, phase)
                 continue
             logger.info(
-                f"Building travel-time tables for phase {phase} using engine {engine}"
+                f"Building travel-time tables for phase {phase} using tracer {tracer.name}"  # noqa: E501
             )
-
-            # FIXME: Add ray tracer as an input to the constructor of TauTravelTimeGrid
-            # and use it here instead of initializing a new tracer for table generation.
-            # This would allow for more flexibility in choosing the ray tracer.
-            # Initialize tracer for table generation
-            if engine == "pyrocko":
-                from hypy.propagation.layered.ray_tracer.pyrocko import PyrockoRayTracer
-
-                self.tracer = PyrockoRayTracer(self.velocity_model)
-            elif engine == "taup":
-                from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
-
-                self.tracer = TauPRayTracer(self.velocity_model)
-            else:
-                raise ValueError(f"Unsupported engine: {engine}")
 
             # FIXME: Depth values should start from 0, not from 0.1,
             # but TauP and Pyrocko do not return valid travel times for
@@ -256,9 +247,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
             # issues with table generation. This is a workaround and should be revisited
             # in the future to ensure that the tables can cover the full depth range
             # starting from 0 km if needed.
-            depth_values = np.arange(
-                0.1, self.max_depth_km + 0.1 + 1e-6, self.depth_step_km
-            )
+            depth_values = np.arange(0.1, self.max_depth_km + 1e-6, self.depth_step_km)
             # FIXME: Distance values should start from 0, not from 0.1,
             # but TauP and Pyrocko do not return valid travel times for
             # very short distances (e.g., 0 km),
@@ -267,7 +256,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
             # in the future to ensure that the tables can cover the full distance range
             # starting from 0 km if needed.
             distance_values = np.arange(
-                0.1, self.max_distance_km + 0.1 + 1e-6, self.distance_step_km
+                0.1, self.max_distance_km + 1e-6, self.distance_step_km
             )
             self.depth_grid = depth_values
             self.distance_grid = distance_values
