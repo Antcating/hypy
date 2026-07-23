@@ -14,9 +14,8 @@ from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
 @pytest.fixture(params=["taup", "pyrocko"])
 def tracer(request):
     """Build a layered ray-tracer backend for each supported engine."""
-    model = "iasp91"
     obspy_path = os.path.dirname(obspy.__file__)
-    model_path = os.path.join(obspy_path, "taup", "data", f"{model}.tvel")
+    model_path = os.path.join(obspy_path, "taup", "data", "iasp91.tvel")
     model = TvelModel(model_path)
     if request.param == "taup":
         return TauPRayTracer(model=model)
