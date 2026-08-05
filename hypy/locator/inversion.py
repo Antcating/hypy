@@ -133,7 +133,7 @@ class InversionEngine:
             dx_out[:, 2] = 0.0  # Force depth updates to zero if depth is fixed
 
         if n_h or n_z or n_t:
-            logger.warning(
+            logger.debug(
                 f"Iteration {iteration_index + 1}: clipped/scaled updates "
                 f"(horizontal={n_h}, depth={n_z}, time={n_t})"
             )
@@ -329,7 +329,7 @@ class InversionEngine:
                     data, config, run_config
                 )
                 if len(valid_rows_trial) == 0:
-                    logger.warning(
+                    logger.debug(
                         f"Iteration {iteration_index + 1}, LM trial {lm_trial + 1}: "
                         "no valid observations after trial update; increasing damping."
                     )
@@ -370,7 +370,7 @@ class InversionEngine:
                     )
                     break
 
-                logger.warning(
+                logger.debug(
                     f"Iteration {iteration_index + 1}, LM trial {lm_trial + 1}: "
                     f"RMS={rms_trial:.6f} s, relative improvement={rel_impr_trial:.6e} "
                     "not sufficient to accept trial step; increasing damping.",
@@ -393,13 +393,10 @@ class InversionEngine:
 
                 if np.any(best_oob_events):
                     data.invalid_events[best_oob_events] = True
-                    logger.warning(
+                    logger.debug(
                         "Iteration %s: %s events invalidated after LM failure.",
                         iteration_index + 1,
                         int(np.sum(best_oob_events)),
-                    )
-                    logger.warning(
-                        "Best solution had out-of-bounds depth for invalidated events."
                     )
 
                 valid_rows = self.derivative_engine.build_derivative_matrix(
@@ -415,7 +412,7 @@ class InversionEngine:
 
                 residuals_flat, rms_after = _compute_residuals_and_rms(valid_rows)
 
-                logger.warning(
+                logger.debug(
                     f"Iteration {iteration_index + 1}: no acceptable LM step found "
                     f"after {max_lm_trials} trials. Keeping previous model state."
                 )

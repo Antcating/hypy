@@ -270,13 +270,17 @@ class DataHandler:
         self.invalid_events = np.zeros(n_events, dtype=bool)
 
     def _fill_data(self) -> None:
+        invalid_time_errors = 0
+        skipped_events_min_picks = 0
+        skipped_events_min_stations = 0
         for event_idx, event in enumerate(self.events):
             if len(event.picks) < self.min_picks_per_event:
-                logger.warning(
+                logger.debug(
                     f"Skipping event {event.resource_id}: "
                     f"only {len(event.picks)} picks < {self.min_picks_per_event} required."  # noqa: E501
                 )
                 self.invalid_events[event_idx] = True
+                skipped_events_min_picks += 1
                 continue
 
             picked_stations = {
@@ -284,10 +288,11 @@ class DataHandler:
                 for pk in event.picks
             }
             if len(picked_stations) * self.n_phases < self.min_picks_per_event:
-                logger.warning(
+                logger.debug(
                     f"Skipping event {event.resource_id}: only {len(picked_stations)} stations with picks."  # noqa: E501
                 )
                 self.invalid_events[event_idx] = True
+                skipped_events_min_stations += 1
                 continue
 
             # --- Build the set of picks that match active stations & configured phases
@@ -328,20 +333,19 @@ class DataHandler:
 
                     # Store arrival time RELATIVE to t_ref
                     arrival_time = float(pick.time) - self.time_refs[event_idx]
-                    arrival_time_error = (
-                        self.default_time_error
-                        if (
-                            pick.time_errors is None
-                            or pick.time_errors.uncertainty is None
-                            or pick.time_errors.uncertainty <= 0.0
-                        )
-                        else pick.time_errors.uncertainty
-                    )
-                    if arrival_time_error == self.default_time_error:
-                        logger.warning(
+                    if (
+                        pick.time_errors is None
+                        or pick.time_errors.uncertainty is None
+                        or pick.time_errors.uncertainty <= 0.0
+                    ):
+                        logger.debug(
                             f"Pick {network}.{station} {phase}: invalid time error."
                             f" Using floor {self.default_time_error} s."
                         )
+                        invalid_time_errors += 1
+                        arrival_time_error = self.default_time_error
+                    else:
+                        arrival_time_error = pick.time_errors.uncertainty
 
                     j = self.n_phases * station_idx + phase_idx
                     self.arrivals[event_idx, j] = arrival_time
@@ -349,3 +353,18 @@ class DataHandler:
                     self.time_error_W[
                         event_idx * self.n_phases * self.n_stations + j
                     ] = time_error_weight(arrival_time_error)
+        if invalid_time_errors > 0:
+            logger.warning(
+                f"{invalid_time_errors} invalid time errors found and clamped to {self.default_time_error} s."  # noqa: E501
+                "Use DEBUG level to see the details."
+            )
+        if skipped_events_min_picks > 0:
+            logger.warning(
+                f"{skipped_events_min_picks} events skipped due to insufficient picks per event."  # noqa: E501
+                "Use DEBUG level to see the details."
+            )
+        if skipped_events_min_stations > 0:
+            logger.warning(
+                f"{skipped_events_min_stations} events skipped due to insufficient unique station-phase pairs."  # noqa: E501
+                "Use DEBUG level to see the details."
+            )
