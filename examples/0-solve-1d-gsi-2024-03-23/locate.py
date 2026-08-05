@@ -4,6 +4,7 @@ from examples.common import plot_arrivals_with_weights, plot_solution
 from hypy.locator import EventLocator
 from hypy.model.layered.tvel import TvelModel
 from hypy.propagation.layered.grid.tau import TauTravelTimeGrid
+from hypy.propagation.layered.ray_tracer.hypo import HypoRayTracer
 from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
 
 phases = ["P", "S"]
@@ -11,18 +12,24 @@ phases = ["P", "S"]
 model_path = "examples/0-solve-1d-gsi-2024-03-23/model/giimod.tvel"
 
 model = TvelModel(model_path)
-grid = TauTravelTimeGrid(
+
+# Coarse precomputed table: used for seed scoring.
+init_grid = TauTravelTimeGrid(
     model,
     phases=phases,
     max_depth_km=100.0,
     max_distance_km=300.0,
-    depth_step_km=1.0,
-    distance_step_km=1.0,
+    depth_step_km=5.0,
+    distance_step_km=5.0,
     tracer=TauPRayTracer(model=model),
 )
 
+# Accurate ray tracer: used for the iterative inversion stage.
+hypo = HypoRayTracer(model=model, max_distance_km=300.0, max_depth_km=100.0)
+
 locator = EventLocator(
-    propagation_engine=grid,
+    propagation_engine=hypo,
+    initial_propagation_engine=init_grid,
     derivative_method="analytical",
 )
 
