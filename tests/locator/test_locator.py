@@ -37,6 +37,31 @@ def test_event_locator_phases_subset_of_propagation_engine_phases():
     assert locator.propagation_backend.phases == ("p", "s")
 
 
+def test_event_locator_initial_propagation_engine():
+    tvel_model = build_tvel_model()
+    main = TauPRayTracer(model=tvel_model, phases=("p", "s"))
+    init = TauPRayTracer(model=tvel_model, phases=("p", "s"))
+    locator = EventLocator(
+        propagation_engine=main,
+        initial_propagation_engine=init,
+        phases=("p", "s"),
+    )
+    assert locator.propagation_backend is main
+    assert locator.initial_propagation_backend is init
+
+
+def test_event_locator_initial_propagation_engine_phase_mismatch():
+    tvel_model = build_tvel_model()
+    main = TauPRayTracer(model=tvel_model, phases=("p", "s"))
+    init = TauPRayTracer(model=tvel_model, phases=("p",))
+    with pytest.raises(ValueError, match="Initial propagation engine phases"):
+        EventLocator(
+            propagation_engine=main,
+            initial_propagation_engine=init,
+            phases=("p", "s"),
+        )
+
+
 @pytest.mark.parametrize("phases", [None, 1, 2, 3])
 def test_event_locator_invalid_type_phases(phases: Any):
     tvel_model = build_tvel_model()

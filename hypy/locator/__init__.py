@@ -8,8 +8,6 @@ from typing import Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 
-from hypy.utils.seismic import normalize_phase
-
 from ..logger import get_logger
 from ..propagation import PropagationEngine
 from .config import (
@@ -22,7 +20,7 @@ from .derivatives import DerivativesHandler
 from .errors import compute_error_ellipsoids
 from .export import OriginExporter
 from .inversion import InversionEngine
-from .locations_setup import init_locations
+from .locations_setup import LocationSeeder
 from .types import (
     INFO,
     Catalog,
@@ -44,6 +42,12 @@ class EventLocator:
         backend to use for travel-time calculations and derivative assembly. The provided
         engine must be compatible with the specified derivative_method and support the
         required model features.
+    initial_propagation_engine : PropagationEngine, optional
+        Optional forward model used during location seeding. Prefer a
+        precomputed travel-time table with coarse ``depth_step_km`` /
+        ``distance_step_km`` so candidate scoring stays cheap. When ``None``,
+        seeding uses the original heuristic/random seed locations without
+        travel-time scoring. Default is ``None``.
     phases : Sequence[str], optional
         List of seismic phases to use for travel-time calculations. Default is ("P",).
         Alowed phases, for now, are "P" and "S".
@@ -67,6 +71,7 @@ class EventLocator:
     def __init__(
         self,
         propagation_engine: PropagationEngine,
+        initial_propagation_engine: Optional[PropagationEngine] = None,
         phases: Iterable[str] = ("p", "s"),
         derivative_method: DerivativeMethodLiteral = "numerical",
         fix_depth_km: Optional[float] = None,
@@ -84,10 +89,19 @@ class EventLocator:
             raise ValueError(
                 f"Phases must be an iterable of strings, got {type(phases)}."  # noqa: E501
             )
-        phases = tuple(normalize_phase(phase) for phase in phases)
+        phases = tuple(phase.lower() for phase in phases)
         if any(phase not in propagation_engine.phases for phase in phases):
             raise ValueError(
                 f"Propagation engine phases {propagation_engine.phases} do not match provided phases {phases}."  # noqa: E501
+            )
+
+        if initial_propagation_engine is not None and any(
+            phase not in initial_propagation_engine.phases for phase in phases
+        ):
+            raise ValueError(
+                "Initial propagation engine phases "
+                f"{initial_propagation_engine.phases} do not match "
+                f"provided phases {phases}."
             )
 
         # Build immutable, construction-time configuration
@@ -113,6 +127,8 @@ class EventLocator:
             )
 
         self.propagation_backend = propagation_engine
+        # Optional cheap table for seed scoring; None => heuristic/random seeds.
+        self.initial_propagation_backend = initial_propagation_engine
 
         # Derivative engine - bridges config, data, model, and propagation backend
         self.derivative_engine = DerivativesHandler(
@@ -249,15 +265,19 @@ class EventLocator:
             seed=seed,
         )
 
-        init_locations(
-            self.data,
-            self.config,
-            run_config,
-            self.derivative_engine,
-            trial_depth_km,
-            self.propagation_backend.distance_step_km,
-            self.propagation_backend.max_depth_km,
-        )
+        init_backend = self.initial_propagation_backend
+        if init_backend is not None:
+            init_depth_step_km = init_backend.depth_step_km
+            init_max_depth_km = init_backend.max_depth_km
+        else:
+            init_depth_step_km = self.propagation_backend.depth_step_km
+            init_max_depth_km = self.propagation_backend.max_depth_km
+        LocationSeeder(
+            config=self.config,
+            data=self.data,
+            run_config=run_config,
+            propagation_engine=init_backend,
+        ).seed(trial_depth_km, init_depth_step_km, init_max_depth_km)
 
         inversion_engine = InversionEngine(
             config=self.config,
