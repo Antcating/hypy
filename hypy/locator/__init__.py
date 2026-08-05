@@ -10,10 +10,10 @@ import numpy as np
 
 from ..logger import get_logger
 from ..propagation import PropagationEngine
+from ..utils.weighting import configure_distance_weighting
 from .config import (
     LocatorConfig,
     RunConfig,
-    configure_distance_weighting,
 )
 from .data import DataHandler
 from .derivatives import DerivativesHandler
@@ -45,9 +45,11 @@ class EventLocator:
     initial_propagation_engine : PropagationEngine, optional
         Optional forward model used during location seeding. Prefer a
         precomputed travel-time table with coarse ``depth_step_km`` /
-        ``distance_step_km`` so candidate scoring stays cheap. When ``None``,
-        seeding uses the original heuristic/random seed locations without
-        travel-time scoring. Default is ``None``.
+        ``distance_step_km`` so a 3D grid search stays cheap. When set,
+        seeding scores a lat/lon/depth grid (config search bounds if provided,
+        otherwise a padded station envelope), sliced so every node has enough
+        in-range stations. When ``None``, seeding uses heuristic epicenter
+        seeds without travel-time scoring. Default is ``None``.
     phases : Sequence[str], optional
         List of seismic phases to use for travel-time calculations. Default is ("P",).
         Alowed phases, for now, are "P" and "S".
@@ -127,7 +129,7 @@ class EventLocator:
             )
 
         self.propagation_backend = propagation_engine
-        # Optional cheap table for seed scoring; None => heuristic/random seeds.
+        # Optional table for grid-search seeding; None => heuristic seeds.
         self.initial_propagation_backend = initial_propagation_engine
 
         # Derivative engine - bridges config, data, model, and propagation backend
