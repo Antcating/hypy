@@ -147,7 +147,7 @@ class InversionEngine:
         conv_threshold: float = 1e-3,
         solve_airquakes: bool = False,
         max_depth: Optional[float] = None,
-        safe_iteration_limit: int = 20,
+        depth_elimination_iteration: int = 20,
         max_lm_trials: int = 8,
         lm_acceptance_tol: float = 1e-6,
     ) -> InversionResults:
@@ -165,7 +165,7 @@ class InversionEngine:
             If True, allow depth to go negative (airquakes); otherwise mark as invalid.
         max_depth : float, default=50.0
             Maximum permitted depth (km) after the safe iteration limit.
-        safe_iteration_limit : int, default=20
+        depth_elimination_iteration : int, default=20
             Number of iterations before strict depth bounds are enforced.
         max_lm_trials : int, default=8
             Number of damping trials attempted per iteration.
@@ -301,7 +301,8 @@ class InversionEngine:
                         dx[event_idx, :] = 0.0
 
                     elif (
-                        iteration_index > safe_iteration_limit and new_depth > max_depth
+                        iteration_index > depth_elimination_iteration
+                        and new_depth > max_depth
                     ):
                         logger.warning(
                             "Event %s depth exceeds max depth (%.3f km > %.3f km),"

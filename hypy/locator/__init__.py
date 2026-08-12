@@ -185,7 +185,7 @@ class EventLocator:
         max_iterations: int = 100,
         conv_threshold: float = 1e-3,
         solve_airquakes: bool = False,
-        safe_iteration_limit: int = 20,
+        depth_elimination_iteration: int = 20,
         trial_depth_km: float = 10.0,
         distance_weight_start_km: Optional[float] = None,
         distance_weight_end_km: Optional[float] = None,
@@ -216,7 +216,7 @@ class EventLocator:
             RMS convergence threshold (seconds). Default is 1e-3.
         solve_airquakes : bool, optional
             If True, allows negative depths. Default is False.
-        safe_iteration_limit : int, optional
+        depth_elimination_iteration : int, optional
             Iteration number after which depth constraints become strict. Default is 20.
         trial_depth_km : float, optional
             Initial trial depth (km) for seed generation. Default is 10.0.
@@ -293,7 +293,7 @@ class EventLocator:
             conv_threshold=conv_threshold,
             solve_airquakes=solve_airquakes,
             max_depth=self.propagation_backend.max_depth_km,
-            safe_iteration_limit=safe_iteration_limit,
+            depth_elimination_iteration=depth_elimination_iteration,
         )
 
         error_results = compute_error_ellipsoids(
