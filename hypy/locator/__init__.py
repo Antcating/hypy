@@ -10,7 +10,10 @@ import numpy as np
 
 from ..logger import get_logger
 from ..propagation import PropagationEngine
-from ..utils.weighting import configure_distance_weighting
+from ..utils.weighting import (
+    configure_distance_weighting,
+    configure_residual_weighting,
+)
 from .config import (
     LocatorConfig,
     RunConfig,
@@ -65,9 +68,9 @@ class EventLocator:
 
     Notes
     -----
-    Per-run knobs (distance weighting, observation error model, and the RNG seed)
-    are not set here; they are passed to :meth:`locate` so they can be varied
-    between runs on the same loaded data without rebuilding the locator.
+    Per-run knobs (distance/residual weighting, observation error model, and the
+    RNG seed) are not set here; they are passed to :meth:`locate` so they can be
+    varied between runs on the same loaded data without rebuilding the locator.
     """  # noqa: E501
 
     def __init__(
@@ -191,6 +194,10 @@ class EventLocator:
         distance_weight_end_km: Optional[float] = None,
         weight_start: Optional[float] = 0.99,
         weight_end: Optional[float] = 0.01,
+        residual_weighting_iteration: Optional[int] = None,
+        residual_rms_floor_s: float = 0.1,
+        residual_full_weight_factor: float = 1.0,
+        residual_zero_weight_factor: float = 3.0,
         full_data_covariance: bool = False,
         correlation_length_km: float = 1.0,
         error_coefficient: float = 1.0,
@@ -254,12 +261,29 @@ class EventLocator:
         distance_weighting_enabled, k, x0 = configure_distance_weighting(
             distance_weight_start_km, distance_weight_end_km, weight_start, weight_end
         )
+        (
+            residual_weighting_enabled,
+            residual_weighting_iteration,
+            residual_rms_floor_s,
+            residual_full_weight_factor,
+            residual_zero_weight_factor,
+        ) = configure_residual_weighting(
+            residual_weighting_iteration,
+            residual_rms_floor_s=residual_rms_floor_s,
+            residual_full_weight_factor=residual_full_weight_factor,
+            residual_zero_weight_factor=residual_zero_weight_factor,
+        )
 
         # Build immutable, per-run configuration
         run_config = RunConfig(
             distance_weighting_enabled=distance_weighting_enabled,
             k=k,
             x0=x0,
+            residual_weighting_enabled=residual_weighting_enabled,
+            residual_start_iteration=residual_weighting_iteration,
+            residual_rms_floor_s=residual_rms_floor_s,
+            residual_full_weight_factor=residual_full_weight_factor,
+            residual_zero_weight_factor=residual_zero_weight_factor,
             full_data_covariance=bool(full_data_covariance),
             correlation_length_km=float(correlation_length_km),
             error_coefficient=float(error_coefficient),

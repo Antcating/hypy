@@ -111,14 +111,20 @@ class RunConfig:
 
     Holds knobs that only take effect while a location run is executing and can
     be varied freely between runs on the same loaded data without rebuilding any
-    component: distance weighting, the observation error model, and the RNG seed
-    used for location initialization. Built inside ``EventLocator.locate`` from
-    its arguments and passed (read-only) to the run-time components.
+    component: distance/residual weighting, the observation error model, and the
+    RNG seed used for location initialization. Built inside
+    ``EventLocator.locate`` from its arguments and passed (read-only) to the
+    run-time components.
     """
 
     distance_weighting_enabled: bool = False
     k: Optional[float] = None
     x0: Optional[float] = None
+    residual_weighting_enabled: bool = False
+    residual_start_iteration: Optional[int] = None
+    residual_rms_floor_s: float = 0.1
+    residual_full_weight_factor: float = 1.0
+    residual_zero_weight_factor: float = 3.0
     full_data_covariance: bool = False
     correlation_length_km: float = 1.0
     error_coefficient: float = 1.0
@@ -138,6 +144,56 @@ class RunConfig:
                 or self.error_coefficient < 0.0
             ):
                 raise ValueError("error_coefficient must be >= 0.")
+
+        if self.residual_weighting_enabled:
+            if (
+                self.residual_start_iteration is None
+                or not isinstance(self.residual_start_iteration, numbers.Integral)
+                or int(self.residual_start_iteration) < 1
+            ):
+                raise ValueError(
+                    "residual_start_iteration must be an integer >= 1 when "
+                    "residual weighting is enabled."
+                )
+            object.__setattr__(
+                self, "residual_start_iteration", int(self.residual_start_iteration)
+            )
+            if (
+                not isinstance(self.residual_rms_floor_s, numbers.Real)
+                or self.residual_rms_floor_s <= 0.0
+            ):
+                raise ValueError("residual_rms_floor_s must be > 0.")
+            if (
+                not isinstance(self.residual_full_weight_factor, numbers.Real)
+                or self.residual_full_weight_factor < 0.0
+            ):
+                raise ValueError("residual_full_weight_factor must be >= 0.")
+            if (
+                not isinstance(self.residual_zero_weight_factor, numbers.Real)
+                or self.residual_zero_weight_factor <= self.residual_full_weight_factor
+            ):
+                raise ValueError(
+                    "residual_zero_weight_factor must be greater than "
+                    "residual_full_weight_factor."
+                )
+            object.__setattr__(
+                self, "residual_rms_floor_s", float(self.residual_rms_floor_s)
+            )
+            object.__setattr__(
+                self,
+                "residual_full_weight_factor",
+                float(self.residual_full_weight_factor),
+            )
+            object.__setattr__(
+                self,
+                "residual_zero_weight_factor",
+                float(self.residual_zero_weight_factor),
+            )
+        elif self.residual_start_iteration is not None:
+            raise ValueError(
+                "residual_start_iteration must be None when residual weighting "
+                "is disabled."
+            )
 
         if not isinstance(self.solver, str):
             raise ValueError(f"Solver must be a string, got {type(self.solver)}.")

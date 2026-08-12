@@ -9,6 +9,7 @@ from scipy.sparse.linalg import lsmr
 from hypy.logger import logger
 
 from ..utils.damping import update_damping_factor
+from ..utils.weighting import residual_weight_factor
 from .config import LocatorConfig, RunConfig
 from .data import DataHandler
 from .derivatives import DerivativesHandler
@@ -140,6 +141,41 @@ class InversionEngine:
 
         return dx_out
 
+    def _apply_residual_weights(
+        self,
+        valid_rows: np.ndarray,
+        residuals_flat: np.ndarray,
+        iteration_index: int,
+    ) -> np.ndarray:
+        """Update ``data.residual_W`` and return row scales for valid rows.
+
+        Residual weighting is recomputed each outer iteration from the current
+        residuals. It does not permanently remove picks: a previously zeroed
+        arrival can regain weight if its residual improves.
+        """
+        data = self.data
+        run_config = self.run_config
+        data.residual_W[:] = 1.0
+
+        base_W = data.distance_W[valid_rows] * data.time_error_W[valid_rows]
+        if (
+            run_config.residual_weighting_enabled
+            and run_config.residual_start_iteration is not None
+            and (iteration_index + 1) >= run_config.residual_start_iteration
+        ):
+            residual_W = residual_weight_factor(
+                residuals_flat[valid_rows],
+                base_W,
+                residual_rms_floor_s=run_config.residual_rms_floor_s,
+                residual_full_weight_factor=run_config.residual_full_weight_factor,
+                residual_zero_weight_factor=run_config.residual_zero_weight_factor,
+            )
+            data.residual_W[valid_rows] = residual_W
+        else:
+            residual_W = np.ones(len(valid_rows), dtype=float)
+
+        return base_W * residual_W
+
     def run_iterations(
         self,
         solver: SolverLiteral = "lsqr",
@@ -215,6 +251,16 @@ class InversionEngine:
             f"for travel-time calculations."
         )
         logger.info(f"Distance weighting: {run_config.distance_weighting_enabled}")
+        if run_config.residual_weighting_enabled:
+            logger.info(
+                "Residual weighting: True "
+                f"(start_iteration={run_config.residual_start_iteration}, "
+                f"rms_floor_s={run_config.residual_rms_floor_s}, "
+                f"full_weight_factor={run_config.residual_full_weight_factor}, "
+                f"zero_weight_factor={run_config.residual_zero_weight_factor})"
+            )
+        else:
+            logger.info("Residual weighting: False")
         logger.info(f"Fix depth: {config.fix_depth_km}")
         logger.info(f"Precalculate velocities: {config.precalculate_velocities}")
 
@@ -239,17 +285,12 @@ class InversionEngine:
 
             # Residuals / RMS BEFORE update
             residuals_flat, rms_before = _compute_residuals_and_rms(valid_rows)
+            row_W = self._apply_residual_weights(
+                valid_rows, residuals_flat, iteration_index
+            )
 
-            b = (
-                data.distance_W[valid_rows]
-                * data.time_error_W[valid_rows]
-                * residuals_flat[valid_rows]
-            )
-            A = (
-                data.jacobian_matrix[valid_rows, :]
-                * data.time_error_W[valid_rows][:, np.newaxis]
-                * data.distance_W[valid_rows][:, np.newaxis]
-            )
+            b = row_W * residuals_flat[valid_rows]
+            A = data.jacobian_matrix[valid_rows, :] * row_W[:, np.newaxis]
 
             # Save state before LM trials
             base_locations = data.locations.copy()
@@ -456,6 +497,9 @@ class InversionEngine:
                 data, config, run_config
             )
         residuals_flat, rms = _compute_residuals_and_rms(valid_rows)
+        # Refresh residual weights at the final hypocenter
+        if len(valid_rows) > 0:
+            self._apply_residual_weights(valid_rows, residuals_flat, iteration_index)
 
         logger.info(
             f"Location iterations completed in {iteration_index + 1} iterations."

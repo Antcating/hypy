@@ -152,13 +152,17 @@ class OriginExporter:
                     )
                     residual = observed_travel_time - travel_time
 
-                    # Compute final weight: time_error_W * distance_W
+                    # Final weight includes distance and residual scales.
+                    # time_error_W is kept separate (ObsPy Arrival has no sigma field
+                    # here); residual_W is the last-iteration HypoInverse-style factor.
                     row_index = (
                         event_idx * config.n_phases * data.n_stations
                         + config.n_phases * station_idx
                         + phase_idx
                     )
-                    final_weight = data.distance_W[row_index]
+                    final_weight = (
+                        data.distance_W[row_index] * data.residual_W[row_index]
+                    )
 
                     arrival = Arrival(
                         pick_id=pick.resource_id if pick is not None else None,

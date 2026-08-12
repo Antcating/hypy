@@ -63,6 +63,7 @@ class DataHandler:
         self.jacobian_matrix = np.empty((0, 0))
         self.time_error_W = np.empty((0,), dtype=float)
         self.distance_W = np.empty((0,), dtype=float)
+        self.residual_W = np.empty((0,), dtype=float)
         self.locations = np.empty((0, 3), dtype=float)
         self.origin_times = np.empty((0,), dtype=float)
         self.time_refs = np.empty((0,), dtype=float)
@@ -251,11 +252,13 @@ class DataHandler:
 
         # --- Weights ---
         # Flattened across all event–station–phase observations.
-        # - time_error_W: weighting from pick-time uncertainty (1/sigma^2)
+        # - time_error_W: weighting from pick-time uncertainty (1/sigma)
         # - distance_W: optional logistic distance-based weighting
+        # - residual_W: optional HypoInverse-style residual reweighting (per iter)
         n_observations = n_events * n_stations * n_phases
         self.time_error_W = np.ones(n_observations, dtype=float)
         self.distance_W = np.ones(n_observations, dtype=float)
+        self.residual_W = np.ones(n_observations, dtype=float)
 
         # --- Event locations and origin times ---
         # Shape: (n_events, 3) → (latitude, longitude, depth_km)
