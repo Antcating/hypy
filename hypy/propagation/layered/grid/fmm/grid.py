@@ -330,15 +330,39 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
         )
         arc_distance_km = dist_m / 1000.0
 
-        if max_distance_km is not None and arc_distance_km > max_distance_km:
+        # Prefer the caller's limit, else the engine limit, and never exceed the
+        # last tabulated distance sample.
+        configured_max = (
+            max_distance_km
+            if max_distance_km is not None
+            else getattr(self, "max_distance_km", None)
+        )
+        if configured_max is None:
+            configured_max = getattr(self, "max_distance", None)
+        table_max_distance_km = float(self.distance_grid[-1])
+        if configured_max is None:
+            effective_max_distance_km = table_max_distance_km
+        else:
+            effective_max_distance_km = min(
+                float(configured_max), table_max_distance_km
+            )
+
+        if arc_distance_km > effective_max_distance_km:
             logger.info(
                 "Station at distance %.2f km exceeds max_distance %.2f km. Skipping.",
                 arc_distance_km,
-                max_distance_km,
+                effective_max_distance_km,
             )
             return arc_distance_km, None, None, azimuth_deg
 
         source_depth_eff_km = source_depth_km + receiver_elevation_m / 1000.0
+        if source_depth_eff_km > float(self.depth_grid[-1]):
+            logger.info(
+                "Source depth %.2f km exceeds table max depth %.2f km. Skipping.",
+                source_depth_eff_km,
+                float(self.depth_grid[-1]),
+            )
+            return arc_distance_km, None, None, azimuth_deg
 
         time = self.compute_travel_time(arc_distance_km, source_depth_eff_km, phase)
         takeoff_angle = self.compute_takeoff_angle(
