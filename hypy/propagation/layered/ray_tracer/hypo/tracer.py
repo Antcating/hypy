@@ -38,13 +38,14 @@ class HypoRayTracer(LayeredRayTracer):
 
     The spherical model is mapped onto a flat-layered geometry with the standard
     earth-flattening transform (``z_flat = R * ln(R / (R - z))`` and
-    ``v_flat = v * R / (R - z)``) and finely resampled at ``layer_step_km``
-    intervals.  The stack of thin homogeneous flat layers reproduces the
-    spherical diving-ray and head-wave travel times of the full-physics backends
-    (e.g. TauP/pyrocko) to well within a millisecond-level relative tolerance,
-    while remaining fast enough for location iterations.  Epicentral distance is
-    a surface arc length and is unchanged by the transform, and takeoff angles
-    are preserved by earth flattening.
+    ``v_flat = v * R / (R - z)``) and resampled at ``layer_step_km`` intervals
+    with native discontinuity depths forced into the edge list so interfaces are
+    not snapped onto the step grid.  The stack of thin homogeneous flat layers
+    reproduces the spherical diving-ray and head-wave travel times of the
+    full-physics backends (e.g. TauP/pyrocko) to well within a millisecond-level
+    relative tolerance, while remaining fast enough for location iterations.
+    Epicentral distance is a surface arc length and is unchanged by the
+    transform, and takeoff angles are preserved by earth flattening.
 
     Public methods return the same hypy-format arrivals as the other layered
     ray tracers: travel time in seconds and takeoff angle in degrees.  Internally
@@ -304,14 +305,43 @@ class HypoRayTracer(LayeredRayTracer):
         """
         return float(min(self.max_depth_km, 0.9 * self._radius_km))
 
+    def _profile_edges(self, phase: str) -> np.ndarray:
+        """Build real-depth layer edges that preserve model interfaces.
+
+        A uniform ``layer_step_km`` grid alone snaps discontinuities onto the
+        step (e.g. 2.6 km → 3.0 km), inventing extra slow rock and biasing
+        travel times.  Merge the model's native layer-top depths into the grid
+        so interfaces stay exact while the average resolution stays ~``step``.
+        """
+        step = self.layer_step_km
+        zmax = self._profile_max_depth_km()
+        grid = np.arange(0.0, zmax + step, step, dtype=np.float64)
+
+        phase_key = normalize_phase(phase)
+        try:
+            iface_tops, _ = self.velocity_model.get_layer_top_profile_1d(phase_key)
+        except (ValueError, AttributeError):
+            iface_tops = np.array([], dtype=np.float64)
+
+        interfaces = np.asarray(iface_tops, dtype=np.float64)
+        interfaces = interfaces[(interfaces > 0.0) & (interfaces < zmax)]
+        edges = np.unique(np.concatenate([grid, interfaces, [zmax]]))
+        edges.sort()
+        if edges.size < 2 or edges[0] != 0.0:
+            raise ValueError(
+                "Failed to build a valid layer-edge profile starting at 0 km."
+            )
+        return edges
+
     def _phase_profile(self, phase: str) -> tuple[np.ndarray, np.ndarray]:
         """Return cached, C-contiguous earth-flattened layer profile.
 
-        The model is finely resampled at ``layer_step_km`` intervals and mapped
-        through the earth-flattening transform, so the homogeneous flat-layer
-        kernel approximates the spherical diving rays (and head waves) computed
-        by the full-physics backends.  The arrays are ``float64`` and contiguous
-        so they can be passed directly into the numba kernels without per-call
+        The model is resampled at ``layer_step_km`` intervals with native
+        discontinuity depths forced into the edge list, then mapped through the
+        earth-flattening transform so the homogeneous flat-layer kernel
+        approximates the spherical diving rays (and head waves) computed by the
+        full-physics backends.  The arrays are ``float64`` and contiguous so
+        they can be passed directly into the numba kernels without per-call
         copies.
         """
         phase_key = normalize_phase(phase)
@@ -319,14 +349,20 @@ class HypoRayTracer(LayeredRayTracer):
         if cached is not None:
             return cached
 
-        step = self.layer_step_km
-        edges = np.arange(0.0, self._profile_max_depth_km() + step, step)
+        edges = self._profile_edges(phase_key)
         tops_real = edges[:-1]
-        mids_real = 0.5 * (edges[:-1] + edges[1:])
+        bots_real = edges[1:]
+        # Sample just below each layer top so a preserved interface keeps the
+        # velocity of the layer beneath it (TauP/evaluate_below convention).
+        sample_eps = min(1.0e-6, 0.01 * self.layer_step_km)
+        sample_depths = np.minimum(tops_real + sample_eps, bots_real - sample_eps)
+        # Degenerate (near-zero thickness) slabs: fall back to the top depth.
+        too_thin = bots_real - tops_real <= 2.0 * sample_eps
+        sample_depths = np.where(too_thin, tops_real, sample_depths)
         vels_real = np.array(
             [
                 self.velocity_model.get_velocity_1d(float(z), phase_key)
-                for z in mids_real
+                for z in sample_depths
             ],
             dtype=np.float64,
         )
@@ -335,6 +371,7 @@ class HypoRayTracer(LayeredRayTracer):
                 f"All {phase.upper()} velocities must be positive for local tracing."
             )
 
+        mids_real = 0.5 * (tops_real + bots_real)
         tops = np.ascontiguousarray(self._flatten_depth(tops_real), dtype=np.float64)
         velocities = np.ascontiguousarray(
             self._flatten_velocity(vels_real, mids_real), dtype=np.float64

@@ -37,6 +37,7 @@ class InversionEngine:
     -----
     - The method applies Levenberg-Marquardt-style damping via `damping`.
     - Depth and time updates are clipped for numerical stability.
+    - Optional geographic search bounds clamp epicenters after each trial step.
 
     Examples
     --------
@@ -140,6 +141,47 @@ class InversionEngine:
             )
 
         return dx_out
+
+    def _apply_search_bounds(
+        self,
+        event_mask: np.ndarray,
+        iteration_index: int,
+        lm_trial: int,
+    ) -> int:
+        """Clamp selected epicenters into the configured search box.
+
+        Returns
+        -------
+        int
+            Number of events whose latitude and/or longitude were clipped.
+        """
+        bounds = self.config.search_bounds
+        if bounds is None or not np.any(event_mask):
+            return 0
+
+        lat_min, lat_max, lon_min, lon_max = bounds
+        lats = self.data.locations[event_mask, 0]
+        lons = self.data.locations[event_mask, 1]
+        lat_clipped = np.clip(lats, lat_min, lat_max)
+        lon_clipped = np.clip(lons, lon_min, lon_max)
+        n_clamped = int(np.sum((lats != lat_clipped) | (lons != lon_clipped)))
+        self.data.locations[event_mask, 0] = lat_clipped
+        self.data.locations[event_mask, 1] = lon_clipped
+
+        if n_clamped:
+            logger.debug(
+                "Iteration %s, LM trial %s: clamped %s event epicenter(s) "
+                "to search bounds "
+                "[lat=(%.4f, %.4f), lon=(%.4f, %.4f)].",
+                iteration_index + 1,
+                lm_trial + 1,
+                n_clamped,
+                lat_min,
+                lat_max,
+                lon_min,
+                lon_max,
+            )
+        return n_clamped
 
     def _apply_residual_weights(
         self,
@@ -263,6 +305,15 @@ class InversionEngine:
             logger.info("Residual weighting: False")
         logger.info(f"Fix depth: {config.fix_depth_km}")
         logger.info(f"Precalculate velocities: {config.precalculate_velocities}")
+        if config.search_bounds is not None:
+            lat_min, lat_max, lon_min, lon_max = config.search_bounds
+            logger.info(
+                "Search bounds: "
+                f"lat=[{lat_min:.4f}, {lat_max:.4f}], "
+                f"lon=[{lon_min:.4f}, {lon_max:.4f}]"
+            )
+        else:
+            logger.info("Search bounds: None")
 
         best_damping = 0.0
         damping = 1.0
@@ -365,6 +416,9 @@ class InversionEngine:
                 valid_event_mask = ~data.invalid_events
                 data.locations[valid_event_mask, :3] += dx_apply[valid_event_mask, :3]
                 data.origin_times[valid_event_mask] += dx_apply[valid_event_mask, 3]
+                self._apply_search_bounds(
+                    valid_event_mask, iteration_index, lm_trial
+                )
 
                 # Rebuild derivatives and recompute RMS AFTER trial update
                 valid_rows_trial = self.derivative_engine.build_derivative_matrix(

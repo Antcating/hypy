@@ -52,7 +52,8 @@ class EventLocator:
         seeding scores a lat/lon/depth grid (config search bounds if provided,
         otherwise a padded station envelope), sliced so every node has enough
         in-range stations. When ``None``, seeding uses heuristic epicenter
-        seeds without travel-time scoring. Default is ``None``.
+        seeds (clamped to config search bounds when set) without travel-time
+        scoring. Default is ``None``.
     phases : Sequence[str], optional
         List of seismic phases to use for travel-time calculations. Default is ("P",).
         Alowed phases, for now, are "P" and "S".
@@ -62,6 +63,12 @@ class EventLocator:
         Minimum pick time error (in seconds). Used if pick error is not given. Default is 0.1 s.
     fix_depth_km : Optional[float], optional
         If not None, event depths are fixed during inversion. Default is None.
+    search_lat_min, search_lat_max, search_lon_min, search_lon_max : float, optional
+        Optional geographic box that constrains event epicenters during seeding
+        and inversion iterations. All four must be set together, or all
+        omitted. When set, they override the station-envelope horizontal
+        extent for grid-search seeding, clamp heuristic seeds, and keep
+        iterative updates inside the box. Default is ``None``.
     _precalculate_velocities : bool, optional
         If True, precomputes velocity profiles for all events to speed up travel-time
         calculations. Requires max_depth_km and depth_step_km to be set. Default is False.
@@ -82,6 +89,10 @@ class EventLocator:
         fix_depth_km: Optional[float] = None,
         min_picks_per_event: int = 4,
         default_time_error: float = 0.1,
+        search_lat_min: Optional[float] = None,
+        search_lat_max: Optional[float] = None,
+        search_lon_min: Optional[float] = None,
+        search_lon_max: Optional[float] = None,
         log_level: int = INFO,
         log_file: Optional[str] = None,
         _precalculate_velocities: bool = False,
@@ -117,6 +128,10 @@ class EventLocator:
             derivative_method=derivative_method,
             fix_depth_km=fix_depth_km,
             precalculate_velocities=bool(_precalculate_velocities),
+            search_lat_min=search_lat_min,
+            search_lat_max=search_lat_max,
+            search_lon_min=search_lon_min,
+            search_lon_max=search_lon_max,
         )
 
         self.data = DataHandler(config=self.config)
@@ -237,6 +252,24 @@ class EventLocator:
             Weight factor at distance_weight_start_km. Default is 0.99.
         weight_end : float, optional
             Weight factor at distance_weight_end_km. Default is 0.01.
+        residual_weighting_iteration : Optional[int], optional
+            1-based outer iteration at which HypoInverse-style residual weighting
+            begins. ``None`` disables residual weighting. Default is None.
+            Matching HypoInverse ``RMS 4 0.1 1 3`` uses
+            ``residual_weighting_iteration=4``, ``residual_rms_floor_s=0.1``,
+            ``residual_full_weight_factor=1``, ``residual_zero_weight_factor=3``.
+            Residual weights are recomputed each iteration and do not
+            permanently remove picks.
+        residual_rms_floor_s : float, optional
+            Floor (seconds) on the weighted RMS used to set residual-weight
+            thresholds (HypoInverse ``RMSCUT``). Default is 0.1.
+        residual_full_weight_factor : float, optional
+            Full-weight residual threshold as a multiple of the floored RMS
+            (HypoInverse ``RMSW1``). Default is 1.0.
+        residual_zero_weight_factor : float, optional
+            Zero-weight residual threshold as a multiple of the floored RMS
+            (HypoInverse ``RMSW2``). Must be greater than
+            ``residual_full_weight_factor``. Default is 3.0.
         full_data_covariance : bool, optional
             If True, compute event uncertainty using a correlated observation
             covariance model instead of diagonal row weighting. Default is False.

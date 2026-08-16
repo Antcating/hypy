@@ -50,8 +50,16 @@ class LayeredPropagationEngine(PropagationEngine):
         phase: str,
         delta: float | None = None,
         derivative_method: str = "analytical",
-    ) -> tuple[float, float, tuple[float, float, float, float]]:
-        """Return distance, travel time, and derivatives for a source/receiver pair."""
+    ) -> tuple[
+        float,
+        float | None,
+        tuple[float | None, float | None, float | None, float | None],
+    ]:
+        """Return distance, travel time, and derivatives for a source/receiver pair.
+
+        When the path exceeds the engine's tabulated/configured distance limit,
+        ``travel_time`` and the derivative tuple entries are ``None``.
+        """
         arc_distance_km, travel_time_s, takeoff_angle_deg, azimuth_deg = (
             self.get_arrival(
                 source_latitude=source_latitude,
@@ -61,8 +69,12 @@ class LayeredPropagationEngine(PropagationEngine):
                 receiver_longitude=receiver_longitude,
                 receiver_elevation_m=receiver_elevation_m,
                 phase=phase,
+                max_distance_km=self.max_distance_km,
             )
         )
+
+        if travel_time_s is None:
+            return arc_distance_km, None, (None, None, None, None)
 
         dt_dr, dt_dx, dt_dy, dt_dz = self.compute_derivatives(
             arc_distance_km=arc_distance_km,

@@ -60,7 +60,47 @@ class LocatorConfig:
     # Note: for now, only 4D is supported,
     # but this could be made flexible in the future if needed.
     dim: int = 4
+    # Optional geographic box that constrains event epicenters during both
+    # location seeding and inversion iterations. Either all four bounds are
+    # set, or all are None (then seeding falls back to a station envelope and
+    # iterations are unconstrained horizontally).
+    search_lat_min: Optional[float] = None
+    search_lat_max: Optional[float] = None
+    search_lon_min: Optional[float] = None
+    search_lon_max: Optional[float] = None
     n_phases: int = field(init=False)
+
+    @property
+    def search_bounds(
+        self,
+    ) -> Optional[tuple[float, float, float, float]]:
+        """Return ``(lat_min, lat_max, lon_min, lon_max)`` or ``None``."""
+        bounds = (
+            self.search_lat_min,
+            self.search_lat_max,
+            self.search_lon_min,
+            self.search_lon_max,
+        )
+        if all(b is None for b in bounds):
+            return None
+        assert all(b is not None for b in bounds)
+        return (
+            float(self.search_lat_min),  # type: ignore[arg-type]
+            float(self.search_lat_max),  # type: ignore[arg-type]
+            float(self.search_lon_min),  # type: ignore[arg-type]
+            float(self.search_lon_max),  # type: ignore[arg-type]
+        )
+
+    def clamp_horizontal(self, lat: float, lon: float) -> tuple[float, float]:
+        """Clamp an epicenter into the configured search box when set."""
+        bounds = self.search_bounds
+        if bounds is None:
+            return float(lat), float(lon)
+        lat_min, lat_max, lon_min, lon_max = bounds
+        return (
+            min(max(float(lat), lat_min), lat_max),
+            min(max(float(lon), lon_min), lon_max),
+        )
 
     def __post_init__(self) -> None:
         """Compute derived values and validate post-init constraints."""
@@ -87,8 +127,31 @@ class LocatorConfig:
         if self.min_picks_per_event <= 0:
             raise ValueError("min_picks_per_event must be > 0.")
 
+        self._validate_search_bounds()
+
         # Validate derivative method
         self.validate_derivative_method()
+
+    def _validate_search_bounds(self) -> None:
+        """Require search lat/lon bounds to be all set or all ``None``."""
+        bounds = (
+            self.search_lat_min,
+            self.search_lat_max,
+            self.search_lon_min,
+            self.search_lon_max,
+        )
+        n_set = sum(b is not None for b in bounds)
+        if n_set == 0:
+            return
+        if n_set != 4:
+            raise ValueError(
+                "search_lat_min/search_lat_max/search_lon_min/search_lon_max "
+                "must all be set or all be None."
+            )
+        if self.search_lat_min >= self.search_lat_max:  # type: ignore[operator]
+            raise ValueError("search_lat_min must be < search_lat_max.")
+        if self.search_lon_min >= self.search_lon_max:  # type: ignore[operator]
+            raise ValueError("search_lon_min must be < search_lon_max.")
 
     def validate_derivative_method(self) -> None:
         """Validate the derivative method and normalize it to lowercase."""
