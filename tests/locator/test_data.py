@@ -1,130 +1,37 @@
 import logging
 
 import numpy as np
+import pandas as pd
 import pytest
 from obspy import UTCDateTime  # type: ignore[import-untyped]
-from obspy.core.event import (  # type: ignore[import-untyped]
-    Event,
-    Origin,
-    Pick,
-    WaveformStreamID,
-)
-from obspy.core.event.base import QuantityError  # type: ignore[import-untyped]
-from obspy.core.inventory import (  # type: ignore[import-untyped]
-    Inventory,
-    Network,
-    Site,
-    Station,
-)
+from obspy.core.event import Event  # type: ignore[import-untyped]
 
 from hypy.locator.config import LocatorConfig
 from hypy.locator.data import DataHandler
 from hypy.utils.weighting import time_error_weight
 
+from ..support import build_inventory, build_pick
+
 
 def make_handler(
     phases,
     min_picks_per_event,
-    default_time_error,
-    dim=4,
+    time_error_floor_s,
     fix_depth_km=None,
 ):
     """Build a DataHandler backed by a minimal LocatorConfig for tests."""
     config = LocatorConfig(
         phases=phases,
         min_picks_per_event=min_picks_per_event,
-        default_time_error=default_time_error,
+        time_error_floor_s=time_error_floor_s,
         derivative_method="numerical",
         fix_depth_km=fix_depth_km,
-        precalculate_velocities=False,
-        dim=dim,
     )
     return DataHandler(config=config)
 
 
-def build_inventory(stations):
-    net = Network(code="NW")
-    for code, (lat, lon, elev) in stations.items():
-        net.stations.append(
-            Station(
-                code=code,
-                latitude=lat,
-                longitude=lon,
-                elevation=elev,
-                site=Site(name=code),
-            )
-        )
-    return Inventory(networks=[net], source="test")
-
-
-def build_pick(station_code, phase, t, uncertainty=0.2, network_code="NW"):
-    return Pick(
-        time=t,
-        phase_hint=phase,
-        waveform_id=WaveformStreamID(
-            network_code=network_code,
-            station_code=station_code,
-            channel_code="HHZ",
-        ),
-        time_errors=QuantityError(uncertainty=uncertainty),
-    )
-
-
-def build_event(picks, origin_depth_type=None):
-    event = Event(picks=picks)
-    if origin_depth_type is not None:
-        event.origins = [Origin(depth_type=origin_depth_type)]
-    return event
-
-
-@pytest.mark.parametrize(
-    "attr",
-    [
-        "fix_depth_km",
-        "min_picks_per_event",
-        "default_time_error",
-        "dim",
-        "phases",
-        "n_phases",
-    ],
-)
-def test_data_handler_raises_for_missing_config(attr):
-    handler = DataHandler(config=None)
-    with pytest.raises(ValueError, match="Config is not loaded yet."):
-        getattr(handler, attr)
-
-
-def test_data_handler_validates_config():
-    config = LocatorConfig(
-        phases=("P",),
-        min_picks_per_event=2,
-        default_time_error=0.1,
-        derivative_method="numerical",
-        fix_depth_km=None,
-        precalculate_velocities=False,
-    )
-    handler = DataHandler(config=config)
-    assert handler.config is config
-    assert handler.fix_depth_km is None
-    assert handler.min_picks_per_event == 2
-    assert handler.default_time_error == 0.1
-    assert handler.dim == 4
-    assert handler.phases == ("p",)
-    assert handler.n_phases == 1
-
-
-def test_data_handler_lowercases_phases():
-    config = LocatorConfig(
-        phases=("P", "S"),
-        min_picks_per_event=2,
-        default_time_error=0.1,
-        derivative_method="numerical",
-        fix_depth_km=None,
-        precalculate_velocities=False,
-    )
-    handler = DataHandler(config=config)
-    assert handler.phases == ("p", "s")
-    assert handler.n_phases == 2
+def build_event(picks):
+    return Event(picks=picks)
 
 
 def test_load_data_raises_for_insufficient_picks():
@@ -135,8 +42,7 @@ def test_load_data_raises_for_insufficient_picks():
     handler = make_handler(
         phases=("P",),
         min_picks_per_event=2,
-        default_time_error=0.1,
-        dim=4,
+        time_error_floor_s=0.1,
     )
 
     with pytest.raises(ValueError, match="required picks/event"):
@@ -157,8 +63,7 @@ def test_load_data_warns_for_missing_inventory_entry(caplog, monkeypatch):
     handler = make_handler(
         phases=("P",),
         min_picks_per_event=1,
-        default_time_error=0.1,
-        dim=4,
+        time_error_floor_s=0.1,
     )
 
     with caplog.at_level(logging.WARNING, logger="hypy"):
@@ -170,7 +75,7 @@ def test_load_data_warns_for_missing_inventory_entry(caplog, monkeypatch):
     assert handler.stations_locations.shape == (1, 3)
 
 
-def test_fixed_depth_mask_respects_global_fix_depth():
+def test_fixed_depth_mask_and_global_fix_depth():
     inventory = build_inventory({"STA1": (0.0, 0.0, 0.0), "STA2": (1.0, 1.0, 0.0)})
     t0 = UTCDateTime(2024, 1, 1)
 
@@ -178,8 +83,7 @@ def test_fixed_depth_mask_respects_global_fix_depth():
         [
             build_pick("STA1", "P", t0 + 1),
             build_pick("STA2", "P", t0 + 2),
-        ],
-        origin_depth_type="operator assigned",
+        ]
     )
     ev2 = build_event(
         [
@@ -191,21 +95,22 @@ def test_fixed_depth_mask_respects_global_fix_depth():
     handler = make_handler(
         phases=("P",),
         min_picks_per_event=1,
-        default_time_error=0.1,
-        dim=4,
+        time_error_floor_s=0.1,
     )
-    handler.load_data(inventory, [ev1, ev2])
+    handler.load_data(inventory, [ev1, ev2], fixed_depth_mask=[True, False])
     assert handler.fixed_depth_mask == [True, False]
 
     fixed_handler = make_handler(
         phases=("P",),
         min_picks_per_event=1,
-        default_time_error=0.1,
-        dim=4,
+        time_error_floor_s=0.1,
         fix_depth_km=5.0,
     )
-    fixed_handler.load_data(inventory, [ev1, ev2])
+    fixed_handler.load_data(inventory, [ev1, ev2], fixed_depth_mask=[False, False])
     assert fixed_handler.fixed_depth_mask == [True, True]
+
+    with pytest.raises(ValueError, match="one boolean per event"):
+        handler.load_data(inventory, [ev1, ev2], fixed_depth_mask=[True])
 
 
 def test_load_event_data_shapes():
@@ -224,8 +129,7 @@ def test_load_event_data_shapes():
     handler = make_handler(
         phases=("P", "S"),
         min_picks_per_event=1,
-        default_time_error=0.1,
-        dim=4,
+        time_error_floor_s=0.1,
     )
     handler.load_data(inventory, [event])
 
@@ -239,6 +143,8 @@ def test_load_event_data_shapes():
     assert handler.origin_times.shape == (1,)
     assert handler.time_refs.shape == (1,)
     assert handler.invalid_events.shape == (1,)
+    assert handler.station_time_corrections.shape == (6,)
+    np.testing.assert_array_equal(handler.station_time_corrections, np.zeros(6))
 
 
 def test_event_skipped_due_to_insufficient_picks(caplog, monkeypatch):
@@ -257,10 +163,9 @@ def test_event_skipped_due_to_insufficient_picks(caplog, monkeypatch):
     handler = make_handler(
         phases=("P", "S"),
         min_picks_per_event=3,
-        default_time_error=0.1,
-        dim=4,
+        time_error_floor_s=0.1,
     )
-    with caplog.at_level(logging.WARNING, logger="hypy"):
+    with caplog.at_level(logging.DEBUG, logger="hypy"):
         handler.load_data(inventory, [event_invalid, event_valid])
 
     assert "only 1 picks < 3 required" in caplog.text
@@ -270,27 +175,35 @@ def test_event_skipped_due_to_insufficient_picks(caplog, monkeypatch):
 
 
 def test_event_skipped_if_no_matching_phase(caplog, monkeypatch):
+    """Unrecognized ``phase_hint`` values are dropped, not fatal."""
     monkeypatch.setattr(logging.getLogger("hypy"), "propagate", True)
     inventory = build_inventory({"STA1": (0.0, 0.0, 0.0), "STA2": (0.0, 1.0, 0.0)})
     t0 = UTCDateTime(2024, 1, 1)
-    event = build_event(
+    event_unmatched = build_event(
         [
             build_pick("STA1", "X", t0 + 1),
             build_pick("STA2", "Y", t0 + 2),
+        ]
+    )
+    # A loadable companion event, so the dataset still has usable stations.
+    event_valid = build_event(
+        [
+            build_pick("STA1", "P", t0 + 3),
+            build_pick("STA2", "P", t0 + 4),
         ]
     )
 
     handler = make_handler(
         phases=("P", "S"),
         min_picks_per_event=1,
-        default_time_error=0.1,
-        dim=4,
+        time_error_floor_s=0.1,
     )
     with caplog.at_level(logging.WARNING, logger="hypy"):
-        handler.load_data(inventory, [event])
+        handler.load_data(inventory, [event_unmatched, event_valid])
 
-    assert "Skipping pick NW.STA1 X: phase not in ('p', 's')" in caplog.text
+    assert "Skipping pick NW.STA1 'X': phase not in ('p', 's')" in caplog.text
     assert bool(handler.invalid_events[0]) is True
+    assert bool(handler.invalid_events[1]) is False
     assert handler.time_refs[0] == 0.0
 
 
@@ -316,13 +229,12 @@ def test_event_skipped_due_to_insufficient_unique_stations(caplog, monkeypatch):
     handler = make_handler(
         phases=("P", "S"),
         min_picks_per_event=3,
-        default_time_error=0.1,
-        dim=4,
+        time_error_floor_s=0.1,
     )
-    with caplog.at_level(logging.WARNING, logger="hypy"):
+    with caplog.at_level(logging.DEBUG, logger="hypy"):
         handler.load_data(inventory, [event_invalid, event_valid])
 
-    assert "only 1 stations with picks." in caplog.text
+    assert "only 2 usable station-phase picks < 3 required" in caplog.text
     assert bool(handler.invalid_events[0]) is True
     assert bool(handler.invalid_events[1]) is False
 
@@ -342,11 +254,10 @@ def test_event_handler_manages_time_errors(caplog, monkeypatch):
     handler = make_handler(
         phases=("P", "S"),
         min_picks_per_event=1,
-        default_time_error=0.2,
-        dim=4,
+        time_error_floor_s=0.2,
     )
 
-    with caplog.at_level(logging.WARNING, logger="hypy"):
+    with caplog.at_level(logging.DEBUG, logger="hypy"):
         handler.load_data(inventory, [event])
 
     assert bool(handler.invalid_events[0]) is False
@@ -384,10 +295,60 @@ def test_event_deepcopies_on_load():
     handler = make_handler(
         phases=("P",),
         min_picks_per_event=1,
-        default_time_error=0.1,
-        dim=4,
+        time_error_floor_s=0.1,
     )
     handler.load_data(inventory, events)
 
     assert handler.events is not events
     assert handler.events[0] is not events[0]
+
+
+def test_load_data_applies_station_time_corrections(caplog, monkeypatch):
+    """``load_data`` fills the correction vector without mutating arrivals."""
+    monkeypatch.setattr(logging.getLogger("hypy"), "propagate", True)
+    inventory = build_inventory({"STA1": (0.0, 0.0, 0.0), "STA2": (1.0, 1.0, 0.0)})
+    t0 = UTCDateTime(2024, 1, 1)
+    event = build_event(
+        [
+            build_pick("STA1", "P", t0 + 10, uncertainty=0.2),
+            build_pick("STA1", "S", t0 + 20, uncertainty=0.2),
+            build_pick("STA2", "P", t0 + 14, uncertainty=0.2),
+            build_pick("STA2", "S", t0 + 24, uncertainty=0.2),
+        ]
+    )
+    handler = make_handler(
+        phases=("P", "S"),
+        min_picks_per_event=1,
+        time_error_floor_s=0.1,
+    )
+    with caplog.at_level(logging.WARNING, logger="hypy"):
+        handler.load_data(
+            inventory,
+            [event],
+            station_time_corrections=pd.DataFrame(
+                [
+                    {"network": "NW", "station": "STA1", "delay_s": 0.10},
+                    {
+                        "network": "NW",
+                        "station": "STA1",
+                        "phase": "S",
+                        "delay_s": 0.25,
+                    },
+                    {"network": "ZZ", "station": "GONE", "delay_s": 0.40},
+                ]
+            ),
+        )
+
+    # Column order is station-major: STA1-P, STA1-S, STA2-P, STA2-S.
+    np.testing.assert_allclose(handler.station_time_corrections, [0.10, 0.25, 0.0, 0.0])
+    assert "GONE" in caplog.text
+
+    arrivals_before = handler.arrivals.copy()
+    handler.theoretical_travel_times[:] = 1.0
+    handler.origin_times[:] = 0.0
+    residuals = handler.observation_residuals()
+    np.testing.assert_allclose(
+        residuals[0],
+        arrivals_before[0] - 1.0 - handler.station_time_corrections,
+    )
+    np.testing.assert_allclose(handler.arrivals, arrivals_before)

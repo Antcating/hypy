@@ -113,9 +113,9 @@ def make_single_event(model, stations, phases, true_loc, true_t, pick_uncertaint
 
     phase_map = []
     if "P" in phases:
-        phase_map.extend(["p", "P"])
+        phase_map.extend(["ttp"])
     if "S" in phases:
-        phase_map.extend(["s", "S"])
+        phase_map.extend(["tts"])
 
     for sta, (sta_lat, sta_lon, elev) in stations.items():
         arrivals = model.get_travel_times_geo(
@@ -306,7 +306,7 @@ def make_taup_travel_time_grid(model_path, phases):
         max_distance_km=300.0,
         depth_step_km=1.0,
         distance_step_km=1.0,
-        engine="taup",
+        tracer=TauPRayTracer(model),
     )
 
 
@@ -325,7 +325,7 @@ def make_pyrocko_travel_time_grid(model_path, phases):
         max_distance_km=300.0,
         depth_step_km=1.0,
         distance_step_km=1.0,
-        engine="pyrocko",
+        tracer=PyrockoRayTracer(model),
     )
 
 
@@ -335,10 +335,10 @@ def make_fmm_travel_time_grid(model_path, phases):
     return FmmTravelTimeGrid1D(
         model=model,
         phases=phases,
-        max_depth=50.0,
-        max_distance=300.0,
-        depth_step=1.0,
-        distance_step=1.0,
+        max_depth_km=50.0,
+        max_distance_km=300.0,
+        depth_step_km=1.0,
+        distance_step_km=1.0,
     )
 
 
@@ -356,9 +356,9 @@ DERIVATIVE_METHODS_BY_FORWARD_ENGINE = {
     # Adjust this if your implementation supports fewer/more combinations.
     "local_ray_tracer": ["numerical", "analytical"],
     "taup_ray_tracer": ["numerical", "analytical"],
-    "taup_travel_time_grid": ["numerical"],
+    "taup_travel_time_grid": ["numerical", "analytical"],
     "pyrocko_ray_tracer": ["numerical", "analytical"],
-    "pyrocko_travel_time_grid": ["numerical"],
+    "pyrocko_travel_time_grid": ["numerical", "analytical"],
     "fmm_travel_time_grid": ["numerical"],
 }
 
@@ -581,12 +581,9 @@ def test_event_location_vs_geometry(
     forward_engine = forward_engine_factory(model_path, phases)
 
     locator = EventLocator(
+        phases=phases,
         propagation_engine=forward_engine,
         derivative_method=derivative_method,
-        distance_weight_start_km=100.0,
-        distance_weight_end_km=200.0,
-        full_data_covariance=False,
-        correlation_length_km=1.0,
         log_level="INFO",
     )
 
@@ -595,7 +592,10 @@ def test_event_location_vs_geometry(
     out, invalid = locator.locate(
         max_iterations=1000,
         trial_depth_km=5.0,
-        solver="lsqr",
+        distance_weight_start_km=100.0,
+        distance_weight_end_km=200.0,
+        full_data_covariance=False,
+        correlation_length_km=1.0,
     )
 
     assert invalid.size == 0

@@ -1,57 +1,43 @@
 """Derivative assembly for location inversion."""
 
-from typing import Union
-
 import numpy as np
 
-from hypy.logger import logger  # type: ignore[import-not-found]
-
+from ..logger import logger
 from ..propagation import PropagationEngine
 from ..utils.weighting import distance_weight
 from .config import LocatorConfig, RunConfig
 from .data import DataHandler
+from .types import DIM
 
 
 class DerivativesHandler:
-    """Compute travel time derivatives for seismic event location."""
+    """Compute travel times and spatial derivatives for event location."""
 
     def __init__(
         self,
         config: LocatorConfig,
         data: DataHandler,
-        tracer: PropagationEngine,
+        propagation_engine: PropagationEngine,
     ) -> None:
         self.config = config
         self.data = data
-        self.tracer = tracer
+        self.propagation_engine = propagation_engine
 
     def derive_travel_time_param(
         self,
-        event_location: "tuple[float, float, float]",  # (lat, lon, depth_km)
-        station_location: "tuple[float, float, float]",  # (lat, lon, elev_m)
+        event_location: tuple[float, float, float],
+        station_location: tuple[float, float, float],
         phase: str,
-    ) -> "tuple[float, Union[float, None], tuple[Union[float, None], Union[float, None], Union[float, None], Union[float, None]]]":  # noqa: E501
-        """
-        Compute travel time params for a given event-station pair and phase.
-
-        Parameters
-        ----------
-        event_location : tuple of float
-            (latitude, longitude, depth_km) of the event.
-        station_location : tuple of float
-            (latitude, longitude, elevation_m) of the station.
-        phase : str
-            Seismic phase name (e.g., 'P', 'S').
-
-        Returns
-        -------
-        (distance_km, travel_time, (dt_dr, dt_dx, dt_dy, dt_dz))
-            If the path exceeds max_distance, travel_time and derivatives are None.
-        """
+    ) -> tuple[
+        float,
+        float | None,
+        tuple[float | None, float | None, float | None, float | None],
+    ]:
+        """Return distance, travel time, and derivatives for one observation."""
         ev_lat, ev_lon, ev_depth_km = event_location
         st_lat, st_lon, st_elev_m = station_location
 
-        return self.tracer.compute_travel_time_params(
+        return self.propagation_engine.compute_travel_time_params(
             source_latitude=ev_lat,
             source_longitude=ev_lon,
             source_depth_km=ev_depth_km,
@@ -63,108 +49,305 @@ class DerivativesHandler:
             derivative_method=self.config.derivative_method,
         )
 
-    def build_derivative_matrix(
-        self, data: DataHandler, config: LocatorConfig, run_config: RunConfig
+    def _build_table(
+        self,
+        data: DataHandler,
+        config: LocatorConfig,
+        run_config: RunConfig,
     ) -> np.ndarray:
-        """Build the global derivative matrix for all events, stations, and phases.
-
-        Returns
-        -------
-        np.ndarray
-            Array of row indices corresponding to valid observations used in the matrix.
-        """
-        # Reset per-iteration inversion state so skipped stations are zeroed out.
-        data.jacobian_matrix[:] = 0.0
-        data.theoretical_travel_times[:] = 0.0
-        if run_config.distance_weighting_enabled:
-            data.distance_W[:] = 0.0
-        else:
-            data.distance_W[:] = 1.0
-
-        observed_mask = ~np.isnan(data.arrivals)
-        valid_row_mask = np.zeros(data.jacobian_matrix.shape[0], dtype=bool)
+        observed = ~np.isnan(data.arrivals)
+        valid_rows = np.zeros(data.jacobian_matrix.shape[0], dtype=bool)
+        n_obs = data.n_stations * config.n_phases
 
         for event_index in range(data.n_events):
-            # Skip invalid events
             if data.invalid_events[event_index]:
                 continue
 
-            # Column block start for this event in the global design matrix
-            col0 = event_index * config.dim
-            ev_lat, ev_lon, ev_depth_km = data.locations[event_index]
+            event_location = tuple(data.locations[event_index])
+            event_row0 = event_index * n_obs
+            col0 = event_index * DIM
+            skipped = 0
 
-            for station_index in range(data.n_stations):
-                st_lat, st_lon, st_elev_m = data.stations_locations[station_index]
-                station_obs_start = station_index * config.n_phases
-                station_obs_end = station_obs_start + config.n_phases
-                observed_for_station = observed_mask[
-                    event_index, station_obs_start:station_obs_end
-                ]
-                if not observed_for_station.any():
+            for obs_col in np.flatnonzero(observed[event_index]):
+                station_index, phase_index = divmod(int(obs_col), config.n_phases)
+                phase = config.phases[phase_index]
+                station_location = tuple(data.stations_locations[station_index])
+                row = event_row0 + obs_col
+
+                distance_km, travel_time, (_, dt_dx, dt_dy, dt_dz) = (
+                    self.derive_travel_time_param(
+                        event_location,
+                        station_location,
+                        phase,
+                    )
+                )
+
+                if travel_time is None:
+                    skipped += 1
+                    data.distance_W[row] = 0.0
                     continue
 
-                for phase_index, phase_name in enumerate(config.phases):
-                    if not observed_for_station[phase_index]:
-                        continue
+                if (
+                    dt_dx is None
+                    or dt_dy is None
+                    or dt_dz is None
+                    or not np.isfinite(dt_dx)
+                    or not np.isfinite(dt_dy)
+                    or not np.isfinite(dt_dz)
+                ):
+                    logger.warning(
+                        "Skipping event %d, station %s, phase %s: "
+                        "invalid derivatives computed.",
+                        event_index,
+                        data.stations[station_index],
+                        phase,
+                    )
+                    data.distance_W[row] = 0.0
+                    continue
 
-                    obs_col = station_obs_start + phase_index
-                    row_index = (
-                        event_index * (data.n_stations * config.n_phases) + obs_col
+                data.theoretical_travel_times[event_index, obs_col] = travel_time
+                data.jacobian_matrix[row, col0] = dt_dy
+                data.jacobian_matrix[row, col0 + 1] = dt_dx
+                if not data.fixed_depth_mask[event_index]:
+                    data.jacobian_matrix[row, col0 + 2] = dt_dz
+                data.jacobian_matrix[row, col0 + 3] = 1.0
+
+                if run_config.distance_weighting_enabled:
+                    data.distance_W[row] = distance_weight(
+                        distance_km,
+                        k=run_config.k,
+                        x0=run_config.x0,
                     )
 
-                    distance_km, theoretical_travel_time, (_, dt_dx, dt_dy, dt_dz) = (
-                        self.derive_travel_time_param(
-                            (ev_lat, ev_lon, ev_depth_km),
-                            (st_lat, st_lon, st_elev_m),
-                            phase_name,
-                        )
+                valid_rows[row] = True
+
+            if skipped:
+                logger.warning(
+                    "Event %d: skipped %d station-phase observation(s) beyond "
+                    "the propagation engine range (or with failed travel times).",
+                    event_index,
+                    skipped,
+                )
+
+        return np.flatnonzero(valid_rows)
+
+    def _build_table_batch(
+        self,
+        data: DataHandler,
+        config: LocatorConfig,
+        run_config: RunConfig,
+    ) -> np.ndarray:
+        observed = ~np.isnan(data.arrivals)
+        valid_rows = np.zeros(data.jacobian_matrix.shape[0], dtype=bool)
+        n_obs = data.n_stations * config.n_phases
+
+        station_lats = np.asarray(data.stations_locations[:, 0], dtype=np.float64)
+        station_lons = np.asarray(data.stations_locations[:, 1], dtype=np.float64)
+        station_elevs = np.asarray(data.stations_locations[:, 2], dtype=np.float64)
+
+        for event_index in range(data.n_events):
+            if data.invalid_events[event_index]:
+                continue
+
+            event_lat, event_lon, event_depth_km = data.locations[event_index]
+            event_row0 = event_index * n_obs
+            col0 = event_index * DIM
+
+            for phase_index, phase in enumerate(config.phases):
+                obs_cols = np.arange(
+                    phase_index,
+                    n_obs,
+                    config.n_phases,
+                    dtype=np.int64,
+                )
+                observed_mask = observed[event_index, obs_cols]
+                if not observed_mask.any():
+                    continue
+
+                distances, travel_times, _dt_dr, dt_dx, dt_dy, dt_dz = (
+                    self.propagation_engine.compute_travel_time_params_batch(
+                        source_latitude=float(event_lat),
+                        source_longitude=float(event_lon),
+                        source_depth_km=float(event_depth_km),
+                        receiver_latitude=station_lats,
+                        receiver_longitude=station_lons,
+                        receiver_elevation_m=station_elevs,
+                        phase=phase,
+                        delta=float(config.derivative_delta_km),
+                        derivative_method=config.derivative_method,
                     )
-                    if theoretical_travel_time is None:
-                        data.theoretical_travel_times[event_index, obs_col] = 0.0
-                        data.jacobian_matrix[row_index, :] = 0.0
-                        data.distance_W[row_index] = 0.0
-                        continue
+                )
 
-                    derivatives = (dt_dx, dt_dy, dt_dz)
-                    if any(v is None for v in derivatives) or any(
-                        np.isnan(v) for v in derivatives if v is not None
-                    ):
-                        logger.warning(
-                            "Skipping event %d, station %s, phase %s: invalid derivatives computed.",  # noqa: E501
-                            event_index,
-                            data.stations[station_index],
-                            phase_name,
-                        )
-                        data.theoretical_travel_times[event_index, obs_col] = 0.0
-                        data.jacobian_matrix[row_index, :] = 0.0
-                        data.distance_W[row_index] = 0.0
-                        continue
+                finite = (
+                    observed_mask
+                    & np.isfinite(travel_times)
+                    & np.isfinite(dt_dx)
+                    & np.isfinite(dt_dy)
+                    & np.isfinite(dt_dz)
+                )
+                if not finite.any():
+                    continue
 
-                    data.theoretical_travel_times[event_index, obs_col] = (
-                        theoretical_travel_time
+                rows = event_row0 + obs_cols[finite]
+                active_obs_cols = obs_cols[finite]
+                active_distances = distances[finite]
+
+                data.theoretical_travel_times[event_index, active_obs_cols] = (
+                    travel_times[finite]
+                )
+                data.jacobian_matrix[rows, col0] = dt_dy[finite]
+                data.jacobian_matrix[rows, col0 + 1] = dt_dx[finite]
+                if not data.fixed_depth_mask[event_index]:
+                    data.jacobian_matrix[rows, col0 + 2] = dt_dz[finite]
+                data.jacobian_matrix[rows, col0 + 3] = 1.0
+
+                if run_config.distance_weighting_enabled:
+                    data.distance_W[rows] = distance_weight(
+                        active_distances,
+                        k=run_config.k,
+                        x0=run_config.x0,
                     )
 
-                    if run_config.distance_weighting_enabled:
-                        data.distance_W[row_index] = distance_weight(
-                            distance_km, k=run_config.k, x0=run_config.x0
-                        )
+                valid_rows[rows] = True
 
-                    data.jacobian_matrix[row_index, col0 + 0] = dt_dy  # type: ignore[index]
-                    data.jacobian_matrix[row_index, col0 + 1] = dt_dx
-                    if not data.fixed_depth_mask[event_index]:
-                        data.jacobian_matrix[row_index, col0 + 2] = dt_dz
-                    data.jacobian_matrix[row_index, col0 + 3] = 1.0  # dt/dt
+        return np.flatnonzero(valid_rows)
 
-                    valid_row_mask[row_index] = True
+    def refresh_ttt(
+        self,
+        data: DataHandler,
+        config: LocatorConfig,
+    ) -> np.ndarray:
+        observed = ~np.isnan(data.arrivals)
+        valid_rows = np.zeros(data.jacobian_matrix.shape[0], dtype=bool)
+        n_obs = data.n_stations * config.n_phases
+        data.theoretical_travel_times.fill(np.nan)
+        max_distance_km = getattr(self.propagation_engine, "max_distance_km", None)
 
-        valid_row_indices_arr = np.flatnonzero(valid_row_mask)
-        if valid_row_indices_arr.size > 0:
-            obs_cols = valid_row_indices_arr % (data.n_stations * config.n_phases)
+        for event_index in range(data.n_events):
+            if data.invalid_events[event_index]:
+                continue
+
+            event_lat, event_lon, event_depth_km = data.locations[event_index]
+            event_row0 = event_index * n_obs
+
+            for obs_col in np.flatnonzero(observed[event_index]):
+                station_index, phase_index = divmod(int(obs_col), config.n_phases)
+                station_lat, station_lon, station_elev_m = data.stations_locations[
+                    station_index
+                ]
+                _distance, travel_time, _takeoff, _azimuth = (
+                    self.propagation_engine.get_arrival(
+                        source_latitude=float(event_lat),
+                        source_longitude=float(event_lon),
+                        source_depth_km=float(event_depth_km),
+                        receiver_latitude=float(station_lat),
+                        receiver_longitude=float(station_lon),
+                        receiver_elevation_m=float(station_elev_m),
+                        phase=config.phases[phase_index],
+                        max_distance_km=max_distance_km,
+                    )
+                )
+                if travel_time is None or not np.isfinite(travel_time):
+                    continue
+                data.theoretical_travel_times[event_index, obs_col] = travel_time
+                valid_rows[event_row0 + obs_col] = True
+
+        return np.flatnonzero(valid_rows)
+
+    def refresh_ttt_batch(
+        self,
+        data: DataHandler,
+        config: LocatorConfig,
+    ) -> np.ndarray:
+        """Refresh predicted travel times with ``get_arrival_batch``."""
+        observed = ~np.isnan(data.arrivals)
+        valid_rows = np.zeros(data.jacobian_matrix.shape[0], dtype=bool)
+        n_obs = data.n_stations * config.n_phases
+
+        station_lats = np.asarray(data.stations_locations[:, 0], dtype=np.float64)
+        station_lons = np.asarray(data.stations_locations[:, 1], dtype=np.float64)
+        station_elevs = np.asarray(data.stations_locations[:, 2], dtype=np.float64)
+
+        data.theoretical_travel_times.fill(np.nan)
+
+        for event_index in range(data.n_events):
+            if data.invalid_events[event_index]:
+                continue
+
+            event_lat, event_lon, event_depth_km = data.locations[event_index]
+            event_row0 = event_index * n_obs
+
+            for phase_index, phase in enumerate(config.phases):
+                obs_cols = np.arange(
+                    phase_index,
+                    n_obs,
+                    config.n_phases,
+                    dtype=np.int64,
+                )
+                observed_mask = observed[event_index, obs_cols]
+                if not observed_mask.any():
+                    continue
+
+                station_indices = np.flatnonzero(observed_mask)
+                _distances, travel_times, _takeoffs, _azimuths = (
+                    self.propagation_engine.get_arrival_batch(
+                        source_latitude=float(event_lat),
+                        source_longitude=float(event_lon),
+                        source_depth_km=float(event_depth_km),
+                        receiver_latitude=station_lats[station_indices],
+                        receiver_longitude=station_lons[station_indices],
+                        receiver_elevation_m=station_elevs[station_indices],
+                        phase=phase,
+                    )
+                )
+
+                finite = np.isfinite(travel_times)
+                if not finite.any():
+                    continue
+
+                active_obs_cols = obs_cols[station_indices[finite]]
+                data.theoretical_travel_times[event_index, active_obs_cols] = (
+                    travel_times[finite]
+                )
+                valid_rows[event_row0 + active_obs_cols] = True
+
+        return np.flatnonzero(valid_rows)
+
+    def build_derivative_matrix(
+        self,
+        data: DataHandler,
+        config: LocatorConfig,
+        run_config: RunConfig,
+    ) -> np.ndarray:
+        """Fill the Jacobian and theoretical travel times for all events."""
+        data.jacobian_matrix.fill(0.0)
+        data.theoretical_travel_times.fill(0.0)
+        data.distance_W.fill(0.0 if run_config.distance_weighting_enabled else 1.0)
+
+        if self.propagation_engine.supports_feature("derivative.batch"):
+            valid_rows = self._build_table_batch(data, config, run_config)
+        else:
+            valid_rows = self._build_table(data, config, run_config)
+
+        if valid_rows.size:
+            n_obs = data.n_stations * config.n_phases
+            obs_cols = valid_rows % n_obs
             station_indices = np.unique(obs_cols // config.n_phases)
             logger.debug(
                 "Using %d stations (%d obs) in current derivative build.",
                 station_indices.size,
-                valid_row_indices_arr.size,
+                valid_rows.size,
             )
 
-        return valid_row_indices_arr
+        return valid_rows
+
+    def refresh_theoretical_travel_times(
+        self,
+        data: DataHandler,
+        config: LocatorConfig,
+        run_config: RunConfig,
+    ) -> np.ndarray:
+        """Refresh predicted travel times without rebuilding derivatives."""
+        if self.propagation_engine.supports_feature("derivative.batch"):
+            return self.refresh_ttt_batch(data, config)
+        return self.refresh_ttt(data, config)

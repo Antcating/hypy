@@ -16,7 +16,6 @@ from hypy.locator.errors import (
     covariance_from_design,
     data_variance,
     ellipsoid_axes,
-    filter_input_rows,
     whiten_design,
 )
 from hypy.locator.types import InversionResults
@@ -55,32 +54,12 @@ def _build_single_event_inputs(
             n_stations=n_stations,
             invalid_events=np.array([False], dtype=bool),
             arrival_time_errors=np.full((1, n_stations * n_phases), 0.1, dtype=float),
-            station_distances_km=np.zeros((n_stations, n_stations), dtype=float),
+            stations_locations=np.zeros((n_stations, 3), dtype=float),
+            distance_W=np.ones(n_stations * n_phases, dtype=float),
+            residual_W=np.ones(n_stations * n_phases, dtype=float),
         ),
     )
     return config, data, run_config
-
-
-def test_filter_input_rows_with_row_level_pick_errors() -> None:
-    A = np.array([[1.0, 0.0], [np.nan, 1.0], [0.0, 1.0]], dtype=float)
-    residuals = np.array([0.1, 0.2, np.nan], dtype=float)
-    pick_errors = np.array([0.1, 0.2, 0.3], dtype=float)
-
-    A_filt, r_filt, p_filt = filter_input_rows(A, residuals, pick_errors)
-
-    assert A_filt.shape == (1, 2)
-    assert np.allclose(r_filt, np.array([0.1], dtype=float))
-    assert np.allclose(p_filt, np.array([0.1], dtype=float))
-
-
-def test_filter_input_rows_with_global_pick_error_array() -> None:
-    A = np.array([[1.0, 0.0], [np.nan, 1.0], [0.0, 1.0]], dtype=float)
-    residuals = np.array([0.1, 0.2, np.nan], dtype=float)
-    pick_errors = np.array([0.1, np.nan, 0.2], dtype=float)
-
-    _, _, p_filt = filter_input_rows(A, residuals, pick_errors)
-
-    assert np.allclose(p_filt, np.array([0.1], dtype=float))
 
 
 def test_build_observation_covariance_from_stations_returns_valid_covariance() -> None:
@@ -174,18 +153,29 @@ def test_build_observation_covariance_from_stations_returns_none_for_invalid_inp
 
 def test_hypoinverse_data_variance_uses_rderr_and_rms() -> None:
     residuals = np.array([0.1, -0.2, 0.3], dtype=float)
-    pick_errors = np.array([0.1, 0.2, 0.3], dtype=float)
 
-    sigma2, rms, rderr = data_variance(
+    sigma2, rms = data_variance(
         residuals=residuals,
-        pick_errors=pick_errors,
+        model_uncertainty_s=0.2,
         error_coefficient=2.0,
     )
 
     expected_rms = float(np.sqrt(np.mean(residuals**2)))
     assert np.isclose(rms, expected_rms, atol=1e-12)
-    assert np.isclose(rderr, 0.2, atol=1e-12)
-    assert np.isclose(sigma2, 0.2**2 + (2.0 * expected_rms) ** 2, atol=1e-12)
+    assert np.isclose(sigma2, 0.2**2 + 2.0 * expected_rms**2, atol=1e-12)
+
+
+def test_data_variance_downweights_residual() -> None:
+    residuals = np.array([0.0, 2.0], dtype=float)
+    _, wrms = data_variance(residuals, 0.1, weights=np.array([1.0, 0.5]))
+    assert np.isclose(wrms, np.sqrt(0.8), atol=1e-12)
+
+
+def test_data_variance_floor_is_model_uncertainty() -> None:
+    """A perfect fit still carries the travel-time model error."""
+    sigma2, rms = data_variance(np.zeros(3, dtype=float), 0.15)
+    assert rms == 0.0
+    assert np.isclose(sigma2, 0.15**2, atol=1e-12)
 
 
 def test_whiten_design_uses_relative_observation_covariance() -> None:
@@ -247,13 +237,13 @@ def test_compute_event_errors_with_diagonal_design_computes_expected_covariance(
         residuals=residuals,
         pick_errors=pick_errors,
         dim=4,
+        model_uncertainty_s=0.1,
     )
 
     assert result is not None
     expected_var = (0.1**2 + 0.2**2) / 2.0
     assert np.allclose(result["C_xyz"], np.diag([expected_var] * 3), atol=1e-12)
-    assert np.isclose(result["RMS_s"], 0.2, atol=1e-12)
-    assert np.isclose(result["RDERR_s"], 0.1, atol=1e-12)
+    assert np.isclose(result["WRMS_s"], 0.2, atol=1e-12)
     assert np.isclose(result["SIGMA2_s2"], 0.1**2 + 0.2**2, atol=1e-12)
     assert result["n_obs_used"] == A.shape[0]
 
@@ -281,7 +271,7 @@ def test_event_error_handling_with_identity_covariance() -> None:
         dim=4,
         observation_covariance=singular_cov,
     )
-    assert result_singular is not None
+    assert result_singular is None
 
 
 def test_compute_event_errors_with_invalid_shapes() -> None:
@@ -340,6 +330,7 @@ def test_compute_event_errors_supports_exactly_determined_solution() -> None:
         residuals=residuals,
         pick_errors=pick_errors,
         dim=4,
+        model_uncertainty_s=0.1,
     )
 
     assert result is not None
@@ -387,7 +378,7 @@ def test_compute_error_ellipsoids_raises_for_malformed_inversion_results() -> No
         )
 
 
-def test_compute_error_ellipsoids_skips_invalid_rows_and_events(
+def test_compute_error_ellipsoids_skips_invalid_events(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = cast(
@@ -402,7 +393,9 @@ def test_compute_error_ellipsoids_skips_invalid_rows_and_events(
             n_stations=2,
             invalid_events=np.array([True, False], dtype=bool),
             arrival_time_errors=np.full((2, 2), 0.1, dtype=float),
-            station_distances_km=np.zeros((2, 2), dtype=float),
+            stations_locations=np.zeros((2, 3), dtype=float),
+            distance_W=np.ones(4, dtype=float),
+            residual_W=np.ones(4, dtype=float),
         ),
     )
     jacobian_matrix_weighted = np.zeros((4, 8), dtype=float)
@@ -410,7 +403,7 @@ def test_compute_error_ellipsoids_skips_invalid_rows_and_events(
     jacobian_matrix_weighted[3, 5] = 1.0
     inv = InversionResults(
         jacobian_matrix=np.zeros_like(jacobian_matrix_weighted),
-        valid_rows=np.array([-1, 0, 2, 3, 99], dtype=int),
+        valid_rows=np.array([0, 2, 3], dtype=int),
         residuals_flat=np.full(4, 0.2, dtype=float),
     )
 
@@ -436,7 +429,9 @@ def test_compute_error_ellipsoids_uses_full_design_row_indices(
             n_stations=4,
             invalid_events=np.array([False], dtype=bool),
             arrival_time_errors=np.full((1, 4), 0.1, dtype=float),
-            station_distances_km=np.zeros((4, 4), dtype=float),
+            stations_locations=np.zeros((4, 3), dtype=float),
+            distance_W=np.ones(4, dtype=float),
+            residual_W=np.ones(4, dtype=float),
         ),
     )
     jacobian_matrix_weighted = np.zeros((4, 4), dtype=float)
@@ -466,7 +461,6 @@ def test_compute_error_ellipsoids_uses_full_design_row_indices(
             "ERZ_km_1sigma": np.nan,
             "ERH_km_1sigma": np.nan,
             "RMS_s": 0.0,
-            "RDERR_s": 0.0,
             "n_obs_used": 2,
         }
 
@@ -498,10 +492,12 @@ def test_error_ellipsoids_full_covariance_observation() -> None:
             n_stations=3,
             invalid_events=np.array([False], dtype=bool),
             arrival_time_errors=np.array([[0.1, 0.2, 0.1, 0.2, 0.1, 0.2]], dtype=float),
-            station_distances_km=np.array(
-                [[0.0, 1.0, 2.0], [1.0, 0.0, 1.5], [2.0, 1.5, 0.0]],
+            stations_locations=np.array(
+                [[0.0, 0.0, 0.0], [0.0, 0.01, 0.0], [0.0, 0.02, 0.0]],
                 dtype=float,
             ),
+            distance_W=np.ones(6, dtype=float),
+            residual_W=np.ones(6, dtype=float),
         ),
     )
     jacobian_matrix = _build_diagonal_design([2, 2, 1, 1])
