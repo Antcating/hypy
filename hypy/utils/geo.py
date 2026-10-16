@@ -1,15 +1,14 @@
 """Numba-optimized geodesy utilities for common geospatial functions."""
 
 import numpy as np
-from numba import njit  # type: ignore[import-untyped]
+from numba import njit, prange  # type: ignore[import-untyped]
 
 
 @njit(cache=True)
 def gps2dist_azimuth_nb(
     lat1: float, lon1: float, lat2: float, lon2: float, R: float = 6371.0e3
 ) -> tuple[float, float, float]:
-    """
-    Compute distance, azimuth, and back azimuth between two lat/lon points.
+    """Compute distance, azimuth, and back azimuth between two lat/lon points.
 
     Compute distance (meters), azimuth (degrees), and back azimuth (degrees)
     between two lat/lon points using spherical Earth approximation.
@@ -71,10 +70,40 @@ def gps2dist_azimuth_nb(
     return distance, azimuth, back_azimuth
 
 
+@njit(cache=True, parallel=True)
+def gps2dist_azimuth_batch_nb(
+    lat1: float,
+    lon1: float,
+    lat2: np.ndarray,
+    lon2: np.ndarray,
+    R: float = 6371.0e3,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute geodesic quantities from one point to many points."""
+    n = lat2.size
+
+    distances = np.empty(n, dtype=np.float64)
+    azimuths = np.empty(n, dtype=np.float64)
+    back_azimuths = np.empty(n, dtype=np.float64)
+
+    for i in prange(n):
+        distance, azimuth, back_azimuth = gps2dist_azimuth_nb(
+            lat1,
+            lon1,
+            lat2[i],
+            lon2[i],
+            R,
+        )
+
+        distances[i] = distance
+        azimuths[i] = azimuth
+        back_azimuths[i] = back_azimuth
+
+    return distances, azimuths, back_azimuths
+
+
 @njit(cache=True)
 def get_analytical_derivative_1d(takeoff_rad: float, az_deg: float, vel: float):
-    """
-    Get analytical spatial derivatives for a specific ray.
+    """Get analytical spatial derivatives for a specific ray.
 
     Given a takeoff angle, azimuth, and phase velocity, compute the spatial slowness
     derivatives (dt/dx, dt/dy, dt/dz) for a ray path in a 1D velocity model,
@@ -113,3 +142,27 @@ def get_analytical_derivative_1d(takeoff_rad: float, az_deg: float, vel: float):
     dt_dy = dt_dr * np.cos(az_rad)  # North
 
     return (dt_dr, dt_dx, dt_dy, dt_dz)
+
+
+@njit(cache=True, parallel=True)
+def get_analytical_derivative_1d_batch(
+    takeoff_deg: np.ndarray,
+    azimuths_deg: np.ndarray,
+    velocities: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    n = takeoff_deg.size
+    dt_dx = np.empty(n, dtype=np.float64)
+    dt_dy = np.empty(n, dtype=np.float64)
+    dt_dz = np.empty(n, dtype=np.float64)
+
+    for i in prange(n):
+        _, dx, dy, dz = get_analytical_derivative_1d(
+            np.deg2rad(takeoff_deg[i]),
+            azimuths_deg[i],
+            velocities[i],
+        )
+        dt_dx[i] = dx
+        dt_dy[i] = dy
+        dt_dz[i] = dz
+
+    return dt_dx, dt_dy, dt_dz

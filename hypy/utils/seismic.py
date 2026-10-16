@@ -1,5 +1,15 @@
 """Common utilities for seismic data processing."""
 
+from typing import Optional
+
+
+def classify_phase(phase: Optional[str]) -> Optional[str]:
+    """Normalize a phase name, returning ``None`` instead of raising."""
+    try:
+        return normalize_phase(phase or "")
+    except ValueError:
+        return None
+
 
 def normalize_phase(phase: str) -> str:
     """Normalize a seismic phase name to the canonical ``"p"``/``"s"`` code.

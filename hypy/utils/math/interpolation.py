@@ -1,7 +1,10 @@
 """Interpolation helpers for travel-time tables."""
 
 import numpy as np
-from numba import njit  # type: ignore[import-untyped]
+from numba import (
+    njit,  # type: ignore[import-untyped]
+    prange,
+)
 
 
 @njit(cache=True)
@@ -246,3 +249,17 @@ def interp_quant(
     if d1 == d0:
         return val0
     return linear_interp(depth, d0, d1, val0, val1)
+
+
+@njit(cache=True, parallel=True)
+def interp_quant_batch(
+    depths: np.ndarray,
+    distances: np.ndarray,
+    depth_grid: np.ndarray,
+    distance_grid: np.ndarray,
+    table: np.ndarray,
+) -> np.ndarray:
+    out = np.empty(depths.size, dtype=np.float64)
+    for i in prange(depths.size):
+        out[i] = interp_quant(depths[i], distances[i], depth_grid, distance_grid, table)
+    return out

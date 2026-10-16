@@ -39,8 +39,9 @@ def create_nll_grid_from_tvel(
 ) -> NLLGrid:
     """Build a 3D NLL velocity grid from a 1D TauP-compatible TVEL model.
 
-    The 1D velocity profile is sampled along depth (z) and replicated along x/y.
-    Depths above sea level are clamped to 0 km for TauP queries.
+    The 1D velocity profile is sampled along depth (z) and replicated
+    along x/y. Depths above sea level are clamped to 0 km for TauP
+    queries.
     """
     model = _load_taup_model_from_tvel(model_tvel)
     if model.model.s_mod is None:

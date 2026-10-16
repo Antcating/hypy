@@ -1,4 +1,6 @@
-"""Helper functions for numerical methods, such as interpolation and differentiation."""
+"""Helper functions for numerical methods, such as interpolation and
+differentiation.
+"""
 
 from .derivatives import finite_difference_derivative
 from .interpolation import (
