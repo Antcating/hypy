@@ -1,20 +1,9 @@
-"""1D TauP Ray Tracer based on pyrocko's cake module.
+"""1D ray tracer based on Pyrocko's cake module.
 
-Performs seismic ray tracing using the pyrocko's cake toolkit.
-This module defines the PyrockoRayTracer class,
-which implements the LayeredRayTracer interface using pyrocko
-for travel time and takeoff angle calculations.
-
-Raises
-------
-    ImportError: If pyrocko is not installed or not available.
-    ValueError: If an unsupported seismic phase is requested.
-    ValueError: If no arrivals are found for the given parameters.
-    ValueError: If an error occurs during arrival computation.
-
-Returns
--------
-    (float, float): The arrival time and takeoff angle.
+Defines :class:`PyrockoRayTracer`, which implements the
+:class:`~hypy.propagation.layered.ray_tracer.LayeredRayTracer` interface
+using Pyrocko for travel time and takeoff angle calculations. Importing
+this module requires Pyrocko to be installed.
 """
 
 from typing import Any, List
@@ -31,9 +20,7 @@ except ImportError:
     )
 from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
 
-from hypy.logger import logger
 from hypy.propagation.layered.ray_tracer import LayeredRayTracer
-from hypy.utils.seismic import normalize_phase
 
 
 class PyrockoRayTracer(LayeredRayTracer):
@@ -60,69 +47,35 @@ class PyrockoRayTracer(LayeredRayTracer):
             "derivative.numerical",
         }
     )
-    required_model_features = frozenset({"model.profile.1d", "model.profile.1d"})
+    required_model_features = frozenset({"model.profile.1d"})
     name = "pyrocko"
 
     def __init__(self, model: VelocityModel, **kwargs: Any):
         super().__init__(model, **kwargs)
         self.model: cake.LayeredModel = cake.load_model(model.model_path.as_posix())
 
-    def get_arrival_1d(
+    def _compute_arrival_1d(
         self,
         arc_distance_km: float,
         source_depth_km: float,
         phase: str,
-    ):
-        """Calculate time and takeoff angle for a given depth, distance, and phase.
+    ) -> tuple[float, float]:
+        """Return the first Pyrocko arrival time and takeoff angle.
 
-        For 1D layered models, the arrival time and takeoff angle depend only
-        on the source depth and the arc distance between source and receiver,
-        not on their specific geographic locations,
-        so we can compute these parameters in a 1D context using pyrocko's cake.
-
-        Parameters
-        ----------
-        arc_distance_km : float
-            Great-circle distance between source and receiver in kilometers.
-        source_depth_km : float
-            Depth of the seismic source in kilometers.
-        phase : str
-            Seismic phase for which to compute arrivals.
-
-        Returns
-        -------
-        (float, float)
-            The arrival time and takeoff angle.
+        For 1D layered models these depend only on source depth and arc
+        distance, not on the specific geographic locations.
 
         Raises
         ------
         ValueError
-            If an unsupported seismic phase is requested.
-        ValueError
-            If no arrivals are found for the given parameters.
-        ValueError
-            If an error occurs during arrival computation.
+            If cake errors out, or finds no arrival for this geometry.
         """
-        phase_key = normalize_phase(phase)
-        phases = [phase_key, phase_key.upper()]
-
-        distance_km = float(abs(arc_distance_km))
-        cache_key = self._arrival_cache_key(
-            phase_key,
-            distance_km,
-            float(source_depth_km),
-        )
-        cached = self._arrival_cache_get(cache_key)
-        if cached is not None:
-            return cached
-
-        # Convert distance from km to degrees
         try:
             arrivals: List[Ray] = self.model.arrivals(
                 zstart=source_depth_km * 1000,
                 zstop=0,
-                distances=[kilometer2degrees(distance_km)],
-                phases=phases,
+                distances=[kilometer2degrees(arc_distance_km)],
+                phases=[phase, phase.upper()],
             )
         except Exception as e:
             raise ValueError(
@@ -134,84 +87,4 @@ class PyrockoRayTracer(LayeredRayTracer):
                 f"No arrivals found for phase {phase} "
                 f"at distance {arc_distance_km} and depth {source_depth_km}."
             )
-
-        result = (float(arrivals[0].t), float(arrivals[0].takeoff_angle()))
-        self._arrival_cache_put(cache_key, result)
-        return result
-
-    def get_arrival(
-        self,
-        source_latitude: float,
-        source_longitude: float,
-        source_depth_km: float,
-        receiver_latitude: float,
-        receiver_longitude: float,
-        receiver_elevation_m: float,
-        phase: str,
-        max_distance_km: float | None = None,
-    ):
-        """Get arrival parameters for a given source-receiver configuration.
-
-        The distance is computed between the source and receiver locations, and then
-        the arrival time and takeoff angle are computed using TauP for the
-        specified seismic phase.
-
-        Parameters
-        ----------
-        source_latitude : float
-            Latitude of the seismic source in degrees.
-        source_longitude : float
-            Longitude of the seismic source in degrees.
-        source_depth_km : float
-            Depth of the seismic source in kilometers.
-        receiver_latitude : float
-            Latitude of the receiver in degrees.
-        receiver_longitude : float
-            Longitude of the receiver in degrees.
-        receiver_elevation_m : float
-            Elevation of the receiver in meters.
-        phase : str
-            Seismic phase for which to compute arrivals.
-        max_distance_km : float | None, optional
-            Maximum distance for which to compute arrivals, by default None
-
-        Returns
-        -------
-        tuple[float, Optional[float], Optional[float], float]
-            A tuple containing:
-
-            arc_distance_km : float
-                Great-circle distance between source and receiver in kilometers.
-            arrival_time : float or None
-                Arrival time in seconds, or None if (distance >= max_distance_km).
-            takeoff_angle : float or None
-                Takeoff angle in degrees, or None if (distance >= max_distance_km).
-            azimuth_deg : float
-                Azimuth from source to receiver in degrees (clockwise from North).
-        """
-        arc_distance_km, azimuth_deg, back_azimuth_deg = self._compute_arc_params(
-            source_latitude,
-            source_longitude,
-            receiver_latitude,
-            receiver_longitude,
-        )
-
-        eff_source_depth_km = source_depth_km + receiver_elevation_m / 1000.0
-
-        # Check max distance
-        # This check is nessesary when using Tables with limited grid coverage
-        if max_distance_km is not None and arc_distance_km > max_distance_km:
-            logger.info(
-                "Station at distance %.2f km exceeds max_distance %.2f km. Skipping.",
-                arc_distance_km,
-                max_distance_km,
-            )
-            return arc_distance_km, None, None, azimuth_deg
-
-        time, takeoff_angle = self.get_arrival_1d(
-            arc_distance_km=arc_distance_km,
-            source_depth_km=eff_source_depth_km,
-            phase=phase,
-        )
-
-        return arc_distance_km, time, takeoff_angle, azimuth_deg
+        return float(arrivals[0].t), float(arrivals[0].takeoff_angle())

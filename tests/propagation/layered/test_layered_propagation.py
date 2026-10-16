@@ -112,7 +112,6 @@ def test_arrival_times(propagation_engine: LayeredPropagationEngine):
 
 def test_takeoff_angles(propagation_engine: LayeredPropagationEngine):
     """Test takeoff angles for a given depth and distance."""
-
     if isinstance(propagation_engine, FmmTravelTimeGrid1D):
         return
     depth_km = 10.0

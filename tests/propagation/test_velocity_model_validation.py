@@ -25,14 +25,16 @@ def _custom_velocity_model(flags: frozenset) -> VelocityModel:
 
 
 def test_velocity_model_validation_valid():
-    """Test that compatible velocity models are accepted by the propagation engine."""
+    """Test that compatible velocity models are accepted by the propagation
+    engine."""
     model = _custom_velocity_model(frozenset({"phase.p", "model.profile.1d"}))
     engine = _custom_propagation_engine(model)
     assert engine.validate_model(model) is True
 
 
 def test_velocity_model_validation_invalid():
-    """Test that incompatible velocity models are rejected by the propagation engine."""
+    """Test that incompatible velocity models are rejected by the propagation
+    engine."""
     model = _custom_velocity_model(
         frozenset({"model.profile.1d"})
     )  # Missing model.profile.1d

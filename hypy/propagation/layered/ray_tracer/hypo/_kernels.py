@@ -63,8 +63,8 @@ def _direct_x_t(
 ):
     """Horizontal distance and travel time of the direct leg at slowness ``p``.
 
-    Sums the standard flat-layer ray-parameter contributions over every layer
-    crossed between the free surface and ``source_depth``.
+    Sums the standard flat-layer ray-parameter contributions over every
+    layer crossed between the free surface and ``source_depth``.
     """
     n = tops.shape[0]
     end = _layer_index(tops, source_depth)
@@ -102,11 +102,12 @@ def _direct_point(
     distance: float,
     eps: float,
 ):
-    """First-arrival direct/upgoing branch from the source to a surface receiver.
+    """First-arrival direct/upgoing branch from the source to a surface
+    receiver.
 
-    Solves the ray-parameter ``p`` whose summed horizontal distance equals the
-    requested offset with a monotone bisection, then evaluates travel time and
-    the source takeoff angle.
+    Solves the ray-parameter ``p`` whose summed horizontal distance
+    equals the requested offset with a monotone bisection, then
+    evaluates travel time and the source takeoff angle.
     """
     if source_depth <= eps:
         time_s = distance / velocities[0]
@@ -171,10 +172,10 @@ def _leg_x_t(
 ):
     """Slant-leg distance and time between two depths at fixed slowness ``p``.
 
-    Layers at or below ``refractor_layer`` are skipped because the critically
-    refracted wave runs along the top of the refractor rather than through it.
-    Returns ``(x, t, valid)``; ``valid`` is ``False`` when ``p`` cannot
-    propagate through one of the overlying layers.
+    Layers at or below ``refractor_layer`` are skipped because the
+    critically refracted wave runs along the top of the refractor rather
+    than through it. Returns ``(x, t, valid)``; ``valid`` is ``False``
+    when ``p`` cannot propagate through one of the overlying layers.
     """
     if z1 < z0:
         z0, z1 = z1, z0
@@ -223,8 +224,9 @@ def solve_one_point(
 ):
     """First-arrival travel time and takeoff angle for one depth/distance pair.
 
-    Starts from the direct branch, then tests every physically valid critically
-    refracted head-wave branch and keeps whichever arrival is fastest.
+    Starts from the direct branch, then tests every physically valid
+    critically refracted head-wave branch and keeps whichever arrival is
+    fastest.
     """
     best_time, best_angle = _direct_point(
         tops, velocities, v_source, source_depth, distance, eps
@@ -300,9 +302,10 @@ def build_table(
 ):
     """Fill a ``(depth, distance)`` travel-time and takeoff-angle table.
 
-    ``v_source_grid`` holds the source velocity for each entry of ``depth_grid``.
-    The depth axis is parallelized with :func:`numba.prange`.  Returns two 2-D
-    arrays ``(travel_time_s, takeoff_angle_deg)``.
+    ``v_source_grid`` holds the source velocity for each entry of
+    ``depth_grid``. The depth axis is parallelized with
+    :func:`numba.prange`.  Returns two 2-D arrays ``(travel_time_s,
+    takeoff_angle_deg)``.
     """
     nd = depth_grid.shape[0]
     nr = distance_grid.shape[0]

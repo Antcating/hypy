@@ -1,4 +1,5 @@
-"""Fast local 1-D ray tracer backed by :class:`hypy.model.layered.tvel.TvelModel`.
+"""Fast local 1-D ray tracer backed by
+:class:`hypy.model.layered.tvel.TvelModel`.
 
 This module implements a simple local-earth, horizontally layered first-arrival
 tracer.
@@ -19,11 +20,10 @@ compiled with numba; see :mod:`hypy.propagation.layered.ray_tracer.hypo._kernels
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
-from hypy.logger import logger
 from hypy.model.layered.tvel import TvelModel
 from hypy.propagation.layered.ray_tracer import LayeredRayTracer
 from hypy.propagation.layered.ray_tracer.hypo._kernels import (
@@ -72,7 +72,7 @@ class HypoRayTracer(LayeredRayTracer):
             "derivative.numerical",
         }
     )
-    required_model_features = frozenset({"model.profile.1d", "model.profile.1d"})
+    required_model_features = frozenset({"model.profile.1d"})
     name = "hypo"
 
     def __init__(
@@ -108,44 +108,14 @@ class HypoRayTracer(LayeredRayTracer):
         self._phase_profile_cache: dict[str, tuple[np.ndarray, np.ndarray]] = {}
         self._eps = float(eps)
 
-    def get_arrival_1d(
+    def _compute_arrival_1d(
         self,
         arc_distance_km: float,
         source_depth_km: float,
         phase: str,
     ) -> tuple[float, float]:
-        """Return first-arrival time and takeoff angle for one 1-D geometry.
-
-        Negative distance is mirrored to positive distance because this 1-D
-        calculation depends only on offset magnitude, not azimuth.
-        """
-        phase_key = normalize_phase(phase)
-        if not np.isfinite(arc_distance_km) or not np.isfinite(source_depth_km):
-            raise ValueError("Distance and depth must be finite.")
-        arc_distance_km = float(abs(arc_distance_km))
-        if source_depth_km < 0.0:
-            raise ValueError("source_depth_km must be non-negative.")
-        if arc_distance_km > self.max_distance_km:
-            raise ValueError(
-                f"Distance {arc_distance_km:.3f} km exceeds configured local "
-                f"coverage {self.max_distance_km:.3f} km. Increase max_distance_km."
-            )
-        if source_depth_km > self.max_depth_km:
-            raise ValueError(
-                f"Depth {source_depth_km:.3f} km exceeds configured local "
-                f"coverage {self.max_depth_km:.3f} km. Increase max_depth_km."
-            )
-
-        distance_km = float(arc_distance_km)
-        depth_km = float(source_depth_km)
-
-        # Arrivals are often requested repeatedly during location iterations.
-        cache_key = self._arrival_cache_key(phase_key, distance_km, depth_km)
-        cached = self._arrival_cache_get(cache_key)
-        if cached is not None:
-            return cached
-
-        tops, velocities = self._phase_profile(phase_key)
+        """Solve the layered profile for one arrival time and takeoff angle."""
+        tops, velocities = self._phase_profile(phase)
         # ``v_source`` is the gradient-interpolated velocity at the source depth;
         # the kernel uses it only for the takeoff angle and the head-wave check.
         # Both the depth and the velocity are earth-flattened so they are
@@ -153,67 +123,19 @@ class HypoRayTracer(LayeredRayTracer):
         # is a surface arc length and is left unchanged by the transform, and
         # takeoff angles are preserved by earth flattening.
         v_source = self._flatten_velocity(
-            float(self.velocity_model.get_velocity_1d(depth_km, phase_key)),
-            depth_km,
+            float(self.velocity_model.get_velocity_1d(source_depth_km, phase)),
+            source_depth_km,
         )
-        depth_flat = float(self._flatten_depth(depth_km))
         time_s, angle_deg = solve_one_point(
             tops,
             velocities,
             float(v_source),
-            depth_flat,
-            distance_km,
+            float(self._flatten_depth(source_depth_km)),
+            arc_distance_km,
             float(tops[-1]),
             self._eps,
         )
-        result = (float(time_s), float(angle_deg))
-        self._arrival_cache_put(cache_key, result)
-        return result
-
-    def get_arrival(
-        self,
-        source_latitude: float,
-        source_longitude: float,
-        source_depth_km: float,
-        receiver_latitude: float,
-        receiver_longitude: float,
-        receiver_elevation_m: float,
-        phase: str,
-        max_distance_km: float | None = None,
-    ) -> tuple[float, Optional[float], Optional[float], float]:
-        """Return hypy-format arrival parameters for a source-receiver pair.
-
-        This method wraps the local 1-D calculation with the geographic work
-        needed by the public propagation interface.  Latitude/longitude are used
-        only to compute epicentral distance and azimuth; the travel-time physics
-        is purely 1-D without any geographic corrections.
-        """
-        arc_distance_km, azimuth_deg, _ = self._compute_arc_params(
-            source_latitude,
-            source_longitude,
-            receiver_latitude,
-            receiver_longitude,
-        )
-
-        # Elevation is folded into an effective source depth relative to the
-        # receiver.  A positive receiver elevation increases the source-receiver
-        # vertical separation by ``elevation / 1000`` km.
-        eff_source_depth_km = source_depth_km + receiver_elevation_m / 1000.0
-
-        if max_distance_km is not None and arc_distance_km > max_distance_km:
-            logger.info(
-                "Station at distance %.2f km exceeds max_distance %.2f km. Skipping.",
-                arc_distance_km,
-                max_distance_km,
-            )
-            return arc_distance_km, None, None, azimuth_deg
-
-        time_s, takeoff_angle_deg = self.get_arrival_1d(
-            arc_distance_km=arc_distance_km,
-            source_depth_km=eff_source_depth_km,
-            phase=phase,
-        )
-        return arc_distance_km, time_s, takeoff_angle_deg, azimuth_deg
+        return float(time_s), float(angle_deg)
 
     def build_travel_time_table(
         self,
@@ -221,7 +143,8 @@ class HypoRayTracer(LayeredRayTracer):
         depth_grid: np.ndarray,
         distance_grid: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Fill a full ``(depth, distance)`` grid in one parallel compiled call.
+        """Fill a full ``(depth, distance)`` grid in one parallel compiled
+        call.
 
         This is the fast path for travel-time table generation: instead of
         calling :meth:`get_arrival_1d` per grid node, the whole grid is solved in
@@ -308,10 +231,11 @@ class HypoRayTracer(LayeredRayTracer):
     def _profile_edges(self, phase: str) -> np.ndarray:
         """Build real-depth layer edges that preserve model interfaces.
 
-        A uniform ``layer_step_km`` grid alone snaps discontinuities onto the
-        step (e.g. 2.6 km → 3.0 km), inventing extra slow rock and biasing
-        travel times.  Merge the model's native layer-top depths into the grid
-        so interfaces stay exact while the average resolution stays ~``step``.
+        A uniform ``layer_step_km`` grid alone snaps discontinuities
+        onto the step (e.g. 2.6 km → 3.0 km), inventing extra slow rock
+        and biasing travel times.  Merge the model's native layer-top
+        depths into the grid so interfaces stay exact while the average
+        resolution stays ~``step``.
         """
         step = self.layer_step_km
         zmax = self._profile_max_depth_km()
@@ -336,13 +260,13 @@ class HypoRayTracer(LayeredRayTracer):
     def _phase_profile(self, phase: str) -> tuple[np.ndarray, np.ndarray]:
         """Return cached, C-contiguous earth-flattened layer profile.
 
-        The model is resampled at ``layer_step_km`` intervals with native
-        discontinuity depths forced into the edge list, then mapped through the
-        earth-flattening transform so the homogeneous flat-layer kernel
-        approximates the spherical diving rays (and head waves) computed by the
-        full-physics backends.  The arrays are ``float64`` and contiguous so
-        they can be passed directly into the numba kernels without per-call
-        copies.
+        The model is resampled at ``layer_step_km`` intervals with
+        native discontinuity depths forced into the edge list, then
+        mapped through the earth-flattening transform so the homogeneous
+        flat-layer kernel approximates the spherical diving rays (and
+        head waves) computed by the full-physics backends.  The arrays
+        are ``float64`` and contiguous so they can be passed directly
+        into the numba kernels without per-call copies.
         """
         phase_key = normalize_phase(phase)
         cached = self._phase_profile_cache.get(phase_key)
