@@ -1,4 +1,5 @@
-"""Precomputed 1D travel-time tables handler for layered Earth models using t-p.
+"""Precomputed 1D travel-time tables handler for layered Earth models using
+t-p.
 
 This module provides the TauTravelTimeTable class, which manages precomputed
 travel-time, ray-parameter, and takeoff angle tables for seismic phases
@@ -32,20 +33,28 @@ ValueError
 
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import numpy as np
 
 from hypy.logger import logger
 from hypy.model import VelocityModel
-from hypy.propagation.layered import LayeredPropagationEngine
+from hypy.propagation.layered.grid import LayeredGrid1D, model_fingerprint
 from hypy.propagation.layered.ray_tracer import LayeredRayTracer
-from hypy.utils.geo import gps2dist_azimuth_nb
-from hypy.utils.math import interp_quant
 from hypy.utils.seismic import normalize_phase
 
+_TABLE_CACHE_VERSION = "v3"
 
-class TauTravelTimeGrid(LayeredPropagationEngine):
+
+def _grid_nodes(start: float, stop: float, step: float) -> np.ndarray:
+    """Return nodes from ``start`` to ``stop`` inclusive."""
+    nodes = np.arange(start, stop + 1e-6, step)
+    if nodes[-1] < stop:
+        nodes = np.append(nodes, stop)
+    return nodes
+
+
+class TauTravelTimeGrid(LayeredGrid1D):
     """Tau travel-time table for layered Earth models.
 
     This class manages precomputed travel-time, ray-parameter, and takeoff angle
@@ -80,10 +89,11 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
             "propagation.table",
             "derivative.analytical",
             "derivative.numerical",
+            "derivative.batch",
         }
     )
 
-    required_model_features = frozenset({"model.profile.1d", "model.profile.1d"})
+    required_model_features = frozenset({"model.profile.1d"})
 
     def __init__(
         self,
@@ -112,109 +122,25 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
         self.depth_grid: np.ndarray
         self.distance_grid: np.ndarray
         self.travel_time_tables: Dict[str, np.ndarray] = {}
-        self.ray_param_tables: Dict[str, np.ndarray] = {}
         self.takeoff_angle_tables: Dict[str, np.ndarray] = {}
 
         self.load_tables(model_name=model_name, tracer=tracer, overwrite=overwrite)
 
     def _table_filename(self, model_name: str, engine: str, phase: str) -> str:
         table_root_dir = Path(__file__).parent
-        table_name = f"travel_time_tables_{model_name}_{engine}_{phase}_d{self.max_depth_km}_r{self.max_distance_km}_dz{self.depth_step_km}_dr{self.distance_step_km}.npz"  # noqa: E501
+        model_hash = model_fingerprint(self.velocity_model)
+        table_name = (
+            f"travel_time_tables_{model_name}_{model_hash}_{_TABLE_CACHE_VERSION}"
+            f"_{engine}_{phase}_d{self.max_depth_km}_r{self.max_distance_km}"
+            f"_dz{self.depth_step_km}_dr{self.distance_step_km}.npz"
+        )
         return os.path.join(table_root_dir, "data", table_name)
-
-    def save(self, filename: str | Path) -> None:
-        """Save the travel-time, ray-parameter, and takeoff angle tables to a file.
-
-        The file is saved in compressed NumPy format (.npz) and contains the
-        depth grid, distance grid, and the tables for each phase.
-
-        TODO: Consider adding metadata to the saved file,
-        such as model name, engine, phase, and grid parameters,
-        to make it easier to identify and manage multiple tables.
-
-        TODO: Consider saving tables in a more structured format (e.g., HDF5)
-        that can store metadata and allow for more efficient access to specific phases
-        or parameters without loading the entire file into memory.
-
-        The filename is generated based on the model name, engine, phase.
-
-        Parameters
-        ----------
-        filename : str | Path
-            The path to the file where the tables should be saved.
-
-        Raises
-        ------
-        ValueError
-            If the travel-time tables have not been built and there is nothing to save.
-        """
-        if self.depth_grid is None or self.distance_grid is None:
-            raise ValueError("Travel-time tables are not built; nothing to save.")
-        save_dict = {"depth_grid": self.depth_grid, "distance_grid": self.distance_grid}
-        if (
-            self.travel_time_tables is None
-            or self.travel_time_tables == {}
-            or self.ray_param_tables is None
-            or self.ray_param_tables == {}
-            or self.takeoff_angle_tables is None
-            or self.takeoff_angle_tables == {}
-        ):
-            raise ValueError("Travel-time tables are not built; nothing to save.")
-        for ph in self.travel_time_tables:
-            save_dict[f"tt_{ph}"] = self.travel_time_tables[ph]
-        for ph in self.ray_param_tables:
-            save_dict[f"rp_{ph}"] = self.ray_param_tables[ph]
-        for ph in self.takeoff_angle_tables:
-            save_dict[f"ta_{ph}"] = self.takeoff_angle_tables[ph]
-        if not os.path.exists(os.path.dirname(filename)):
-            os.makedirs(os.path.dirname(filename))
-        np.savez_compressed(filename, allow_pickle=True, **save_dict)
-
-    def load_from_file(self, filename: str | Path, phase: str) -> None:
-        """Load the tables for a specific phase from a file.
-
-        Parameters
-        ----------
-        filename : str | Path
-            The path to the file from which to load the tables.
-        phase : str
-            The seismic phase for which to load the tables.
-
-        Raises
-        ------
-        ValueError
-            If the travel-time tables are not found in the file for the given phase.
-        ValueError
-            If the ray-parameter tables are not found in the file for the given phase.
-        ValueError
-            If the takeoff angle tables are not found in the file for the given phase.
-        """
-        data = np.load(filename, allow_pickle=True)
-        self.depth_grid = data["depth_grid"]
-        self.distance_grid = data["distance_grid"]
-        if f"tt_{phase}" in data:
-            self.travel_time_tables[phase] = data[f"tt_{phase}"]
-        else:
-            raise ValueError(
-                f"Phase {phase} not found in travel-time tables in file {filename}."
-            )
-        if f"rp_{phase}" in data:
-            self.ray_param_tables[phase] = data[f"rp_{phase}"]
-        else:
-            raise ValueError(
-                f"Phase {phase} not found in ray-parameter tables in file {filename}."
-            )
-        if f"ta_{phase}" in data:
-            self.takeoff_angle_tables[phase] = data[f"ta_{phase}"]
-        else:
-            raise ValueError(
-                f"Phase {phase} not found in takeoff angle tables in file {filename}."
-            )
 
     def load_tables(
         self, model_name: str, tracer: LayeredRayTracer, overwrite: bool = False
     ) -> None:
-        """Load or build the travel-time, ray-parameter, and takeoff angle tables for all phases.
+        """Load or build the travel-time and takeoff angle tables for all
+        phases.
 
         Parameters
         ----------
@@ -234,7 +160,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
             fname = self._table_filename(model_name, tracer.name, phase)
             if os.path.exists(fname) and not overwrite:
                 logger.info(f"Loading travel-time tables from {fname}")
-                self.load_from_file(fname, phase)
+                self.load(fname, phase)
                 continue
             logger.info(
                 f"Building travel-time tables for phase {phase} using tracer {tracer.name}"  # noqa: E501
@@ -247,7 +173,7 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
             # issues with table generation. This is a workaround and should be revisited
             # in the future to ensure that the tables can cover the full depth range
             # starting from 0 km if needed.
-            depth_values = np.arange(0.1, self.max_depth_km + 1e-6, self.depth_step_km)
+            depth_values = _grid_nodes(0.1, self.max_depth_km, self.depth_step_km)
             # FIXME: Distance values should start from 0, not from 0.1,
             # but TauP and Pyrocko do not return valid travel times for
             # very short distances (e.g., 0 km),
@@ -255,16 +181,13 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
             # table generation. This is a workaround and should be revisited
             # in the future to ensure that the tables can cover the full distance range
             # starting from 0 km if needed.
-            distance_values = np.arange(
-                0.1, self.max_distance_km + 1e-6, self.distance_step_km
+            distance_values = _grid_nodes(
+                0.1, self.max_distance_km, self.distance_step_km
             )
             self.depth_grid = depth_values
             self.distance_grid = distance_values
 
             self.travel_time_tables[phase] = np.full(
-                (len(depth_values), len(distance_values)), np.nan
-            )
-            self.ray_param_tables[phase] = np.full(
                 (len(depth_values), len(distance_values)), np.nan
             )
             self.takeoff_angle_tables[phase] = np.full(
@@ -278,241 +201,3 @@ class TauTravelTimeGrid(LayeredPropagationEngine):
                         self.takeoff_angle_tables[phase][i, j] = angle
             logger.info(f"Saving travel-time tables to {fname}")
             self.save(fname)
-
-    def _resolve_phase_table(self, phase: str) -> str:
-        """Return the stored phase key matching ``phase`` or raise ``ValueError``.
-
-        Lookup is normalized so ``"p"``/``"P"``/``"Pn"`` are accepted
-        interchangeably, matching every other propagation backend.
-        """
-        wanted = normalize_phase(phase)
-        for stored in self.travel_time_tables:
-            if normalize_phase(stored) == wanted:
-                return stored
-        raise ValueError(f"Phase {phase!r} not in available phases: {self.phases}")
-
-    def compute_travel_time(
-        self, distance_km: float, depth_km: float, phase: str
-    ) -> float:
-        """Compute the travel time for a parameters by interpolating values of tables.
-
-        Uses the precomputed travel-time tables to interpolate the travel time
-        for a given distance, depth, and seismic phase.
-
-        The interpolation is performed using the generic interpolation function that
-        can handle both linear and Lagrange interpolation based on the proximity of the
-        query point to the grid points.
-
-        Parameters
-        ----------
-        distance_km : float
-            The distance between the source and receiver in kilometers.
-        depth_km : float
-            The depth of the source in kilometers.
-        phase : str
-            The seismic phase.
-
-        Returns
-        -------
-        float
-            The computed travel time.
-        """
-        key = self._resolve_phase_table(phase)
-        return interp_quant(
-            depth_km,
-            distance_km,
-            self.depth_grid,
-            self.distance_grid,
-            self.travel_time_tables[key],
-        )
-
-    def compute_takeoff_angle(
-        self, distance_km: float, depth_km: float, phase: str
-    ) -> float:
-        """Compute the takeoff angle for a parameters by interpolating values of tables.
-
-        Uses the precomputed takeoff angle tables to interpolate the takeoff angle
-        for a given distance, depth, and seismic phase.
-
-        The interpolation is performed using the generic interpolation function that
-        can handle both linear and Lagrange interpolation based on the proximity of the
-        query point to the grid points.
-
-        Parameters
-        ----------
-        distance_km : float
-            The distance between the source and receiver in kilometers.
-        depth_km : float
-            The depth of the source in kilometers.
-        phase : str
-            The seismic phase.
-
-        Returns
-        -------
-        float
-            The computed takeoff angle.
-        """
-        key = self._resolve_phase_table(phase)
-        return interp_quant(
-            depth_km,
-            distance_km,
-            self.depth_grid,
-            self.distance_grid,
-            self.takeoff_angle_tables[key],
-        )
-
-    def get_arrival(
-        self,
-        source_latitude: float,
-        source_longitude: float,
-        source_depth_km: float,
-        receiver_latitude: float,
-        receiver_longitude: float,
-        receiver_elevation_m: float,
-        phase: str,
-        max_distance_km: float | None = None,
-    ) -> tuple[float, Optional[float], Optional[float], float]:
-        """Get arrival parameters for a given source-receiver configuration.
-
-        The arrival parameters include the arc distance between source and receiver,
-        the arrival time, the takeoff angle, and the azimuth from source to receiver.
-
-        Parameters
-        ----------
-        source_latitude : float
-            Latitude of the seismic source in degrees.
-        source_longitude : float
-            Longitude of the seismic source in degrees.
-        source_depth_km : float
-            Depth of the seismic source in kilometers.
-        receiver_latitude : float
-            Latitude of the seismic receiver in degrees.
-        receiver_longitude : float
-            Longitude of the seismic receiver in degrees.
-        receiver_elevation_m : float
-            Elevation of the seismic receiver in meters.
-        phase : str
-            The seismic phase.
-        max_distance_km : float | None, optional
-            The maximum distance for which to compute arrivals, by default None
-
-        Returns
-        -------
-        tuple[float, Optional[float], Optional[float], float]
-            A tuple containing:
-
-            arc_distance_km : float
-                Great-circle distance between source and receiver in kilometers.
-            arrival_time : float or None
-                Arrival time in seconds, or None if (distance >= max_distance_km).
-            takeoff_angle : float or None
-                Takeoff angle in degrees, or None if (distance >= max_distance_km).
-            azimuth_deg : float
-                Azimuth from source to receiver in degrees (clockwise from North).
-
-        Raises
-        ------
-        ValueError
-            If the specified phase is not in the available phases.
-        ValueError
-            If no travel time or takeoff angle is found for the given configuration.
-        """
-        self._resolve_phase_table(phase)
-
-        dist_m, azimuth_deg, _ = gps2dist_azimuth_nb(
-            source_latitude,
-            source_longitude,
-            receiver_latitude,
-            receiver_longitude,
-            R=self.velocity_model.radius_of_planet_km * 1000.0,
-        )
-        arc_distance_km = dist_m / 1000.0
-
-        # Prefer the caller's limit, else the engine limit, and never exceed the
-        # last tabulated distance sample (arange may stop short of max_distance).
-        effective_max_distance_km = (
-            max_distance_km if max_distance_km is not None else self.max_distance_km
-        )
-        table_max_distance_km = float(self.distance_grid[-1])
-        if effective_max_distance_km is None:
-            effective_max_distance_km = table_max_distance_km
-        else:
-            effective_max_distance_km = min(
-                float(effective_max_distance_km), table_max_distance_km
-            )
-
-        if arc_distance_km > effective_max_distance_km:
-            logger.info(
-                "Station at distance %.2f km exceeds max_distance %.2f km. Skipping.",
-                arc_distance_km,
-                effective_max_distance_km,
-            )
-            return arc_distance_km, None, None, azimuth_deg
-
-        source_depth_km += receiver_elevation_m / 1000.0
-        if source_depth_km > float(self.depth_grid[-1]):
-            logger.info(
-                "Source depth %.2f km exceeds table max depth %.2f km. Skipping.",
-                source_depth_km,
-                float(self.depth_grid[-1]),
-            )
-            return arc_distance_km, None, None, azimuth_deg
-
-        time = self.compute_travel_time(arc_distance_km, source_depth_km, phase)
-        takeoff_angle = self.compute_takeoff_angle(
-            arc_distance_km, source_depth_km, phase
-        )
-        if np.isnan(time) or np.isnan(takeoff_angle):
-            raise ValueError(
-                f"No travel time or takeoff angle found for phase {phase}"
-                f" at depth {source_depth_km} and distance {arc_distance_km}."
-            )
-        return arc_distance_km, time, takeoff_angle, azimuth_deg
-
-    def get_arrival_1d(
-        self,
-        arc_distance_km: float,
-        source_depth_km: float,
-        phase: str,
-    ) -> tuple[float, float]:
-        """Get the arrival time and takeoff angle for a given configuration.
-
-        Layered 1D models are symmetric, so the specific source and receiver locations
-        do not matter, only the distance between them (arc_distance_km) and the source
-        depth (source_depth_km) matter for computing the arrival time and takeoff angle
-        for a given seismic phase.
-
-        Parameters
-        ----------
-        arc_distance_km : float
-            The distance between the source and receiver in kilometers.
-        source_depth_km : float
-            The depth of the source in kilometers.
-        phase : str
-            The seismic phase for which to compute arrivals.
-
-        Returns
-        -------
-        tuple[float, float]
-            Tuple with the arrival time in seconds and the takeoff angle in degrees.
-
-        Raises
-        ------
-        ValueError
-            If the specified phase is not in the available phases.
-        ValueError
-            If no travel time or takeoff angle is found for the given configuration.
-        """
-        self._resolve_phase_table(phase)
-        # Normalize distrance to positive values (valid for 1D models)
-        arc_distance_km = abs(arc_distance_km)
-        time = self.compute_travel_time(arc_distance_km, source_depth_km, phase)
-        takeoff_angle = self.compute_takeoff_angle(
-            arc_distance_km, source_depth_km, phase
-        )
-        if np.isnan(time) or np.isnan(takeoff_angle):
-            raise ValueError(
-                f"No travel time or takeoff angle found for phase {phase}"
-                f" at depth {source_depth_km} and distance {arc_distance_km}."
-            )
-        return time, takeoff_angle

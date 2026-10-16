@@ -10,27 +10,25 @@ Notes
     ``vs(z)``, respectively.
 - This is not a phase-branch tracer like TauP.
 - ``takeoff_angle`` is set to ``0.0`` everywhere by design.
-- ``ray_param`` is set to ``0.0`` everywhere by design.
 """
 
 import os
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Dict, Sequence
 
 import numpy as np
 import skfmm
 
 from hypy.logger import logger
 from hypy.model import TvelModel
-from hypy.propagation.layered import LayeredPropagationEngine
-from hypy.utils.geo import gps2dist_azimuth_nb
-from hypy.utils.math import interp_quant
+from hypy.propagation.layered.grid import LayeredGrid1D, model_fingerprint
 from hypy.utils.seismic import normalize_phase
 
+_TABLE_CACHE_VERSION = "v2"
 
-class FmmTravelTimeGrid1D(LayeredPropagationEngine):
-    """
-    First-arrival travel-time tables using scikit-fmm.
+
+class FmmTravelTimeGrid1D(LayeredGrid1D):
+    """First-arrival travel-time tables using scikit-fmm.
 
     where:
         - depth_index corresponds to source depth
@@ -41,81 +39,64 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
         {
             "propagation.layered",
             "propagation.ray",
+            "propagation.table",
             "derivative.numerical",
+            "derivative.batch",
         }
     )
-    required_model_features = frozenset({"model.profile.1d", "model.profile.1d"})
+    required_model_features = frozenset({"model.profile.1d"})
 
     def __init__(
         self,
         model: TvelModel,
-        phases: Iterable[str],
+        phases: Sequence[str],
         max_depth_km: float,
         max_distance_km: float,
         depth_step_km: float,
         distance_step_km: float,
         overwrite: bool = False,
     ):
-        super().__init__(model)
+        normalized_phases = tuple(normalize_phase(phase) for phase in phases)
+        super().__init__(
+            model,
+            mode="table",
+            engine="skfmm",
+            max_depth_km=max_depth_km,
+            max_distance_km=max_distance_km,
+            depth_step_km=depth_step_km,
+            distance_step_km=distance_step_km,
+            phases=normalized_phases,
+        )
 
-        self.engine = "skfmm"
         self.model = model
         self.model_name = model.model_name
-        self.phases = [normalize_phase(phase) for phase in phases]
-        self.max_depth = max_depth_km
-        self.max_distance = max_distance_km
-        self.depth_step = depth_step_km
-        self.distance_step = distance_step_km
+
+        # Backward-compatible aliases.  The locator uses the canonical *_km
+        # attributes initialized by PropagationEngine.  Previously only these
+        # aliases were populated, leaving max_depth_km at the planet radius and
+        # max_distance_km/depth_step_km/distance_step_km unset.
+        self.max_depth = self.max_depth_km
+        self.max_distance = self.max_distance_km
+        self.depth_step = self.depth_step_km
+        self.distance_step = self.distance_step_km
 
         self.depth_grid: np.ndarray
         self.distance_grid: np.ndarray
 
         self.travel_time_tables: Dict[str, np.ndarray] = {}
-        self.ray_param_tables: Dict[str, np.ndarray] = {}
         self.takeoff_angle_tables: Dict[str, np.ndarray] = {}
 
         self._build_tables(overwrite=overwrite)
 
     def _table_filename(self, phase: str) -> str:
         table_root_dir = Path(__file__).parent
+        model_hash = model_fingerprint(self.velocity_model)
         table_name = (
-            f"travel_time_tables_{self.model_name}_{self.engine}_{phase}"
-            f"_d{self.max_depth}_r{self.max_distance}"
+            f"travel_time_tables_{self.model_name}_{model_hash}_{_TABLE_CACHE_VERSION}"
+            f"_{self.engine}_{phase}_d{self.max_depth}_r{self.max_distance}"
             f"_dz{self.depth_step}_dr{self.distance_step}.npz"
         )
         return os.path.join(table_root_dir, "data", table_name)
-
-    def save(self, filename: str) -> None:
-        """Save the travel-time, ray-parameter, and takeoff-angle tables."""
-        if self.depth_grid is None or self.distance_grid is None:
-            raise ValueError("Travel-time tables are not built; nothing to save.")
-
-        save_dict = {
-            "depth_grid": self.depth_grid,
-            "distance_grid": self.distance_grid,
-        }
-
-        for ph in self.travel_time_tables:
-            save_dict[f"tt_{ph}"] = self.travel_time_tables[ph]
-        for ph in self.ray_param_tables:
-            save_dict[f"rp_{ph}"] = self.ray_param_tables[ph]
-        for ph in self.takeoff_angle_tables:
-            save_dict[f"ta_{ph}"] = self.takeoff_angle_tables[ph]
-
-        np.savez_compressed(filename, allow_pickle=True, **save_dict)
-
-    def load(self, filename: str, phase: str) -> None:
-        """Load travel-time, ray-parameter, and takeoff-angle tables."""
-        data = np.load(filename, allow_pickle=True)
-        self.depth_grid = data["depth_grid"]
-        self.distance_grid = data["distance_grid"]
-
-        if f"tt_{phase}" in data:
-            self.travel_time_tables[phase] = data[f"tt_{phase}"]
-        if f"rp_{phase}" in data:
-            self.ray_param_tables[phase] = data[f"rp_{phase}"]
-        if f"ta_{phase}" in data:
-            self.takeoff_angle_tables[phase] = data[f"ta_{phase}"]
 
     def _build_velocity_profiles(self) -> tuple[np.ndarray, np.ndarray]:
         """Build ``vp(z)`` and ``vs(z)`` sampled on ``self.depth_grid``."""
@@ -167,8 +148,8 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
     ) -> np.ndarray:
         """Solve eikonal travel times for one source depth.
 
-        Returns surface travel times as a function of horizontal distance.
-        Axis 0 is depth and axis 1 is horizontal distance.
+        Returns surface travel times as a function of horizontal
+        distance. Axis 0 is depth and axis 1 is horizontal distance.
         """
         phi = np.ones_like(velocity_grid, dtype=float)
 
@@ -225,7 +206,6 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
                 np.nan,
                 dtype=float,
             )
-            rp_table = np.zeros_like(tt_table, dtype=float)
             ta_table = np.zeros_like(tt_table, dtype=float)
 
             if phase.upper() == "P":
@@ -248,201 +228,9 @@ class FmmTravelTimeGrid1D(LayeredPropagationEngine):
                 # Requested behavior:
                 # takeoff angle should be zero
                 ta_table[i, :] = 0.0
-                rp_table[i, :] = 0.0
 
             self.travel_time_tables[phase] = tt_table
-            self.ray_param_tables[phase] = rp_table
             self.takeoff_angle_tables[phase] = ta_table
 
             logger.info(f"Saving travel-time tables to {fname}")
-            Path(fname).parent.mkdir(parents=True, exist_ok=True)
             self.save(fname)
-
-    def _resolve_phase_table(self, phase: str, tables: Dict[str, np.ndarray]) -> str:
-        """Return the stored phase key matching ``phase`` or raise ``ValueError``.
-
-        Phase lookup is normalized so the grid accepts ``"p"``/``"P"``/``"Pn"``
-        interchangeably, matching every other propagation backend.
-        """
-        wanted = normalize_phase(phase)
-        for stored in tables:
-            if normalize_phase(stored) == wanted:
-                return stored
-        raise ValueError(f"Phase {phase!r} not in available phases: {list(tables)}.")
-
-    def compute_travel_time(
-        self, distance_km: float, depth_km: float, phase: str
-    ) -> float:
-        """Interpolate the first-arrival travel time for a phase."""
-        key = self._resolve_phase_table(phase, self.travel_time_tables)
-        return interp_quant(
-            depth_km,
-            distance_km,
-            self.depth_grid,
-            self.distance_grid,
-            self.travel_time_tables[key],
-        )
-
-    def compute_takeoff_angle(
-        self, distance_km: float, depth_km: float, phase: str
-    ) -> float:
-        """Interpolate the takeoff angle for a phase.
-
-        FMM tables carry a takeoff angle of zero everywhere by design; the value
-        is still returned as a float for parity with the other grids/tracers.
-        """
-        key = self._resolve_phase_table(phase, self.takeoff_angle_tables)
-        return interp_quant(
-            depth_km,
-            distance_km,
-            self.depth_grid,
-            self.distance_grid,
-            self.takeoff_angle_tables[key],
-        )
-
-    def get_arrival(
-        self,
-        source_latitude: float,
-        source_longitude: float,
-        source_depth_km: float,
-        receiver_latitude: float,
-        receiver_longitude: float,
-        receiver_elevation_m: float,
-        phase: str,
-        max_distance_km: float | None = None,
-    ) -> tuple[float, Optional[float], Optional[float], float]:
-        """Return travel-time table values for a source-receiver pair.
-
-        Returns
-        -------
-        tuple of float or None
-            ``(arc_distance_km, travel_time_s, takeoff_angle_deg, azimuth_deg)``.
-        """
-        # Validate the phase up front (raises ``ValueError`` for unknown phases).
-        self._resolve_phase_table(phase, self.travel_time_tables)
-
-        dist_m, azimuth_deg, _ = gps2dist_azimuth_nb(
-            source_latitude,
-            source_longitude,
-            receiver_latitude,
-            receiver_longitude,
-            R=self.velocity_model.radius_of_planet_km * 1000.0,
-        )
-        arc_distance_km = dist_m / 1000.0
-
-        # Prefer the caller's limit, else the engine limit, and never exceed the
-        # last tabulated distance sample.
-        configured_max = (
-            max_distance_km
-            if max_distance_km is not None
-            else getattr(self, "max_distance_km", None)
-        )
-        if configured_max is None:
-            configured_max = getattr(self, "max_distance", None)
-        table_max_distance_km = float(self.distance_grid[-1])
-        if configured_max is None:
-            effective_max_distance_km = table_max_distance_km
-        else:
-            effective_max_distance_km = min(
-                float(configured_max), table_max_distance_km
-            )
-
-        if arc_distance_km > effective_max_distance_km:
-            logger.info(
-                "Station at distance %.2f km exceeds max_distance %.2f km. Skipping.",
-                arc_distance_km,
-                effective_max_distance_km,
-            )
-            return arc_distance_km, None, None, azimuth_deg
-
-        source_depth_eff_km = source_depth_km + receiver_elevation_m / 1000.0
-        if source_depth_eff_km > float(self.depth_grid[-1]):
-            logger.info(
-                "Source depth %.2f km exceeds table max depth %.2f km. Skipping.",
-                source_depth_eff_km,
-                float(self.depth_grid[-1]),
-            )
-            return arc_distance_km, None, None, azimuth_deg
-
-        time = self.compute_travel_time(arc_distance_km, source_depth_eff_km, phase)
-        takeoff_angle = self.compute_takeoff_angle(
-            arc_distance_km, source_depth_eff_km, phase
-        )
-
-        if np.isnan(time) or np.isnan(takeoff_angle):
-            raise ValueError(
-                f"No travel time or takeoff angle found for phase {phase} "
-                f"at depth {source_depth_eff_km} and distance {arc_distance_km}."
-            )
-
-        return arc_distance_km, time, takeoff_angle, azimuth_deg
-
-    def get_arrival_1d(
-        self,
-        arc_distance_km: float,
-        source_depth_km: float,
-        phase: str,
-    ) -> tuple[float, float]:
-        """Return travel time and takeoff angle for a 1D query.
-
-        Returns
-        -------
-        tuple of float
-            ``(travel_time_s, takeoff_angle_deg)``.  The takeoff angle is ``0.0``
-            by design for the FMM tables but is always returned as a float, for
-            parity with the ray-tracer backends.
-        """
-        arc_distance_km = abs(arc_distance_km)
-        time = self.compute_travel_time(arc_distance_km, source_depth_km, phase)
-        takeoff_angle = self.compute_takeoff_angle(
-            arc_distance_km, source_depth_km, phase
-        )
-
-        if np.isnan(time) or np.isnan(takeoff_angle):
-            raise ValueError(
-                f"No travel time or takeoff angle found for phase {phase} "
-                f"at depth {source_depth_km} and distance {arc_distance_km}."
-            )
-
-        return float(time), float(takeoff_angle)
-
-    def compute_derivatives(
-        self,
-        arc_distance_km: float,
-        source_depth_km: float,
-        az_deg: float,
-        phase: str,
-        takeoff_angle_deg: Optional[float],
-        delta: Optional[float] = 0.01,
-        mode: str = "analytical",
-    ):
-        """Compute spatial slowness derivatives with finite differences.
-
-        Returns
-        -------
-        tuple of float
-            ``(dt_dr, dt_dx, dt_dy, dt_dz)`` in s/km.
-        """
-        if mode == "analytical":
-            raise NotImplementedError(
-                "Analytical derivatives are not implemented for scikit-fmm tables."
-            )
-        elif mode == "numerical":
-            if delta is None:
-                raise ValueError(
-                    "Delta must be provided for numerical derivative computation."
-                )
-            # TODO: Expose numerical derivative stencils (central, forward,
-            # backward, five-point, etc.).
-            return self._compute_derivatives_numerical(
-                arc_distance_km=arc_distance_km,
-                source_depth_km=source_depth_km,
-                azimuth_deg=az_deg,
-                phase=phase,
-                delta=delta,
-            )
-        else:
-            raise ValueError(
-                f"Invalid mode: {mode}. Supported modes are 'analytical' and "
-                "'numerical'."
-            )
