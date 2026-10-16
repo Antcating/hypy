@@ -2,34 +2,36 @@
 
 import numbers
 from dataclasses import dataclass, field
-from typing import Iterable, Optional
+from typing import Optional, Sequence
 
+import numpy as np
+
+from ..utils.seismic import normalize_phase
 from .types import (
     VALID_DERIVATIVE_METHODS,
-    VALID_DIMENSIONS,
-    VALID_SOLVERS,
+    VALID_UNRESOLVED_DEPTHS,
     DerivativeMethodLiteral,
-    SolverLiteral,
+    UnresolvedDepthLiteral,
 )
 
 
 @dataclass(frozen=True)
 class LocatorConfig:
-    """
-    Immutable, construction-time configuration for the event locator.
+    """Read-only, construction-time configuration for the event locator.
 
-    Holds settings that define the *identity* of a locator: the data layout,
-    the physical/model assumptions, and the components built from them. These
-    do not change between ``locate()`` calls on the same locator. Created once
-    in ``EventLocator.__init__`` and shared (read-only) with all components.
+    Holds settings that define are constant of a locator: the data
+    layout, the physical/model parameters.
+    These do not change between ``locate()`` calls on the
+    same locator.
 
-    Per-run knobs (weighting, error model, RNG seed) live in :class:`RunConfig`.
+    Per-run knobs (weighting, error model, RNG seed) live in
+    :class:`RunConfig`.
     """
 
     # Phases to use for travel-time calculations.
     # This can be used to limit the inversion to a subset of phases,
     # even if the input catalog contains picks for more phases.
-    phases: Iterable[str]
+    phases: Sequence[str]
     # Minimum number of picks required per event to attempt location.
     # Events with fewer picks will be marked as invalid
     # and skipped during inversion.
@@ -40,7 +42,7 @@ class LocatorConfig:
     min_picks_per_event: int
     # If a pick does not have an associated time error,
     # this default error (in seconds) will be used.
-    default_time_error: float
+    time_error_floor_s: float
     derivative_method: DerivativeMethodLiteral
     # Whether to fix event depths during inversion.
     # This is a common practice when the problem is severely underconstrained,
@@ -54,20 +56,17 @@ class LocatorConfig:
     # will not reduce the computational cost of the inversion,
     # but it can help stabilize the solution when depth is poorly constrained.
     fix_depth_km: Optional[float]
-    precalculate_velocities: bool
+
+    # TODO: Add ability to change delta
     derivative_delta_km: float = 0.5
-    # Dimensionality of the inversion problem (x, y, z, t0)
-    # Note: for now, only 4D is supported,
-    # but this could be made flexible in the future if needed.
-    dim: int = 4
     # Optional geographic box that constrains event epicenters during both
     # location seeding and inversion iterations. Either all four bounds are
     # set, or all are None (then seeding falls back to a station envelope and
     # iterations are unconstrained horizontally).
-    search_lat_min: Optional[float] = None
-    search_lat_max: Optional[float] = None
-    search_lon_min: Optional[float] = None
-    search_lon_max: Optional[float] = None
+    latitude_min_deg: Optional[float] = None
+    latitude_max_deg: Optional[float] = None
+    longitude_min_deg: Optional[float] = None
+    longitude_max_deg: Optional[float] = None
     n_phases: int = field(init=False)
 
     @property
@@ -76,19 +75,19 @@ class LocatorConfig:
     ) -> Optional[tuple[float, float, float, float]]:
         """Return ``(lat_min, lat_max, lon_min, lon_max)`` or ``None``."""
         bounds = (
-            self.search_lat_min,
-            self.search_lat_max,
-            self.search_lon_min,
-            self.search_lon_max,
+            self.latitude_min_deg,
+            self.latitude_max_deg,
+            self.longitude_min_deg,
+            self.longitude_max_deg,
         )
         if all(b is None for b in bounds):
             return None
         assert all(b is not None for b in bounds)
         return (
-            float(self.search_lat_min),  # type: ignore[arg-type]
-            float(self.search_lat_max),  # type: ignore[arg-type]
-            float(self.search_lon_min),  # type: ignore[arg-type]
-            float(self.search_lon_max),  # type: ignore[arg-type]
+            float(self.latitude_min_deg),  # type: ignore[arg-type]
+            float(self.latitude_max_deg),  # type: ignore[arg-type]
+            float(self.longitude_min_deg),  # type: ignore[arg-type]
+            float(self.longitude_max_deg),  # type: ignore[arg-type]
         )
 
     def clamp_horizontal(self, lat: float, lon: float) -> tuple[float, float]:
@@ -98,28 +97,22 @@ class LocatorConfig:
             return float(lat), float(lon)
         lat_min, lat_max, lon_min, lon_max = bounds
         return (
-            min(max(float(lat), lat_min), lat_max),
-            min(max(float(lon), lon_min), lon_max),
+            float(np.clip(lat, lat_min, lat_max)),
+            float(np.clip(lon, lon_min, lon_max)),
         )
 
     def __post_init__(self) -> None:
         """Compute derived values and validate post-init constraints."""
-        # Convert phases to a lowercase tuple first, then derive n_phases from the
-        # materialized tuple.
+        # Normalize phases
         object.__setattr__(
             self,
             "phases",
-            tuple(phase.lower() for phase in self.phases),
+            tuple(normalize_phase(phase) for phase in self.phases),
         )
         object.__setattr__(self, "n_phases", len(self.phases))
 
-        if self.dim not in VALID_DIMENSIONS:
-            raise ValueError(
-                f"dim must be one of: {', '.join(str(d) for d in sorted(VALID_DIMENSIONS))}."  # noqa: E501
-            )
-
-        if self.default_time_error <= 0.0:
-            raise ValueError("default_time_error must be > 0.0.")
+        if self.time_error_floor_s <= 0.0:
+            raise ValueError("time_error_floor_s must be > 0.0.")
 
         if self.derivative_delta_km <= 0.0:
             raise ValueError("derivative_delta_km must be > 0.0.")
@@ -127,6 +120,7 @@ class LocatorConfig:
         if self.min_picks_per_event <= 0:
             raise ValueError("min_picks_per_event must be > 0.")
 
+        # Validate search bounds
         self._validate_search_bounds()
 
         # Validate derivative method
@@ -135,23 +129,23 @@ class LocatorConfig:
     def _validate_search_bounds(self) -> None:
         """Require search lat/lon bounds to be all set or all ``None``."""
         bounds = (
-            self.search_lat_min,
-            self.search_lat_max,
-            self.search_lon_min,
-            self.search_lon_max,
+            self.latitude_min_deg,
+            self.latitude_max_deg,
+            self.longitude_min_deg,
+            self.longitude_max_deg,
         )
         n_set = sum(b is not None for b in bounds)
         if n_set == 0:
             return
         if n_set != 4:
             raise ValueError(
-                "search_lat_min/search_lat_max/search_lon_min/search_lon_max "
+                "latitude_min_deg/latitude_max_deg/longitude_min_deg/longitude_max_deg "
                 "must all be set or all be None."
             )
-        if self.search_lat_min >= self.search_lat_max:  # type: ignore[operator]
-            raise ValueError("search_lat_min must be < search_lat_max.")
-        if self.search_lon_min >= self.search_lon_max:  # type: ignore[operator]
-            raise ValueError("search_lon_min must be < search_lon_max.")
+        if self.latitude_min_deg >= self.latitude_max_deg:  # type: ignore[operator]
+            raise ValueError("latitude_min_deg must be < latitude_max_deg.")
+        if self.longitude_min_deg >= self.longitude_max_deg:  # type: ignore[operator]
+            raise ValueError("longitude_min_deg must be < longitude_max_deg.")
 
     def validate_derivative_method(self) -> None:
         """Validate the derivative method and normalize it to lowercase."""
@@ -169,13 +163,12 @@ class LocatorConfig:
 
 @dataclass(frozen=True)
 class RunConfig:
-    """
-    Immutable, per-run configuration for a single ``locate()`` call.
+    """Read-only, per-run configuration for a ``locate()`` call.
 
-    Holds knobs that only take effect while a location run is executing and can
+    Holds knobs that take effect while a location run is executing and can
     be varied freely between runs on the same loaded data without rebuilding any
-    component: distance/residual weighting, the observation error model, and the
-    RNG seed used for location initialization. Built inside
+    component: distance/residual weighting, the observation error model, the
+    RNG seed, and the heuristic ``num_trials`` budget. Built inside
     ``EventLocator.locate`` from its arguments and passed (read-only) to the
     run-time components.
     """
@@ -190,23 +183,47 @@ class RunConfig:
     residual_zero_weight_factor: float = 3.0
     full_data_covariance: bool = False
     correlation_length_km: float = 1.0
+    model_uncertainty_s: float = 0.15
     error_coefficient: float = 1.0
     seed: Optional[int] = None
-    solver: SolverLiteral = "lsqr"
+    # Total heuristic seed budget (anchors plus Gaussian samples).
+    num_trials: int = 8
+    # When True, use each event's last input Origin (lat/lon/depth/time) as an
+    # additional seed candidate during location initialization.
+    use_origins: bool = False
+    unresolved_depth: Optional[UnresolvedDepthLiteral] = "seed"
 
     def __post_init__(self) -> None:
         """Validate post-init constraints."""
+        if isinstance(self.num_trials, bool) or not isinstance(
+            self.num_trials, numbers.Integral
+        ):
+            raise ValueError("num_trials must be an integer >= 1.")
+        if int(self.num_trials) < 1:
+            raise ValueError("num_trials must be an integer >= 1.")
+        object.__setattr__(self, "num_trials", int(self.num_trials))
+
+        if (
+            not isinstance(self.error_coefficient, numbers.Real)
+            or self.error_coefficient < 0.0
+        ):
+            raise ValueError("error_coefficient must be >= 0.")
+        object.__setattr__(self, "error_coefficient", float(self.error_coefficient))
+
+        if (
+            isinstance(self.model_uncertainty_s, bool)
+            or not isinstance(self.model_uncertainty_s, numbers.Real)
+            or not self.model_uncertainty_s > 0.0
+        ):
+            raise ValueError("model_uncertainty_s must be > 0.")
+        object.__setattr__(self, "model_uncertainty_s", float(self.model_uncertainty_s))
+
         if self.full_data_covariance:
             if (
                 not isinstance(self.correlation_length_km, numbers.Real)
                 or self.correlation_length_km <= 0.0
             ):
                 raise ValueError("correlation_length_km must be > 0.")
-            if (
-                not isinstance(self.error_coefficient, numbers.Real)
-                or self.error_coefficient < 0.0
-            ):
-                raise ValueError("error_coefficient must be >= 0.")
 
         if self.residual_weighting_enabled:
             if (
@@ -258,11 +275,17 @@ class RunConfig:
                 "is disabled."
             )
 
-        if not isinstance(self.solver, str):
-            raise ValueError(f"Solver must be a string, got {type(self.solver)}.")
-        normalized_solver = self.solver.lower()
-        if normalized_solver not in VALID_SOLVERS:
-            raise ValueError(
-                f"Unsupported solver: {self.solver!r}. Use one of: {', '.join(sorted(VALID_SOLVERS))}."  # noqa: E501
-            )
-        object.__setattr__(self, "solver", normalized_solver)
+        if self.unresolved_depth is not None:
+            if not isinstance(self.unresolved_depth, str):
+                raise ValueError(
+                    "unresolved_depth must be a string or None, "
+                    f"got {type(self.unresolved_depth)}."
+                )
+            normalized_depth = self.unresolved_depth.lower()
+            if normalized_depth not in VALID_UNRESOLVED_DEPTHS:
+                allowed = ", ".join(sorted(VALID_UNRESOLVED_DEPTHS))
+                raise ValueError(
+                    f"Unsupported unresolved_depth: {self.unresolved_depth!r}. "
+                    f"Use one of: {allowed}, or None."
+                )
+            object.__setattr__(self, "unresolved_depth", normalized_depth)

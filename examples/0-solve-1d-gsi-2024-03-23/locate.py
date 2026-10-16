@@ -20,7 +20,7 @@ init_grid = TauTravelTimeGrid(
     max_depth_km=100.0,
     max_distance_km=300.0,
     depth_step_km=5.0,
-    distance_step_km=5.0,
+    distance_step_km=20.0,
     tracer=TauPRayTracer(model=model),
 )
 
@@ -44,7 +44,6 @@ locator.load_data(inv, catalog)
 out, invalid = locator.locate(
     max_iterations=1000,
     trial_depth_km=5.0,
-    solver="lsqr",
     distance_weight_start_km=100.0,
     distance_weight_end_km=200.0,
 )

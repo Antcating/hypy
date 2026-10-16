@@ -1,19 +1,17 @@
-"""
-Public API for hypy.locator.
+"""EventLocator orchestrator for hypy."""
 
-Exposes EventLocator as a composition-based orchestrator.
-"""
-
-from typing import Iterable, List, Optional, Tuple, Union
+from logging import INFO
+from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
+import pandas as pd
+from obspy.core.event import Catalog, Event  # type: ignore[import-untyped]
+from obspy.core.inventory import Inventory  # type: ignore[import-untyped]
 
 from ..logger import get_logger
 from ..propagation import PropagationEngine
-from ..utils.weighting import (
-    configure_distance_weighting,
-    configure_residual_weighting,
-)
+from ..utils.seismic import normalize_phase
+from ..utils.weighting import configure_distance_weighting
 from .config import (
     LocatorConfig,
     RunConfig,
@@ -21,94 +19,91 @@ from .config import (
 from .data import DataHandler
 from .derivatives import DerivativesHandler
 from .errors import compute_error_ellipsoids
-from .export import OriginExporter
+from .export import finalize_origins
 from .inversion import InversionEngine
-from .locations_setup import LocationSeeder
+from .locations_setup import seed_locations
 from .types import (
-    INFO,
-    Catalog,
     DerivativeMethodLiteral,
-    Event,
-    Inventory,
-    SolverLiteral,
+    UnresolvedDepthLiteral,
 )
 
 
 class EventLocator:
-    """
-    Absolute seismic event relocator using 1D velocity model and event P/S phase picks.
+    """Iterative seismic event relocator.
 
     Parameters
     ----------
     propagation_engine : PropagationEngine
-        Travel-time calculation engine. This is a required argument that specifies the
-        backend to use for travel-time calculations and derivative assembly. The provided
-        engine must be compatible with the specified derivative_method and support the
-        required model features.
+        Ray parameters calculation engine. The provided
+        engine must be compatible with the specified derivative_method
+        and support the required model features.
     initial_propagation_engine : PropagationEngine, optional
-        Optional forward model used during location seeding. Prefer a
-        precomputed travel-time table with coarse ``depth_step_km`` /
-        ``distance_step_km`` so a 3D grid search stays cheap. When set,
-        seeding scores a lat/lon/depth grid (config search bounds if provided,
-        otherwise a padded station envelope), sliced so every node has enough
-        in-range stations. When ``None``, seeding uses heuristic epicenter
-        seeds (clamped to config search bounds when set) without travel-time
-        scoring. Default is ``None``.
+        Optional forward model used during location seeding.
+        When set, seeding scores a lat/lon/depth grid. When ``None``,
+        heuristic epicenter seeds are scored with ``propagation_engine``.
+        Default is ``None``.
     phases : Sequence[str], optional
         List of seismic phases to use for travel-time calculations. Default is ("P",).
-        Alowed phases, for now, are "P" and "S".
+        Allowed phases are "P" and "S".
     min_picks_per_event : int, optional
         Minimum number of picks required per event to attempt location. Default is 4.
-    default_time_error : float, optional
-        Minimum pick time error (in seconds). Used if pick error is not given. Default is 0.1 s.
+    time_error_floor_s : float, optional
+        Minimum pick time error (in seconds). Used if pick error is not given.
+        Default is 0.1 s.
     fix_depth_km : Optional[float], optional
         If not None, event depths are fixed during inversion. Default is None.
-    search_lat_min, search_lat_max, search_lon_min, search_lon_max : float, optional
+    latitude_min_deg, latitude_max_deg, longitude_min_deg, longitude_max_deg : float, optional
         Optional geographic box that constrains event epicenters during seeding
         and inversion iterations. All four must be set together, or all
         omitted. When set, they override the station-envelope horizontal
         extent for grid-search seeding, clamp heuristic seeds, and keep
         iterative updates inside the box. Default is ``None``.
-    _precalculate_velocities : bool, optional
-        If True, precomputes velocity profiles for all events to speed up travel-time
-        calculations. Requires max_depth_km and depth_step_km to be set. Default is False.
 
     Notes
     -----
     Per-run knobs (distance/residual weighting, observation error model, and the
     RNG seed) are not set here; they are passed to :meth:`locate` so they can be
     varied between runs on the same loaded data without rebuilding the locator.
+
+    Prefer a precomputed travel-time table with coarse ``depth_step_km`` / ``distance_step_km``
+    when using ``initial_propagation_engine`` so a 3D grid search stays cheap.
     """  # noqa: E501
 
     def __init__(
         self,
         propagation_engine: PropagationEngine,
         initial_propagation_engine: Optional[PropagationEngine] = None,
-        phases: Iterable[str] = ("p", "s"),
+        phases: Sequence[str] = ("p", "s"),
         derivative_method: DerivativeMethodLiteral = "numerical",
         fix_depth_km: Optional[float] = None,
         min_picks_per_event: int = 4,
-        default_time_error: float = 0.1,
-        search_lat_min: Optional[float] = None,
-        search_lat_max: Optional[float] = None,
-        search_lon_min: Optional[float] = None,
-        search_lon_max: Optional[float] = None,
+        time_error_floor_s: float = 0.1,
+        latitude_min_deg: Optional[float] = None,
+        latitude_max_deg: Optional[float] = None,
+        longitude_min_deg: Optional[float] = None,
+        longitude_max_deg: Optional[float] = None,
         log_level: int = INFO,
         log_file: Optional[str] = None,
-        _precalculate_velocities: bool = False,
     ):
+        # Configure logger
         get_logger("hypy", level=log_level, log_file=log_file)
 
-        if not isinstance(phases, Iterable) or not all(
+        # Read phases
+        if not isinstance(phases, Sequence) or not all(
             isinstance(phase, str) for phase in phases
         ):
             raise ValueError(
-                f"Phases must be an iterable of strings, got {type(phases)}."  # noqa: E501
+                f"Phases must be an Sequence of strings, got {type(phases)}."
             )
-        phases = tuple(phase.lower() for phase in phases)
+        phases = tuple(normalize_phase(phase) for phase in phases)
+
+        # Check if any phases provided in the input are not supported
+        # by propagation engine.
+        # Example: precalculated table have tables only for P and not for S.
         if any(phase not in propagation_engine.phases for phase in phases):
             raise ValueError(
-                f"Propagation engine phases {propagation_engine.phases} do not match provided phases {phases}."  # noqa: E501
+                "Propagation engine phases ",
+                f"{propagation_engine.phases} do not match provided phases {phases}.",
             )
 
         if initial_propagation_engine is not None and any(
@@ -120,26 +115,27 @@ class EventLocator:
                 f"provided phases {phases}."
             )
 
-        # Build immutable, construction-time configuration
+        # Global config
         self.config = LocatorConfig(
             phases=phases,
             min_picks_per_event=min_picks_per_event,
-            default_time_error=default_time_error,
+            time_error_floor_s=time_error_floor_s,
             derivative_method=derivative_method,
             fix_depth_km=fix_depth_km,
-            precalculate_velocities=bool(_precalculate_velocities),
-            search_lat_min=search_lat_min,
-            search_lat_max=search_lat_max,
-            search_lon_min=search_lon_min,
-            search_lon_max=search_lon_max,
+            latitude_min_deg=latitude_min_deg,
+            latitude_max_deg=latitude_max_deg,
+            longitude_min_deg=longitude_min_deg,
+            longitude_max_deg=longitude_max_deg,
         )
 
         self.data = DataHandler(config=self.config)
 
-        backend_feature_flags = propagation_engine.feature_flags
-        # backend_required_model_features = forward_engine.required_model_features
-
-        if f"derivative.{self.config.derivative_method}" not in backend_feature_flags:
+        # Compare feature flags between derivative method and forward engine
+        forward_engine_feature_flags = propagation_engine.feature_flags
+        if (
+            f"derivative.{self.config.derivative_method}"
+            not in forward_engine_feature_flags
+        ):
             raise ValueError(
                 "Unsupported derivative method: "
                 f"{self.config.derivative_method!r} "
@@ -150,40 +146,21 @@ class EventLocator:
         # Optional table for grid-search seeding; None => heuristic seeds.
         self.initial_propagation_backend = initial_propagation_engine
 
-        # Derivative engine - bridges config, data, model, and propagation backend
+        # Derivative engine
         self.derivative_engine = DerivativesHandler(
             config=self.config,
             data=self.data,
-            tracer=self.propagation_backend,
+            propagation_engine=self.propagation_backend,
         )
 
-        # Whether to precompute velocity profiles for all events.
-        # This can speed up travel-time calculations,
-        # but introduces additional overhead during initialization.
-        # Also, it introduces resolution to velocity values no matter
-        # what travel-time calculation engine is used,
-        # which can impact the accuracy of the solution in ray-tracing mode.
-        if self.config.precalculate_velocities:
-            raise NotImplementedError(
-                "Precomputing velocity profiles is not yet implemented. "
-                "This feature is planned for a future release."
-            )
-            # validate_precompute_args(max_depth_km, depth_step_km)
-            # precompute_velocity_profiles = getattr(
-            #     self.velocity_model,
-            #     "_precompute_velocity_profiles_1d",
-            #     None,
-            # )
-            # if callable(precompute_velocity_profiles):
-            #     precompute_velocity_profiles(
-            #         self.config.phases,
-            #         max_depth_km,
-            #         depth_step_km,
-            #     )
-
-    def load_data(self, inv: Inventory, catalog: Union[List[Event], Catalog]) -> None:
-        """
-        Load station and event data from ObsPy Inventory and Catalog objects.
+    def load_data(
+        self,
+        inv: Inventory,
+        catalog: Union[List[Event], Catalog],
+        station_time_corrections: Optional[pd.DataFrame] = None,
+        fixed_depth_mask: Optional[Sequence[bool]] = None,
+    ) -> None:
+        """Load station and event data.
 
         Parameters
         ----------
@@ -191,18 +168,28 @@ class EventLocator:
             ObsPy Inventory object containing station metadata.
         catalog : Union[List[Event], Catalog]
             ObsPy Catalog or list of Event objects containing event and pick data.
+        station_time_corrections : mapping or table, optional
+            Known station delays in seconds. A table (e.g. pandas DataFrame)
+            must have columns ``network``, ``station``, ``delay_s`` and may
+            have ``phase``. A mapping uses keys ``(network, station)`` or
+            ``(network, station, phase)``. Positive delay means the observed
+            arrival is late. Default is no corrections.
+        fixed_depth_mask : sequence of bool, optional
+            Per-event flags selecting input depths to hold fixed. Must contain
+            one flag per catalog event. Default is no fixed event depths.
         """
-        self.data.load_data(inv, catalog)
-
-    # Dummy alias for better discoverability in the API
-    load = load_data
+        self.data.load_data(
+            inv,
+            catalog,
+            station_time_corrections=station_time_corrections,
+            fixed_depth_mask=fixed_depth_mask,
+        )
 
     def locate(
         self,
-        solver: SolverLiteral = "lsqr",
         max_iterations: int = 100,
         conv_threshold: float = 1e-3,
-        solve_airquakes: bool = False,
+        unresolved_depth: Optional[UnresolvedDepthLiteral] = "seed",
         depth_elimination_iteration: int = 20,
         trial_depth_km: float = 10.0,
         distance_weight_start_km: Optional[float] = None,
@@ -215,11 +202,12 @@ class EventLocator:
         residual_zero_weight_factor: float = 3.0,
         full_data_covariance: bool = False,
         correlation_length_km: float = 1.0,
-        error_coefficient: float = 1.0,
+        model_uncertainty_s: float = 0.15,
         seed: Optional[int] = None,
+        num_trials: int = 8,
+        use_origins: bool = False,
     ) -> Tuple[Union[List[Event], Catalog], np.ndarray]:
-        """
-        Run the full location pipeline.
+        """Run the full location pipeline.
 
         Performs iterative least-squares inversion to locate events
         based on the loaded data and configuration. The process includes:
@@ -230,16 +218,20 @@ class EventLocator:
 
         Parameters
         ----------
-        solver : SolverLiteral, optional
-            Solver method (see :data:`SolverLiteral`). Default is "lsqr".
         max_iterations : int, optional
             Maximum number of inversion iterations. Default is 1000.
         conv_threshold : float, optional
-            RMS convergence threshold (seconds). Default is 1e-3.
-        solve_airquakes : bool, optional
-            If True, allows negative depths. Default is False.
+            WRMS convergence threshold (seconds). Default is 1e-3.
+        unresolved_depth : {'current', 'seed', None}, optional
+            Where to hold depth after an out-of-bounds step.
+            ``current`` freezes the hypocenter in place; ``seed``
+            (default) freezes at the initial location depth. ``None``
+            skips that freeze and only eliminates depth after
+            ``depth_elimination_iteration``.
         depth_elimination_iteration : int, optional
-            Iteration number after which depth constraints become strict. Default is 20.
+            Used only when ``unresolved_depth`` is ``None``: iteration
+            after which a step below the model ``max_depth`` freezes
+            depth in place. Default is 20.
         trial_depth_km : float, optional
             Initial trial depth (km) for seed generation. Default is 10.0.
         distance_weight_start_km : Optional[float], optional
@@ -276,13 +268,36 @@ class EventLocator:
         correlation_length_km : float, optional
             Correlation length in km used in the exponential observation covariance
             model when full_data_covariance is enabled. Default is 1.0.
-        error_coefficient : float, optional
-            HYPOINVERSE-style coefficient applied to RMS in the error variance
-            estimate ``RDERR^2 + (error_coefficient * RMS)^2``. Default is 1.0.
+        model_uncertainty_s : float, optional
+            Travel-time model uncertainty in seconds (HypoInverse ``RDERR``,
+            set by its ``ERR`` command). It enters the data variance as
+            ``SIGMA^2 = RDERR^2 + ERCOF * WRMS^2`` and sets the floor on the
+            reported uncertainties: an event whose residuals fit perfectly
+            still carries the error implied by an imperfect velocity model.
+            This is a property of the model, not of the picks, so pick
+            uncertainties only set the relative row weighting. Default is 0.15,
+            the HypoInverse default; use a value comparable to the residual WRMS
+            a well-located event achieves with your model. Must be > 0.
         seed : Optional[int], optional
             Seed for the random number generator used during location
             initialization. Set this to an integer to make this location run
             reproducible. If None, results are non-deterministic. Default is None.
+        num_trials : int, optional
+            Total number of heuristic seed candidates to evaluate, including
+            the catalog Origin when ``use_origins`` is True, then the
+            network-mean and early-P anchors. Extra trials are Gaussian
+            samples around those anchors. ``num_trials=1`` with
+            ``use_origins=True`` keeps only the Origin seed. Must be >= 1.
+            Default is 8.
+        use_origins : bool, optional
+            When True, events that already contain an Origin use ``origins[-1]``
+            as the first seed candidate. The origin's latitude, longitude,
+            depth, and time (when present) participate in seeding; missing depth
+            or time fall back to ``trial_depth_km`` and the earliest pick,
+            respectively. Default is False. For catalog relocation over a
+            regional network, set this True — heuristic seeds plus a finite
+            ``max_distance_km`` on the tracer will otherwise drop distant
+            stations and smear poorly constrained depths.
 
         Returns
         -------
@@ -294,34 +309,24 @@ class EventLocator:
         distance_weighting_enabled, k, x0 = configure_distance_weighting(
             distance_weight_start_km, distance_weight_end_km, weight_start, weight_end
         )
-        (
-            residual_weighting_enabled,
-            residual_weighting_iteration,
-            residual_rms_floor_s,
-            residual_full_weight_factor,
-            residual_zero_weight_factor,
-        ) = configure_residual_weighting(
-            residual_weighting_iteration,
-            residual_rms_floor_s=residual_rms_floor_s,
-            residual_full_weight_factor=residual_full_weight_factor,
-            residual_zero_weight_factor=residual_zero_weight_factor,
-        )
-
-        # Build immutable, per-run configuration
+        # Build immutable, per-run configuration. RunConfig validates the
+        # residual-weighting parameters whenever they are in effect.
         run_config = RunConfig(
             distance_weighting_enabled=distance_weighting_enabled,
             k=k,
             x0=x0,
-            residual_weighting_enabled=residual_weighting_enabled,
+            residual_weighting_enabled=residual_weighting_iteration is not None,
             residual_start_iteration=residual_weighting_iteration,
             residual_rms_floor_s=residual_rms_floor_s,
             residual_full_weight_factor=residual_full_weight_factor,
             residual_zero_weight_factor=residual_zero_weight_factor,
             full_data_covariance=bool(full_data_covariance),
             correlation_length_km=float(correlation_length_km),
-            error_coefficient=float(error_coefficient),
-            solver=solver,
+            model_uncertainty_s=model_uncertainty_s,
+            unresolved_depth=unresolved_depth,
             seed=seed,
+            num_trials=num_trials,
+            use_origins=bool(use_origins),
         )
 
         init_backend = self.initial_propagation_backend
@@ -331,12 +336,16 @@ class EventLocator:
         else:
             init_depth_step_km = self.propagation_backend.depth_step_km
             init_max_depth_km = self.propagation_backend.max_depth_km
-        LocationSeeder(
+        seed_locations(
             config=self.config,
             data=self.data,
             run_config=run_config,
+            trial_depth_km=trial_depth_km,
+            depth_step_km=init_depth_step_km,
+            max_depth_km=init_max_depth_km,
             propagation_engine=init_backend,
-        ).seed(trial_depth_km, init_depth_step_km, init_max_depth_km)
+            scoring_engine=self.propagation_backend,
+        )
 
         inversion_engine = InversionEngine(
             config=self.config,
@@ -345,11 +354,8 @@ class EventLocator:
             run_config=run_config,
         )
         inversion_results = inversion_engine.run_iterations(
-            solver=run_config.solver,
             max_iterations=max_iterations,
             conv_threshold=conv_threshold,
-            solve_airquakes=solve_airquakes,
-            max_depth=self.propagation_backend.max_depth_km,
             depth_elimination_iteration=depth_elimination_iteration,
         )
 
@@ -360,9 +366,8 @@ class EventLocator:
             run_config,
         )
 
-        exporter = OriginExporter(config=self.config, data=self.data)
-        events = exporter.finalize_origins(error_results, as_catalog=True)
-        invalid_indices = OriginExporter.report_invalid_events(self.data)
+        events = finalize_origins(self.config, self.data, error_results)
+        invalid_indices = np.flatnonzero(self.data.invalid_events)
 
         return events, invalid_indices
 

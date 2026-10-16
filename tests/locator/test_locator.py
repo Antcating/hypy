@@ -65,7 +65,7 @@ def test_event_locator_initial_propagation_engine_phase_mismatch():
 @pytest.mark.parametrize("phases", [None, 1, 2, 3])
 def test_event_locator_invalid_type_phases(phases: Any):
     tvel_model = build_tvel_model()
-    with pytest.raises(ValueError, match="Phases must be an iterable of strings"):
+    with pytest.raises(ValueError, match="Phases must be an Sequence of strings"):
         EventLocator(
             propagation_engine=TauPRayTracer(model=tvel_model),
             phases=phases,

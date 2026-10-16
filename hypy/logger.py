@@ -1,4 +1,4 @@
-"""Logging helpers used across the package."""
+"""Logger."""
 
 import logging
 import os

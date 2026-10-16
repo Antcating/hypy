@@ -1,39 +1,18 @@
 """Type declarations for locator components."""
 
 from dataclasses import dataclass
-from logging import INFO
-from pathlib import Path
-from typing import (
-    List,
-    Literal,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-    get_args,
-)
+from typing import Literal, get_args
 
 import numpy as np
-from obspy.core.event import (  # type: ignore[import-untyped]
-    Arrival,
-    Catalog,
-    Event,
-    Origin,
-)
-from obspy.core.event.base import QuantityError  # type: ignore[import-untyped]
-from obspy.core.event.origin import (  # type: ignore[import-untyped]
-    ConfidenceEllipsoid,
-    OriginUncertainty,
-)
-from obspy.core.inventory import Inventory  # type: ignore[import-untyped]
 
-DimLiteral = Literal[4]
-SolverLiteral = Literal["lsqr", "svd"]
 DerivativeMethodLiteral = Literal["numerical", "analytical"]
+UnresolvedDepthLiteral = Literal["current", "seed"]
 
-VALID_SOLVERS: frozenset[str] = frozenset(get_args(SolverLiteral))
 VALID_DERIVATIVE_METHODS: frozenset[str] = frozenset(get_args(DerivativeMethodLiteral))
-VALID_DIMENSIONS: frozenset[int] = frozenset(get_args(DimLiteral))
+VALID_UNRESOLVED_DEPTHS: frozenset[str] = frozenset(get_args(UnresolvedDepthLiteral))
+
+# Unknowns solved per event: latitude, longitude, depth, origin time.
+DIM = 4
 
 
 @dataclass
@@ -75,32 +54,3 @@ class ErrorResults:
     principal_std: np.ndarray  # (n_events, dim-1)
     principal_axes: np.ndarray  # (n_events, dim-1, dim-1)
     erz_erh: np.ndarray  # (n_events, 2)
-
-
-# Re-exports for convenience
-__all__ = [
-    "Path",
-    "List",
-    "Optional",
-    "Tuple",
-    "Union",
-    "Literal",
-    "Sequence",
-    "np",
-    "Arrival",
-    "Catalog",
-    "Event",
-    "Origin",
-    "QuantityError",
-    "ConfidenceEllipsoid",
-    "OriginUncertainty",
-    "Inventory",
-    "DimLiteral",
-    "SolverLiteral",
-    "DerivativeMethodLiteral",
-    "VALID_DERIVATIVE_METHODS",
-    "VALID_SOLVERS",
-    "InversionResults",
-    "ErrorResults",
-    "INFO",
-]
