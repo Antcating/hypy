@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Sequence, Union
 
 import numpy as np
-
 import pyekfmm as fmm  # type: ignore[import-untyped]
+
 from hypy.logger import logger
-from hypy.model.volumetric import (
-    GridSliceData,
-    VelocityGridProvider,
-    build_velocity_grid_provider,
-)
+from hypy.model import VelocityModel
+from hypy.model.volumetric import GridSliceData, VelocityGridProvider
 from hypy.propagation.volumetric import VolumetricPropagationEngine
 from hypy.utils.seismic import normalize_phase
 
@@ -36,40 +34,58 @@ class _ReceiverTable:
 class FmmTravelTimeGrid3D(VolumetricPropagationEngine):
     """Travel-time table backend using pyekfmm on a 3D velocity grid."""
 
+    feature_flags = frozenset(
+        {
+            "propagation.volumetric",
+            "propagation.table",
+            "derivative.numerical",
+        }
+    )
+    required_model_features = frozenset({"model.grid.3d"})
+
     tt_table: Optional[np.ndarray] = None
     tt_tables_by_receiver: dict[tuple[str, tuple[float, float, float]], _ReceiverTable]
 
     def __init__(
         self,
-        model_path: str,
-        max_distance_km: float,
-        distance_step_km: float,
+        model: Union[VelocityModel, str, Path],
+        phases: Sequence[str],
         max_depth_km: float,
+        max_distance_km: float,
         depth_step_km: float,
-        phases: list[str],
+        distance_step_km: float,
         order: int = 2,
     ):
-        super().__init__(model_path=model_path)
-
         if not phases:
             raise ValueError("At least one phase must be provided.")
 
-        self.phases = tuple(sorted({self._normalize_phase(phase) for phase in phases}))
-        self.grid_provider: VelocityGridProvider = build_velocity_grid_provider(
-            model_path
+        normalized_phases = tuple(normalize_phase(phase) for phase in phases)
+        super().__init__(
+            model,
+            mode="table",
+            engine="pyekfmm",
+            max_depth_km=max_depth_km,
+            max_distance_km=max_distance_km,
+            depth_step_km=depth_step_km,
+            distance_step_km=distance_step_km,
+            phases=normalized_phases,
         )
 
-        self.max_distance_km = float(max_distance_km)
-        self.distance_step_km = float(distance_step_km)
-        self.max_depth_km = float(max_depth_km)
-        self.depth_step_km = float(depth_step_km)
-        self.local_nx = (
-            int(round(2.0 * self.max_distance_km / self.distance_step_km)) + 1
-        )
-        self.local_ny = (
-            int(round(2.0 * self.max_distance_km / self.distance_step_km)) + 1
-        )
-        self.local_nz = int(round(self.max_depth_km / self.depth_step_km)) + 1
+        if not callable(getattr(self.velocity_model, "get_grid", None)):
+            raise TypeError(
+                f"Volumetric model {type(self.velocity_model).__name__!r} "
+                "does not implement get_grid()."
+            )
+        # NCGrid / NllGridModel both implement the grid-provider protocol.
+        self.grid_provider: VelocityGridProvider = self.velocity_model
+
+        max_distance_km = float(self.max_distance_km)
+        distance_step_km = float(self.distance_step_km)
+        max_depth_km = float(self.max_depth_km)
+        depth_step_km = float(self.depth_step_km)
+        self.local_nx = int(round(2.0 * max_distance_km / distance_step_km)) + 1
+        self.local_ny = int(round(2.0 * max_distance_km / distance_step_km)) + 1
+        self.local_nz = int(round(max_depth_km / depth_step_km)) + 1
         self.order = int(order)
 
         self._grid_cache: dict[tuple[str, float, float, float], GridSliceData] = {}
@@ -80,9 +96,7 @@ class FmmTravelTimeGrid3D(VolumetricPropagationEngine):
 
     @staticmethod
     def _normalize_phase(phase: str) -> str:
-        # Uses the shared normalizer, then upper-cases to the ``P``/``S`` code
-        # expected by the volumetric grid providers.
-        return normalize_phase(phase).upper()
+        return normalize_phase(phase)
 
     @staticmethod
     def _project_to_xy(projected: object) -> tuple[float, float]:
@@ -264,6 +278,20 @@ class FmmTravelTimeGrid3D(VolumetricPropagationEngine):
         tuple[float, float | None, float | None, float]
             Arc distance, travel time, takeoff angle, and azimuth source-receiver.
         """
+        arc_distance_km, azimuth_deg, _ = self._compute_arc_params(
+            source_latitude,
+            source_longitude,
+            receiver_latitude,
+            receiver_longitude,
+        )
+        if max_distance_km is not None and arc_distance_km > float(max_distance_km):
+            logger.info(
+                "Station at distance %.2f km exceeds max_distance %.2f km. Skipping.",
+                arc_distance_km,
+                max_distance_km,
+            )
+            return arc_distance_km, None, None, azimuth_deg
+
         phase_code = self._normalize_phase(phase)
         eps = 1e-3  # km = 1 m
         receiver_z = max(eps, -float(receiver_elevation_m) / 1000.0)
@@ -277,15 +305,7 @@ class FmmTravelTimeGrid3D(VolumetricPropagationEngine):
                 receiver_depth_km=receiver_z,
             )
         except ValueError:
-            # logger.warning(
-            #     "Skipping receiver at (%s, %s, %s km) for phase %s: %s",
-            #     receiver_latitude,
-            #     receiver_longitude,
-            #     receiver_z,
-            #     phase_code,
-            #     exc,
-            # )
-            return 0.0, None, None, 0.0
+            return arc_distance_km, None, None, azimuth_deg
 
         grid = receiver_table.grid
 
@@ -296,37 +316,20 @@ class FmmTravelTimeGrid3D(VolumetricPropagationEngine):
             grid.project(source_latitude, source_longitude)
         )
 
-        arc_distance_km = float(
-            np.sqrt(
-                (receiver_x - source_x) ** 2
-                + (receiver_y - source_y) ** 2
-                + (receiver_z - source_z) ** 2
-            )
-        )
-
-        if max_distance_km is not None and arc_distance_km > float(max_distance_km):
-            return arc_distance_km, None, None, 0.0
-
         if not grid.contains_xyz(receiver_x, receiver_y, receiver_z):
-            # logger.warning(
-            #     f"({receiver_latitude}, {receiver_longitude}, {receiver_z} km) "
-            #     "receiver is outside the velocity grid. Returning no arrival."
-            # )
-            return arc_distance_km, None, None, 0.0
+            return arc_distance_km, None, None, azimuth_deg
 
         if not grid.contains_xyz(source_x, source_y, source_z):
-            # logger.warning(
-            #     f"({source_latitude}, {source_longitude}, {source_z} km) "
-            #     "source is outside the velocity grid. Returning no arrival."
-            # )
-            return arc_distance_km, None, None, 0.0
+            return arc_distance_km, None, None, azimuth_deg
 
         if receiver_table.tt_table.size == 0:
             logger.warning(
-                f"({receiver_latitude}, {receiver_longitude}, {receiver_z} km) "
-                "TT table is empty. Returning no arrival."
+                "(%s, %s, %s km) TT table is empty. Returning no arrival.",
+                receiver_latitude,
+                receiver_longitude,
+                receiver_z,
             )
-            return arc_distance_km, None, None, 0.0
+            return arc_distance_km, None, None, azimuth_deg
 
         fx = (source_x - receiver_table.ax[0]) / receiver_table.ax[1]
         fy = (source_y - receiver_table.ay[0]) / receiver_table.ay[1]
@@ -371,4 +374,4 @@ class FmmTravelTimeGrid3D(VolumetricPropagationEngine):
         else:
             travel_time = None
 
-        return arc_distance_km, travel_time, None, 0.0
+        return arc_distance_km, travel_time, None, azimuth_deg

@@ -196,9 +196,9 @@ class TvelModel(VelocityModel):
     ) -> tuple[np.ndarray, np.ndarray]:
         """Return layer-top depths and velocities for fast local ray tracing.
 
-        The returned arrays are derived from the already-loaded TauP velocity
-        model.  Velocities are sampled from
-        the top of each TauP layer, i.e. the value just below each interface.
+        The returned arrays are derived from the already-loaded TauP
+        velocity model.  Velocities are sampled from the top of each
+        TauP layer, i.e. the value just below each interface.
         """
         phase_lower = normalize_phase(phase)
         self._initialize_layer_arrays()

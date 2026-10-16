@@ -10,6 +10,7 @@ from nllgrid import NLLGrid  # type: ignore[import-untyped]
 
 from hypy.model import TvelModel, VelocityModel
 from hypy.utils.nllgrid import create_nll_grid_from_tvel
+from hypy.utils.seismic import normalize_phase
 
 from .. import GridSliceData
 
@@ -27,9 +28,18 @@ class NllGridModel(VelocityModel):
         }
     )
 
-    def __init__(self, model_path: Path | str):
+    def __init__(
+        self,
+        model_path: Path | str,
+        radius_of_planet_km: float = 6371.0,
+    ):
         model_path = Path(model_path).expanduser().resolve()
-        super().__init__(model_path=model_path, model_name=model_path.stem, dim=3)
+        super().__init__(
+            model_path=model_path,
+            model_name=model_path.stem,
+            dim=3,
+            radius_of_planet_km=radius_of_planet_km,
+        )
 
         self.model_path = model_path
         if not self.model_path.exists():
@@ -49,12 +59,7 @@ class NllGridModel(VelocityModel):
 
     @staticmethod
     def _normalize_phase(phase: str) -> str:
-        phase_code = phase.strip().upper()
-        if phase_code not in {"P", "S"}:
-            raise ValueError(
-                f"Unsupported phase: {phase!r}. Supported phases are 'P' and 'S'."
-            )
-        return phase_code
+        return normalize_phase(phase).upper()
 
     @staticmethod
     def _normalize_grid_kwargs(kwargs: Mapping[str, Any]) -> dict[str, Any]:

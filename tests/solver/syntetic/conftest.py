@@ -13,7 +13,6 @@ PHASE_SETS = (["P"], ["S"], ["P", "S"])
 MODES = ["table-1d"]
 ENGINES = ["taup", "pyrocko"]
 GEOM_NAMES = sorted(["uniform_grid", "ring", "L_shape", "sparse", "cluster"])
-SOLVERS = ["lsqr", "svd"]
 BIASES = [0.01, 0.1]
 N_EVENTS = [10, 50, 100]
 N_STATIONS = [8, 16, 25, 50, 100]
@@ -21,8 +20,8 @@ N_STATIONS = [8, 16, 25, 50, 100]
 
 @pytest.fixture(autouse=True)
 def _seed_per_test(request):
-    """
-    Deterministic numpy seed per collected test/param id.
+    """Deterministic numpy seed per collected test/param id.
+
     Predictable and order-independent.
     """
     seed = zlib.adler32(request.node.nodeid.encode()) & 0xFFFFFFFF
@@ -36,9 +35,7 @@ def taup_model():
 
 @pytest.fixture(scope="session")
 def relocation_summary():
-    """
-    Session-wide accumulator and final summary.
-    """
+    """Session-wide accumulator and final summary."""
     stats = {
         "total": 0,
         "success": 0,
@@ -85,10 +82,6 @@ def mode(request):
 def engine(request):
     return request.param
 
-
-@pytest.fixture(params=SOLVERS, ids=lambda s: f"solver={s}")
-def solver(request):
-    return request.param
 
 
 @pytest.fixture(params=BIASES, ids=lambda b: f"bias={b:.2f}s")

@@ -51,7 +51,9 @@ class GridSliceData:
     clipped_z_max: bool = False
 
     def project(self, lat: float, lon: float) -> tuple[float, float]:
-        """Project latitude/longitude to local Cartesian x/y coordinates in km."""
+        """Project latitude/longitude to local Cartesian x/y coordinates in
+        km.
+        """
         dist_m, az, _ = gps2dist_azimuth_nb(self.orig_lat, self.orig_lon, lat, lon)
         x = float(np.sin(np.deg2rad(az)) * dist_m) / 1000.0
         y = float(np.cos(np.deg2rad(az)) * dist_m) / 1000.0
@@ -67,11 +69,6 @@ class GridSliceData:
             and self.y_orig <= y <= y_max
             and self.z_orig <= z <= z_max
         )
-
-    def contains_latlon(self, lat: float, lon: float, depth_km: float) -> bool:
-        """Return whether a geographic coordinate is inside this cube bounds."""
-        x, y = self.project(lat, lon)
-        return self.contains_xyz(x, y, depth_km)
 
 
 class VelocityGridProvider(Protocol):
@@ -90,7 +87,9 @@ class VelocityGridProvider(Protocol):
         phase: str = "P",
         **kwargs,
     ) -> GridSliceData:
-        """Build or retrieve a local grid around a target geographic location."""
+        """Build or retrieve a local grid around a target geographic
+        location.
+        """
         ...
 
 

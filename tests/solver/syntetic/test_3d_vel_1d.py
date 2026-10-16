@@ -197,9 +197,8 @@ def _save_geom_plot(
     depth_err_km,
     time_err_s,
 ):
-    """
-    Save a 2D lat/lon plot showing station geometry, true epicenter, and solution.
-    """
+    """Save a 2D lat/lon plot showing station geometry, true epicenter, and
+    solution."""
     outdir = Path("test_artifacts") / "station_geometries"
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -437,7 +436,7 @@ def test_event_location_vs_geometry(
     geometry_name,
     phases,
 ):
-    from hypy.propagation.volumetric.grid.pyekfmm.fmm import PyekfmmTravelTimeTable
+    from hypy.propagation.volumetric.grid.pyekfmm import FmmTravelTimeGrid3D
 
     (true_loc, true_t) = true_event_params
     builder, kwargs, (tol_arc_km, tol_depth_km, tol_time_s) = GEOMETRIES[geometry_name]
@@ -446,36 +445,32 @@ def test_event_location_vs_geometry(
     stations = builder(true_loc, **kwargs)
     inventory = build_inventory(stations)
 
-    # synthesize single event with picks from the same 3D model used by the locator
-    model_path = "./3d_Vp_Vs_VpVs_models.nc"
-    arrival_model = PyekfmmTravelTimeTable(
-        model_path=model_path,
-        max_distance_km=200.0,
-        distance_step_km=1.0,
-        max_depth_km=50.0,
-        depth_step_km=1.0,
-        phases=list(phases),
+    model_path = (
+        Path(__file__).resolve().parents[3]
+        / "examples"
+        / "5-solve-3d-gsi-2023-02-07"
+        / "model"
+        / "3d_Vp_Vs_VpVs_models.nc"
     )
-    catalog = make_single_event(arrival_model, stations, phases, true_loc, true_t)
-
-    # configure locator
-    # model_path = _iasp91_tvel_path()
-    model_path = "./3d_Vp_Vs_VpVs_models.nc"
-    locator = EventLocator(
-        model_path,
-        phases=phases,
-        mode_legacy="table-3d",
-        engine_legacy="fmm",
-        derivative_method="numerical",
+    engine = FmmTravelTimeGrid3D(
+        model=model_path,
+        phases=list(phases),
         max_distance_km=200.0,
         distance_step_km=1.0,
         max_depth_km=50.0,
         depth_step_km=1.0,
+    )
+    catalog = make_single_event(engine, stations, phases, true_loc, true_t)
+
+    locator = EventLocator(
+        engine,
+        phases=phases,
+        derivative_method="numerical",
     )
 
     # run
     locator.load_data(inventory, catalog)
-    out, _ = locator.locate(max_iterations=100, trial_depth_km=5.0, solver="lsqr")
+    out, _ = locator.locate(max_iterations=100, trial_depth_km=5.0)
 
     # extract final origin
     e = out[0]

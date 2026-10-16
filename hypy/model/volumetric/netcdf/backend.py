@@ -1,7 +1,8 @@
 """NetCDF-backed 3D velocity grid loader.
 
-The loader normalizes coordinate orientation and transposes source arrays into
-the local (x, y, depth) layout expected by the volumetric propagation code.
+The loader normalizes coordinate orientation and transposes source
+arrays into the local (x, y, depth) layout expected by the volumetric
+propagation code.
 """
 
 from __future__ import annotations
@@ -53,9 +54,20 @@ class NCGrid(VelocityModel):
         }
     )
 
-    def __init__(self, model_path: Path | str):
+    def __init__(
+        self,
+        model_path: Path | str,
+        radius_of_planet_km: float = 6371.0,
+    ):
         model_path = Path(model_path).expanduser().resolve()
-        super().__init__(model_path=model_path, model_name=model_path.stem, dim=3)
+        if not model_path.exists():
+            raise FileNotFoundError(f"Velocity model file not found: {model_path}")
+        super().__init__(
+            model_path=model_path,
+            model_name=model_path.stem,
+            dim=3,
+            radius_of_planet_km=radius_of_planet_km,
+        )
         self._calculated_grids: dict[str, GridSliceData] = {}
 
     @staticmethod
@@ -101,7 +113,9 @@ class NCGrid(VelocityModel):
         phase: str = "P",
         **kwargs,
     ) -> GridSliceData:
-        """Return a receiver-centered local cube from the NetCDF velocity model."""
+        """Return a receiver-centered local cube from the NetCDF velocity
+        model.
+        """
         del kwargs  # Included for compatibility with the grid provider interface.
         phase_code = normalize_phase(phase)
         key = self._generate_grid_key(
@@ -122,10 +136,6 @@ class NCGrid(VelocityModel):
         requested_nx = int(round(2.0 * max_distance_km / grid_longitude_spacing_km)) + 1
         requested_ny = int(round(2.0 * max_distance_km / grid_latitude_spacing_km)) + 1
         requested_nz = int(round(max_depth_km / grid_depth_spacing_km)) + 1
-
-        x_orig_req = -float(max_distance_km)
-        y_orig_req = -float(max_distance_km)
-        z_orig_req = 0.0
 
         with netCDF4.Dataset(self.model_path.as_posix(), "r") as nc:
             try:
@@ -236,19 +246,31 @@ class NCGrid(VelocityModel):
         clipped_z_min = src_z0 > surface_depth_idx
         clipped_z_max = src_z1 < surface_depth_idx + requested_nz
 
-        # The origins are expressed in the local Cartesian frame used by the
-        # propagation code, not in geographic coordinates.
-        x_orig = (
-            x_orig_req
-            + max(0, (src_x0 - (center_lon_idx - half_nx))) * grid_longitude_spacing_km
+        # The slice is native tomography nodes. The requested step only
+        # chooses how many nodes to copy; dx/dy/dz are the kilometre widths
+        # of those nodes. The station's node must sit at its true local
+        # position when indexed with those widths.
+        dx = float(
+            longitude_resolution_km if actual_nx > 1 else grid_longitude_spacing_km
         )
-        y_orig = (
-            y_orig_req
-            + max(0, (src_y0 - (center_lat_idx - half_ny))) * grid_latitude_spacing_km
+        dy = float(
+            latitude_resolution_km if actual_ny > 1 else grid_latitude_spacing_km
         )
-        z_orig = (
-            z_orig_req + max(0, (src_z0 - surface_depth_idx)) * grid_depth_spacing_km
+        dz = float(depth_resolution_km if actual_nz > 1 else grid_depth_spacing_km)
+        station_ix = int(center_lon_idx - src_x0)
+        station_iy = int(center_lat_idx - src_y0)
+        node_dist_m, node_az, _ = gps2dist_azimuth_nb(
+            float(center_latitude),
+            float(center_longitude),
+            float(latitudes[center_lat_idx]),
+            float(longitudes[center_lon_idx]),
         )
+        node_az = float(np.deg2rad(node_az))
+        node_x = float(np.sin(node_az) * node_dist_m) / 1000.0
+        node_y = float(np.cos(node_az) * node_dist_m) / 1000.0
+        x_orig = node_x - station_ix * dx
+        y_orig = node_y - station_iy * dy
+        z_orig = float(depths[int(src_z0)])
 
         result = GridSliceData(
             array=array,
@@ -257,13 +279,9 @@ class NCGrid(VelocityModel):
             x_orig=float(x_orig),
             y_orig=float(y_orig),
             z_orig=float(z_orig),
-            dx=float(
-                longitude_resolution_km if actual_nx > 1 else grid_longitude_spacing_km
-            ),
-            dy=float(
-                latitude_resolution_km if actual_ny > 1 else grid_latitude_spacing_km
-            ),
-            dz=float(depth_resolution_km if actual_nz > 1 else grid_depth_spacing_km),
+            dx=dx,
+            dy=dy,
+            dz=dz,
             requested_nx=requested_nx,
             requested_ny=requested_ny,
             requested_nz=requested_nz,

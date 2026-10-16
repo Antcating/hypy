@@ -1,14 +1,14 @@
 """Public velocity-model package API.
 
-This module exposes the stable loader/facade used by locator code and lazily
-re-exports the common concrete model wrappers to keep import paths short while
-avoiding import cycles.
+This module exposes the stable loader/facade used by locator code and
+lazily re-exports the common concrete model wrappers to keep import
+paths short while avoiding import cycles.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Collection, Optional, Union
+from typing import TYPE_CHECKING, ClassVar, Optional, Union
 
 if TYPE_CHECKING:
     from .layered.tvel import TvelModel
@@ -48,10 +48,6 @@ class VelocityModel:
         """Return whether this model supports a single feature flag."""
         return feature in self.supported_features
 
-    def supports_all_features(self, features: Collection[str]) -> bool:
-        """Return whether this model supports all provided feature flags."""
-        return set(features).issubset(self.supported_features)
-
     @classmethod
     def supported_model_file_types(cls) -> tuple[str, ...]:
         """Return built-in model file suffixes supported by hypy."""
@@ -67,16 +63,18 @@ class VelocityModel:
         if suffix == ".nllgrid":
             from .volumetric.nllgrid import NllGridModel
 
-            return lambda path, **kwargs: NllGridModel(path)
+            return lambda path, **kwargs: NllGridModel(path, **kwargs)
         if suffix == ".nc":
             from .volumetric.netcdf import NCGrid
 
-            return lambda path, **kwargs: NCGrid(path)
+            return lambda path, **kwargs: NCGrid(path, **kwargs)
         return None
 
     @classmethod
     def create_model(cls, model_path: Union[str, Path], **kwargs) -> "VelocityModel":
-        """Load a velocity model from a file path using built-in suffix routing."""
+        """Load a velocity model from a file path using built-in suffix
+        routing.
+        """
         model_path = Path(model_path).expanduser().resolve()
         if not model_path.exists():
             raise FileNotFoundError(f"Velocity model file not found: {model_path}")

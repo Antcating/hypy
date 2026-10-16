@@ -22,11 +22,9 @@ def _circle_geometry(center, radius_km, n, prefix="C"):
 def _circle_offset_center(
     center, radius_km=20.0, n=8, offset_north_km=5.0, offset_east_km=5.0, prefix="RO"
 ):
-    """
-    Stations on a circle of radius `radius_km`, but the circle's center is
-    offset from the event location by (offset_east_km, offset_north_km),
-    so the origin is NOT equidistant to the stations.
-    """
+    """Stations on a circle of radius `radius_km`, but the circle's center is
+    offset from the event location by (offset_east_km, offset_north_km), so the
+    origin is NOT equidistant to the stations."""
     lat_ev, lon_ev, _ = center
 
     # Compute the circle center (offset from the event)
@@ -88,8 +86,8 @@ def _L_shape_geometry(center, arm_km=40.0, step_km=10.0, prefix="LS"):
 def _L_shape_offset_around(
     center, arm_km=40.0, step_km=10.0, gap_km=10.0, prefix="LSO"
 ):
-    """
-    Build an 'L' shape whose arms do NOT pass through the source.
+    """Build an 'L' shape whose arms do NOT pass through the source.
+
     - One horizontal arm: at +gap_km to the NORTH of the source, extending EAST.
     - One vertical arm:   at +gap_km to the EAST  of the source, extending NORTH.
     The L-corner is at (gap east, gap north) wrt the source. The source sits
@@ -167,8 +165,7 @@ def _cluster_one_side(
     seed=123,
     prefix="CS",
 ):
-    """
-    Build a random cluster of 'n' stations confined to a sector on ONE SIDE
+    """Build a random cluster of 'n' stations confined to a sector on ONE SIDE
     of the event (like land-only stations for an offshore earthquake).
 
     Parameters
@@ -216,8 +213,8 @@ def _cluster_one_side(
 
 
 def _pair_opposite(center, radius_km=20.0, azimuth_deg=0.0, prefix="PO"):
-    """
-    Two stations at the same range, opposite azimuths (±azimuth_deg).
+    """Two stations at the same range, opposite azimuths (±azimuth_deg).
+
     Good for epicenter trade-off, weak depth.
     """
     lat0, lon0, _ = center
@@ -234,8 +231,9 @@ def _pair_opposite(center, radius_km=20.0, azimuth_deg=0.0, prefix="PO"):
 def _pair_same_az_near_far(
     center, r_near_km=10.0, r_far_km=30.0, azimuth_deg=90.0, prefix="PA"
 ):
-    """
-    Two stations on the same azimuth from the source but at different ranges (near/far).
+    """Two stations on the same azimuth from the source but at different ranges
+    (near/far).
+
     Strengthens time–depth constraints along one ray family.
     """
     lat0, lon0, _ = center
@@ -252,8 +250,8 @@ def _pair_same_az_near_far(
 def _pair_orthogonal_equal_radius(
     center, radius_km=20.0, azimuth0_deg=0.0, prefix="POE"
 ):
-    """
-    Two stations 90° apart at equal range (azimuth0 and azimuth0+90).
+    """Two stations 90° apart at equal range (azimuth0 and azimuth0+90).
+
     Better azimuthal coverage than colinear pairs.
     """
     lat0, lon0, _ = center
@@ -268,8 +266,8 @@ def _pair_orthogonal_equal_radius(
 
 
 def _uniform_grid_geometry(center, grid_size=3, spacing_km=10.0, prefix="UG"):
-    """
-    Stations arranged in a uniform grid around the event.
+    """Stations arranged in a uniform grid around the event.
+
     grid_size: number of stations per side (e.g., 3 for 3x3)
     spacing_km: distance between adjacent stations
     """
@@ -286,9 +284,7 @@ def _uniform_grid_geometry(center, grid_size=3, spacing_km=10.0, prefix="UG"):
 
 
 def _sparse_geometry(center, n=3, spread_km=50.0, prefix="SP"):
-    """
-    Sparse geometry: few stations spread far apart.
-    """
+    """Sparse geometry: few stations spread far apart."""
     lat0, lon0, _ = center
     locations = {}
     angles = np.linspace(0, 2 * np.pi, n, endpoint=False)
@@ -301,9 +297,7 @@ def _sparse_geometry(center, n=3, spread_km=50.0, prefix="SP"):
 
 
 def _elevation_variation_geometry(center, n=6, radius_km=20.0, prefix="EL"):
-    """
-    Stations on a circle, each with different elevation.
-    """
+    """Stations on a circle, each with different elevation."""
     lat0, lon0, _ = center
     locations = {}
     elevations = np.linspace(0, 1000, n)  # 0 to 1000 meters
@@ -325,9 +319,8 @@ def _pair_one_side_random(
     seed=7,
     prefix="PRS",
 ):
-    """
-    Two stations randomly placed within a sector on one side of the source (e.g., land-only).
-    """
+    """Two stations randomly placed within a sector on one side of the source
+    (e.g., land-only)."""
     lat0, lon0, _ = center
     rng = np.random.default_rng(seed)
     locations = {}
