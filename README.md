@@ -80,12 +80,12 @@ longitude, depth, origin time, and uncertainties) appended to it.
 | --- | --- | --- |
 | `phases` | Phases to use (`"P"`, `"S"`). | `("P", "S")` |
 | `derivative_method` | `"numerical"` or `"analytical"`. | `"numerical"` |
-| `fix_depth_km` | Fix event depth during inversion. | `None` |
 | `distance_weight_start_km` / `distance_weight_end_km` | Distance-based observation weighting window. | `None` |
 | `min_picks_per_event` | Minimum picks required to attempt a location. | `4` |
 
 `locate()` accepts `solver` (`"lsqr"`/`"svd"`), `max_iterations`,
-`conv_threshold`, `trial_depth_km`, and more — see the documentation for details.
+`conv_threshold`, `trial_depth_km`, `fix_depth_km`, and more — see the
+documentation for details.
 
 ## Project structure
 

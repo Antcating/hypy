@@ -80,6 +80,9 @@ they are interchangeable from the locator's point of view.
    * - ``FmmTravelTimeGrid1D``
      - ``hypy.propagation.layered.grid.fmm``
      - 1D fast-marching travel-time grid (requires ``[fmm]``).
+   * - ``FmmTravelTimeGrid3D``
+     - ``hypy.propagation.volumetric.grid.pyekfmm``
+     - 3D fast-marching travel-time grid (requires ``[3d]``).
 
 Table-based engines need grid extents at construction time, for example::
 
@@ -95,6 +98,21 @@ Table-based engines need grid extents at construction time, for example::
        engine="taup",
    )
 
+A 3D volumetric model is wired the same way::
+
+   from hypy.model.volumetric.netcdf import NCGrid
+   from hypy.propagation.volumetric.grid.pyekfmm import FmmTravelTimeGrid3D
+
+   model = NCGrid("model/3d_Vp_Vs_VpVs_models.nc")
+   engine = FmmTravelTimeGrid3D(
+       model,
+       phases=["P", "S"],
+       max_depth_km=100.0,
+       max_distance_km=300.0,
+       depth_step_km=1.0,
+       distance_step_km=1.0,
+   )
+
 Key ``EventLocator`` options
 ----------------------------
 
@@ -108,25 +126,54 @@ Key ``EventLocator`` options
    * - ``phases``
      - Phases to use (``"P"``, ``"S"``).
      - ``("P", "S")``
+   * - ``initial_propagation_engine``
+     - Optional coarse/table engine for seed scoring; if omitted, heuristic/random seeds are used.
+     - ``None``
    * - ``derivative_method``
      - ``"numerical"`` or ``"analytical"``. Must be supported by the engine.
      - ``"numerical"``
    * - ``fix_depth_km``
      - Fix event depth during inversion.
      - ``None``
-   * - ``distance_weight_start_km`` / ``distance_weight_end_km``
-     - Distance-based observation weighting window.
-     - ``None``
-   * - ``full_data_covariance`` / ``correlation_length_km``
-     - Correlated observation covariance for uncertainty estimation.
-     - ``False`` / ``1.0``
    * - ``min_picks_per_event``
      - Minimum picks required to attempt a location.
      - ``4``
 
 ``locate()`` accepts ``solver`` (``"lsqr"`` / ``"svd"``), ``max_iterations``,
-``conv_threshold``, ``trial_depth_km``, ``solve_airquakes``, and
-``safe_iteration_limit``.
+``conv_threshold``, ``trial_depth_km``, ``solve_airquakes`` (if false, an
+airquake means depth is unresolved and is fixed at the seed hypocenter), and
+``safe_iteration_limit``. It also takes the per-run knobs that were previously
+constructor arguments, so they can be varied between runs on the same loaded
+data: ``distance_weight_start_km`` / ``distance_weight_end_km`` (distance-based
+observation weighting window), ``full_data_covariance`` /
+``correlation_length_km`` (correlated observation covariance for uncertainty
+estimation), ``error_coefficient``, and ``seed``.
+
+Station time corrections
+------------------------
+
+If a station is known to be late (clock delay, site static), pass a delay
+table so the inversion subtracts that delay from the observed arrival.
+Positive values mean the observed arrival is late. Load the table however
+you like (typically ``pandas.read_csv``) and pass the DataFrame:
+
+.. code-block:: python
+
+   import pandas as pd
+
+   delays = pd.read_csv("input/station_delays.csv")
+   #    network station phase  delay_s
+   # 0      IU    ANMO   NaN     0.15
+   # 1      IU    ANMO     S     0.25
+
+   locator = EventLocator(engine, phases=("P", "S"))
+   locator.load_data(inventory, catalog, station_time_corrections=delays)
+
+Required columns are ``network``, ``station``, and ``delay_s``. Optional
+``phase`` (missing / NaN / ``*``) applies to all configured phases; a
+phase row overrides the station-wide value. Stations listed in the table
+but missing from the loaded inventory/picks are ignored. A Python mapping
+``{("IU", "ANMO"): 0.15, ("IU", "ANMO", "S"): 0.25}`` is also accepted.
 
 Compatibility checks
 --------------------

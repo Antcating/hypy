@@ -5,3 +5,12 @@ hypy.propagation.volumetric package
    :members:
    :show-inheritance:
    :undoc-members:
+
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   hypy.propagation.volumetric.grid
+
