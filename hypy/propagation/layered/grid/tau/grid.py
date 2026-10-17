@@ -1,5 +1,4 @@
-"""Precomputed 1D travel-time tables handler for layered Earth models using
-t-p.
+"""Precomputed 1D travel-time tables handler for layered Earth models using TauP.
 
 This module provides the TauTravelTimeTable class, which manages precomputed
 travel-time, ray-parameter, and takeoff angle tables for seismic phases
@@ -65,20 +64,21 @@ class TauTravelTimeGrid(LayeredGrid1D):
 
     Parameters
     ----------
-    model_tvel : str
-        Path to the velocity model file (only .tvel files are supported).
+    model : VelocityModel
+        The velocity model (only .tvel models are supported).
     phases : List[str]
         A list of seismic phases for which to compute travel times.
-    max_depth : float
+    max_depth_km : float
         The maximum depth for the travel-time tables.
-    max_distance : float
+    max_distance_km : float
         The maximum distance for the travel-time tables.
-    depth_step : float
+    depth_step_km : float
         The step size for the depth grid.
-    distance_step : float
+    distance_step_km : float
         The step size for the distance grid.
-    engine : str, optional
-        The backend to use for generating the travel-time tables. by default "pyrocko"
+    tracer : LayeredRayTracer
+        An instantiated layered ray tracer (e.g. ``TauPRayTracer`` or
+        ``PyrockoRayTracer``) used to generate the travel-time tables.
     overwrite : bool, optional
         Whether to overwrite existing travel-time tables. by default False
     """  # noqa: E501
@@ -139,8 +139,7 @@ class TauTravelTimeGrid(LayeredGrid1D):
     def load_tables(
         self, model_name: str, tracer: LayeredRayTracer, overwrite: bool = False
     ) -> None:
-        """Load or build the travel-time and takeoff angle tables for all
-        phases.
+        """Load or build the travel-time and takeoff angle tables for all phases.
 
         Parameters
         ----------

@@ -33,11 +33,11 @@ class EventLocator:
 
     Parameters
     ----------
-    propagation_engine : PropagationEngine
+    propagation_engine : hypy.propagation.base.PropagationEngine
         Ray parameters calculation engine. The provided
         engine must be compatible with the specified derivative_method
         and support the required model features.
-    initial_propagation_engine : PropagationEngine, optional
+    initial_propagation_engine : hypy.propagation.base.PropagationEngine, optional
         Optional forward model used during location seeding.
         When set, seeding scores a lat/lon/depth grid. When ``None``,
         heuristic epicenter seeds are scored with ``propagation_engine``.
