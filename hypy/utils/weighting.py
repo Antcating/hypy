@@ -218,7 +218,6 @@ def residual_weight_factor(
     numpy.ndarray
         Least-squares row multipliers sqrt(weight), in [0, 1].
     """
-
     residuals = np.asarray(residuals, dtype=float)
     base_weights = np.asarray(base_weights, dtype=float)
 

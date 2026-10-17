@@ -223,7 +223,6 @@ def compute_event_errors(
     additional_row_scales: Optional[np.ndarray] = None,
 ) -> Optional[dict]:
     """Covariance and ellipsoid metrics for one event, or ``None`` if unusable."""
-
     if (
         jacobian_matrix.ndim != 2
         or jacobian_matrix.shape[1] != dim
