@@ -40,61 +40,30 @@ def finalize_origins(
         evecs = error_results.principal_axes[event_idx]
         ERZ_1s, ERH_1s = error_results.erz_erh[event_idx]
 
-        # ErrorResults stores one principal-axis vector per ROW.
-        # Spatial coordinates are (north, east, down).
-        v = np.asarray(evecs[0, :], dtype=float)
-        v_norm = float(np.linalg.norm(v))
-        v = v / v_norm if v_norm > 0.0 else np.full(v.shape, np.nan)
-
-        # An ellipsoid axis is unoriented; choose the downward-pointing
-        # representative for a stable positive plunge.
-        if np.isfinite(v[2]) and v[2] < 0.0:
-            v = -v
-
-        if not np.all(np.isfinite(v)):
+        # ErrorResults stores one principal-axis vector per ROW (major,
+        # intermediate, minor) in (north, east, down) coordinates.
+        # QuakeML Tait-Bryan R = Rz(azimuth) Ry(plunge) Rx(rotation) has
+        # columns (major, minor, intermediate) with the major axis pointing up.
+        R = np.asarray(evecs[[0, 2, 1], :], dtype=float).T.copy()
+        col_norms = np.linalg.norm(R, axis=0)
+        if not np.all(np.isfinite(R)) or np.any(col_norms <= 0.0):
             plunge = 0.0
             azimuth = 0.0
             rotation = 0.0
         else:
-            plunge = float(np.rad2deg(np.arcsin(np.clip(v[2], -1.0, 1.0))))
-            # Azimuth clockwise from north: atan2(E, N).
-            azimuth = float((np.rad2deg(np.arctan2(v[1], v[0])) + 360.0) % 360.0)
-
-            w = np.asarray(evecs[1, :], dtype=float)
-            w_norm = float(np.linalg.norm(w))
-            w = w / w_norm if w_norm > 0.0 else np.full(w.shape, np.nan)
-            ref = np.array([0.0, 0.0, 1.0], dtype=float)
-            ref = ref - np.dot(ref, v) * v
-            ref_norm = np.linalg.norm(ref)
-
-            if ref_norm < 1e-12:
-                ref = np.array([0.0, 1.0, 0.0], dtype=float)
-                ref = ref - np.dot(ref, v) * v
-                ref_norm = np.linalg.norm(ref)
-
-            if ref_norm < 1e-12 or not np.all(np.isfinite(w)):
-                rotation = 0.0
+            R /= col_norms
+            if R[2, 0] > 0.0:
+                R[:, 0] *= -1.0
+                R[:, 1] *= -1.0
+            if np.linalg.det(R) < 0.0:
+                R[:, 1] *= -1.0
+            plunge = float(np.degrees(np.arcsin(np.clip(-R[2, 0], -1.0, 1.0))))
+            if np.hypot(R[0, 0], R[1, 0]) > 1e-12:
+                azimuth = float(np.degrees(np.arctan2(R[1, 0], R[0, 0])) % 360.0)
+                rotation = float(np.degrees(np.arctan2(R[2, 1], R[2, 2])))
             else:
-                ref /= ref_norm
-                w_proj = w - np.dot(w, v) * v
-                w_proj_norm = np.linalg.norm(w_proj)
-
-                if w_proj_norm < 1e-12:
-                    rotation = 0.0
-                else:
-                    w_proj /= w_proj_norm
-                    rotation = float(
-                        (
-                            np.rad2deg(
-                                np.arctan2(
-                                    np.dot(v, np.cross(ref, w_proj)),
-                                    np.dot(ref, w_proj),
-                                )
-                            )
-                            + 360.0
-                        )
-                        % 180.0
-                    )
+                azimuth = 0.0
+                rotation = float(np.degrees(np.arctan2(R[0, 1], R[1, 1])))
 
         # Events whose covariance could not be estimated keep the NaN
         # placeholders from ErrorResults. ObsPy rejects non-finite
