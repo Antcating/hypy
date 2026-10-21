@@ -12,7 +12,7 @@ project-excludes = [
 
 [project]
 name = "hypy"
-version = "1.2.0"
+version = "1.2.2"
 description = "A Python package for locating seismic events based on seismic arrivals."
 authors = [{ name = "Yevhenii Antcating"}]
 license = { text = "MIT" }
@@ -25,6 +25,7 @@ dependencies = [
     "numba>=0.61",
     "matplotlib>=3.10.8",
     "cartopy>=0.25.0",
+    "pandas>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +42,11 @@ dev = [
     "pytest-ruff>=0.5",
     "sphinx>=9.0.4",
     "sphinx-rtd-theme>=3.1.0",
+]
+
+# Property-based / fuzz testing group
+fuzz = [
+    "hypothesis>=6.100",
 ]
 
 # 3D support group
@@ -60,12 +66,12 @@ pyrocko = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["hypy"]
+packages = ["hypy", "examples"]
 exclude = [
     "test_artifacts/**"
 ]
 [tool.hatch.build.targets.sdist]
-packages = ["hypy"]
+packages = ["hypy", "examples"]
 exclude = [
     "test_artifacts/**",
     "tests/**"
