@@ -300,10 +300,11 @@ def test_line_frame_of_an_east_west_array_points_east():
     ]
     axes = _line_frame(_event_stations(stations))
     assert axes is not None
-    along_e, along_n, cross_e, cross_n = axes
+    along_e, along_n, cross_e, cross_n, sigma_cross = axes
     assert along_e == pytest.approx(1.0, abs=0.05)
     assert abs(along_n) < 0.05
     assert cross_n > 0.9
+    assert sigma_cross < 5.0
 
 
 def test_linear_array_single_trial_stays_at_the_network_mean():
@@ -323,36 +324,48 @@ def test_linear_array_single_trial_stays_at_the_network_mean():
     assert float(locator.data.locations[0, 1]) == pytest.approx(20.5)
 
 
-def test_linear_array_mirror_recovers_either_side():
-    """An off-array source is recovered on its own side, not the station bulge."""
+def test_linear_array_stays_in_the_strip_within_num_trials():
+    """λ_min/λ_max < 0.1 keeps trials in the strip and scores num_trials times."""
     stations = [
         ("NW", "W", 10.0, 20.0),
         ("NW", "C", 10.02, 20.5),
         ("NW", "E", 10.0, 21.0),
     ]
+    axes = _line_frame(_event_stations(stations))
+    assert axes is not None
+    sigma_cross = axes[4]
     _, _, _, _, radius_km = _weighted_epicenter(
         [_pick("W", 0.0), _pick("C", 0.0), _pick("E", 0.0)],
         _event_stations(stations),
     )
+    assert sigma_cross < 0.1 * radius_km
     center_lat = float(np.mean([10.0, 10.02, 10.0]))
-    for sign in (1.0, -1.0):
-        source_lat = center_lat + sign * float(kilometer2degrees(radius_km))
-        locator = _bulge_inventory_and_event(source_lat=source_lat)
-        seed_locations(
-            config=locator.config,
-            data=locator.data,
-            run_config=RunConfig(seed=1, num_trials=4),
-            trial_depth_km=10.0,
-            depth_step_km=1.0,
-            max_depth_km=50.0,
-            propagation_engine=None,
-            scoring_engine=_DistanceEngine(),
-        )
-        north_km = float(
-            degrees2kilometers(float(locator.data.locations[0, 0]) - center_lat)
-        )
-        assert north_km == pytest.approx(sign * radius_km, abs=1.0)
-        assert float(locator.data.locations[0, 1]) == pytest.approx(20.5, abs=0.02)
+    calls = {"n": 0}
+    engine = _DistanceEngine()
+    real_get_arrival = engine.get_arrival
+
+    def _counting(*args, **kwargs):
+        calls["n"] += 1
+        return real_get_arrival(*args, **kwargs)
+
+    engine.get_arrival = _counting
+    n_trials = 4
+    locator = _bulge_inventory_and_event(
+        source_lat=center_lat + float(kilometer2degrees(radius_km))
+    )
+    seed_locations(
+        config=locator.config,
+        data=locator.data,
+        run_config=RunConfig(seed=1, num_trials=n_trials),
+        trial_depth_km=10.0,
+        depth_step_km=1.0,
+        max_depth_km=50.0,
+        propagation_engine=None,
+        scoring_engine=engine,
+    )
+    north_km = abs(degrees2kilometers(float(locator.data.locations[0, 0]) - center_lat))
+    assert north_km < radius_km / 2
+    assert calls["n"] == n_trials * 6
 
 
 def test_linear_array_keeps_a_catalog_origin_on_its_side():

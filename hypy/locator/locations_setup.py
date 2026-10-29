@@ -11,7 +11,7 @@ from obspy.geodetics import (  # type: ignore[import-untyped]
 )
 
 from hypy.propagation import PropagationEngine
-from hypy.utils.geo import gps2dist_azimuth_nb
+from hypy.utils.geo import gps2dist_azimuth_batch_nb, gps2dist_azimuth_nb
 from hypy.utils.seismic import normalize_phase
 
 from ..logger import logger  # type: ignore[import-not-found]
@@ -19,7 +19,7 @@ from .config import LocatorConfig, RunConfig
 from .data import DataHandler
 
 _MIN_COS_LAT = 1e-6
-# λ_min/λ_max below this: the network is a line, so seeds are mirrored across it.
+# λ_min/λ_max below this: extra trials stay in the station strip.
 _LINEAR_ASPECT = 0.1
 
 
@@ -61,11 +61,12 @@ def _early_p_weights(
 
 def _line_frame(
     event_stations: dict[tuple[str, str], tuple[int, float, float, float]],
-) -> tuple[float, float, float, float] | None:
-    """Return ``(along_e, along_n, cross_e, cross_n)``, or None if not a line.
+) -> tuple[float, float, float, float, float] | None:
+    """Return line axes, or None when ``λ_min/λ_max`` is at least 0.1.
 
+    ``(along_e, along_n, cross_e, cross_n, sigma_cross_km)``.
     ``cross`` is 90° counter-clockwise from ``along`` (``along_e >= 0``).
-    The 2×2 station covariance only decides linearity and the axis direction.
+    ``sigma_cross_km`` is ``sqrt(λ_min)``, the station-strip half-width.
     """
     if len(event_stations) < 2:
         return None
@@ -109,7 +110,7 @@ def _line_frame(
     if along_e < 0.0 or (abs(along_e) <= 1e-15 and along_n < 0.0):
         along_e, along_n = -along_e, -along_n
     cross_e, cross_n = -along_n, along_e
-    return along_e, along_n, cross_e, cross_n
+    return along_e, along_n, cross_e, cross_n, float(np.sqrt(lam_min))
 
 
 def _weighted_epicenter(
@@ -442,111 +443,94 @@ def _score_candidates(
     if len(picks) < min_needed:
         return None
 
-    use_table = "propagation.table" in engine.feature_flags
-    max_distance_km = engine.max_distance_km
-    if max_distance_km is not None:
-        max_distance_km = float(max_distance_km)
-        if use_table:
-            max_distance_km = min(max_distance_km, float(engine.distance_grid[-1]))
-    max_table_depth_km = float(engine.depth_grid[-1]) if use_table else None
-    earth_radius_m = (
-        float(engine.velocity_model.radius_of_planet_km) * 1000.0 if use_table else None
-    )
-    phases = data.config.phases
     best_solution: tuple[float, float, float, float, float] | None = None
 
-    for lat_seed, lon_seed in seeds:
-        if use_table:
-            pick_geometry = []
-            for station_id, phase_id, t_obs_rel, sigma in picks:
-                sta_lat, sta_lon, sta_elev = data.stations_locations[station_id]
-                dist_m, _, _ = gps2dist_azimuth_nb(
-                    lat_seed,
-                    lon_seed,
-                    float(sta_lat),
-                    float(sta_lon),
-                    R=earth_radius_m,
-                )
-                pick_geometry.append(
-                    (
-                        dist_m / 1000.0,
-                        float(sta_elev),
-                        phases[phase_id],
-                        t_obs_rel,
-                        sigma,
-                    )
-                )
-            scored_depths = []
+    if not callable(getattr(engine, "compute_travel_time_batch", None)):
+        for lat_seed, lon_seed in seeds:
             for depth_km in candidate_depths:
-                residuals: list[float] = []
-                weights: list[float] = []
-                for distance_km, sta_elev_m, phase, t_obs_rel, sigma in pick_geometry:
-                    source_depth_km = depth_km + sta_elev_m / 1000.0
-                    if max_distance_km is not None and distance_km > max_distance_km:
-                        continue
-                    if source_depth_km > max_table_depth_km:
-                        continue
-                    try:
-                        travel_time = engine.compute_travel_time(
-                            distance_km, source_depth_km, phase
-                        )
-                    except ValueError:
-                        continue
-                    if travel_time is None or not np.isfinite(travel_time):
-                        continue
-                    residuals.append(t_obs_rel - float(travel_time))
-                    weights.append(1.0 / (sigma * sigma))
-                scored_depths.append(
-                    (depth_km, _wrms_from_residuals(residuals, weights, min_needed))
+                t0_estimate_rel, wrms = _score_hypocenter_with_engine(
+                    data, engine, event_index, lat_seed, lon_seed, depth_km
                 )
-        else:
-            pick_geometry_geo = [
-                (
-                    float(data.stations_locations[station_id][0]),
-                    float(data.stations_locations[station_id][1]),
-                    float(data.stations_locations[station_id][2]),
-                    phases[phase_id],
-                    t_obs_rel,
-                    sigma,
-                )
-                for station_id, phase_id, t_obs_rel, sigma in picks
-            ]
-            scored_depths = []
-            for depth_km in candidate_depths:
-                residuals = []
-                weights = []
-                for (
-                    sta_lat,
-                    sta_lon,
-                    sta_elev_m,
-                    phase,
-                    t_obs_rel,
-                    sigma,
-                ) in pick_geometry_geo:
-                    _, travel_time, _, _ = engine.get_arrival(
-                        source_latitude=lat_seed,
-                        source_longitude=lon_seed,
-                        source_depth_km=depth_km,
-                        receiver_latitude=sta_lat,
-                        receiver_longitude=sta_lon,
-                        receiver_elevation_m=sta_elev_m,
-                        phase=phase,
-                        max_distance_km=max_distance_km,
+                if np.isfinite(wrms) and (
+                    best_solution is None or wrms < best_solution[0]
+                ):
+                    best_solution = (
+                        wrms,
+                        lat_seed,
+                        lon_seed,
+                        depth_km,
+                        t0_estimate_rel,
                     )
-                    if travel_time is None or not np.isfinite(travel_time):
-                        continue
-                    residuals.append(t_obs_rel - float(travel_time))
-                    weights.append(1.0 / (sigma * sigma))
-                scored_depths.append(
-                    (depth_km, _wrms_from_residuals(residuals, weights, min_needed))
-                )
+    else:
+        max_distance_km = float(engine.distance_grid[-1])
+        if engine.max_distance_km is not None:
+            max_distance_km = min(max_distance_km, float(engine.max_distance_km))
+        earth_radius_m = float(engine.velocity_model.radius_of_planet_km) * 1000.0
+        phases = data.config.phases
 
-        for depth_km, scored in scored_depths:
-            if scored is None:
-                continue
-            t0_estimate_rel, wrms = scored
-            if np.isfinite(wrms) and (best_solution is None or wrms < best_solution[0]):
-                best_solution = (wrms, lat_seed, lon_seed, depth_km, t0_estimate_rel)
+        station_ids = np.asarray([p[0] for p in picks], dtype=int)
+        phase_ids = np.asarray([p[1] for p in picks], dtype=int)
+        t_obs = np.asarray([p[2] for p in picks], dtype=float)
+        pick_weights = 1.0 / np.asarray([p[3] for p in picks], dtype=float) ** 2
+        locs = data.stations_locations[station_ids].astype(float)
+        sta_lat = np.ascontiguousarray(locs[:, 0])
+        sta_lon = np.ascontiguousarray(locs[:, 1])
+        depths = np.asarray(candidate_depths, dtype=float)
+        # (n_depths, n_picks): receiver elevation folded into the source depth.
+        source_depths = depths[:, None] + locs[None, :, 2] / 1000.0
+        depth_ok = (source_depths >= 0.0) & (
+            source_depths <= float(engine.depth_grid[-1])
+        )
+        phase_cols = [
+            (phases[phase_id], np.flatnonzero(phase_ids == phase_id))
+            for phase_id in np.unique(phase_ids)
+        ]
+
+        # ponytail: fixed chunk bounds memory at ~chunk*n_depths*n_picks floats.
+        chunk = 256
+        for start in range(0, len(seeds), chunk):
+            block = seeds[start : start + chunk]
+            dist_km = (
+                np.stack(
+                    [
+                        gps2dist_azimuth_batch_nb(
+                            lat, lon, sta_lat, sta_lon, earth_radius_m
+                        )[0]
+                        for lat, lon in block
+                    ]
+                )
+                / 1000.0
+            )
+            # (n_block, n_depths, n_picks)
+            valid = depth_ok[None] & (dist_km <= max_distance_km)[:, None, :]
+            travel_times = np.full(valid.shape, np.nan)
+            for phase, cols in phase_cols:
+                s, d, sub = np.nonzero(valid[:, :, cols])
+                if s.size:
+                    c = cols[sub]
+                    travel_times[s, d, c] = engine.compute_travel_time_batch(
+                        dist_km[s, c], source_depths[d, c], phase
+                    )
+
+            ok = np.isfinite(travel_times)
+            w = np.where(ok, pick_weights, 0.0)
+            r = np.where(ok, t_obs - travel_times, 0.0)
+            w_sum = w.sum(axis=-1)
+            with np.errstate(invalid="ignore", divide="ignore"):
+                t0_rel = np.round((w * r).sum(axis=-1) / w_sum, 4)
+                wrms = np.sqrt((w * (r - t0_rel[..., None]) ** 2).sum(axis=-1) / w_sum)
+            wrms[(ok.sum(axis=-1) < min_needed) | ~(w_sum > 0.0)] = np.inf
+            i, k = np.unravel_index(int(np.argmin(wrms)), wrms.shape)
+            if np.isfinite(wrms[i, k]) and (
+                best_solution is None or wrms[i, k] < best_solution[0]
+            ):
+                best_solution = (
+                    float(wrms[i, k]),
+                    block[i][0],
+                    block[i][1],
+                    float(depths[k]),
+                    float(t0_rel[i, k]),
+                )
 
     if best_solution is not None:
         logger.debug(
@@ -576,8 +560,9 @@ def _seed_heuristic(
     offshore and edge-of-network events are not started inside the network.
     Candidates are scored with ``scoring_engine`` (the inversion forward
     model) when provided; otherwise a straight-line 6 km/s fallback.
-    A nearly collinear array adds mirror pairs one network-radius off
-    the line. The station-strip width is not used.
+    When ``λ_min/λ_max < 0.1``, the extra trials run along the line with
+    cross-track scatter ``sqrt(λ_min)``. One anchor sits under the earliest
+    P station. Both count toward ``num_trials``.
     """
     mean_lat, mean_lon, weighted_lat, weighted_lon, radius_km = _weighted_epicenter(
         known_picks, event_stations
@@ -613,53 +598,54 @@ def _seed_heuristic(
         abs(weighted_lat - mean_lat) > 1e-8 or abs(weighted_lon - mean_lon) > 1e-8
     ) and not _seen(weighted_lat, weighted_lon, default_depth):
         anchors.append((weighted_lat, weighted_lon, default_depth, None))
+    first_p = None
+    for pick in known_picks:
+        if normalize_phase(pick.phase_hint or "") != "p":
+            continue
+        rec = event_stations.get(
+            (pick.waveform_id.network_code, pick.waveform_id.station_code)
+        )
+        if rec is None:
+            continue
+        pick_time = float(pick.time)
+        if first_p is None or pick_time < first_p[0]:
+            first_p = (pick_time, float(rec[1]), float(rec[2]))
+    if first_p is not None and not _seen(first_p[1], first_p[2], default_depth):
+        anchors.append(
+            (*config.clamp_horizontal(first_p[1], first_p[2]), default_depth, None)
+        )
 
     num_trials = run_config.num_trials
     candidates = list(anchors[:num_trials])
     rng = np.random.default_rng(run_config.seed)
-    sigma_z = max(5.0, 0.3 * float(trial_depth_km))
+    sigma_z = min(5.0, 0.3 * float(trial_depth_km))
     line = _line_frame(event_stations)
-    extra = max(0, num_trials - len(candidates))
-    made = 0
-    pair_k = 0
-    while made < extra:
-        anchor_i = pair_k if line is not None else made
-        a_lat, a_lon, a_z, _ = anchors[anchor_i % len(anchors)]
+    for extra_i in range(max(0, num_trials - len(candidates))):
+        a_lat, a_lon, a_z, _ = anchors[extra_i % len(anchors)]
         if line is None:
-            moves = [tuple(float(v) for v in rng.normal(0.0, radius_km, size=2))]
+            d_north, d_east = (float(v) for v in rng.normal(0.0, radius_km, size=2))
         else:
-            along_e, along_n, cross_e, cross_n = line
-            # ponytail: ± one network radius. A cross-range search if mirrors tie.
-            step = 0.0 if pair_k == 0 else ((pair_k + 1) // 2) * radius_km
-            along_km = 0.0 if pair_k == 0 else (-step if pair_k % 2 else step)
-            pair_k += 1
-            moves = [
-                (
-                    along_km * along_n + sign * radius_km * cross_n,
-                    along_km * along_e + sign * radius_km * cross_e,
-                )
-                for sign in (1.0, -1.0)
-            ]
+            along_e, along_n, cross_e, cross_n, sigma_cross = line
+            along_km, cross_km = rng.normal(0.0, (radius_km, sigma_cross))
+            d_north = float(along_km) * along_n + float(cross_km) * cross_n
+            d_east = float(along_km) * along_e + float(cross_km) * cross_e
+        cos_lat = max(abs(np.cos(np.radians(a_lat))), _MIN_COS_LAT)
+        lat, lon = config.clamp_horizontal(
+            a_lat + float(kilometer2degrees(float(d_north))),
+            a_lon + float(kilometer2degrees(float(d_east))) / cos_lat,
+        )
         if depth_fixed:
             depth_km = a_z
         else:
             depth_km = max(0.0, float(rng.normal(a_z, sigma_z)))
             if max_depth_km is not None:
                 depth_km = min(depth_km, float(max_depth_km))
-        for d_north, d_east in moves:
-            if made >= extra:
-                break
-            cos_lat = max(abs(np.cos(np.radians(a_lat))), _MIN_COS_LAT)
-            lat, lon = config.clamp_horizontal(
-                a_lat + float(kilometer2degrees(float(d_north))),
-                a_lon + float(kilometer2degrees(float(d_east))) / cos_lat,
-            )
-            candidates.append((lat, lon, depth_km, None))
-            made += 1
+        candidates.append((lat, lon, depth_km, None))
 
     best: Optional[tuple[float, float, float, float, float]] = None
     fallback: Optional[tuple[float, float, float, float]] = None
-    for lat, lon, depth_km, fixed_t0 in candidates:
+    scored_all: list[tuple[int, float, float, float, float, float]] = []
+    for cand_idx, (lat, lon, depth_km, fixed_t0) in enumerate(candidates):
         if scoring_engine is not None:
             t0_rel, wrms = _score_hypocenter_with_engine(
                 data,
@@ -683,11 +669,13 @@ def _seed_heuristic(
             )
         if fallback is None:
             fallback = (lat, lon, depth_km, t0_rel)
-        if np.isfinite(wrms) and (best is None or wrms < best[0]):
-            best = (wrms, lat, lon, depth_km, t0_rel)
+        if np.isfinite(wrms):
+            scored_all.append((cand_idx, wrms, lat, lon, depth_km, t0_rel))
+            if best is None or wrms < best[0]:
+                best = (wrms, lat, lon, depth_km, t0_rel)
 
     if best is None and scoring_engine is not None:
-        for lat, lon, depth_km, fixed_t0 in candidates:
+        for cand_idx, (lat, lon, depth_km, fixed_t0) in enumerate(candidates):
             t0_rel, wrms = _coarse_origin_time(
                 event_index,
                 known_picks,
@@ -700,11 +688,32 @@ def _seed_heuristic(
             )
             if fallback is None:
                 fallback = (lat, lon, depth_km, t0_rel)
-            if np.isfinite(wrms) and (best is None or wrms < best[0]):
-                best = (wrms, lat, lon, depth_km, t0_rel)
+            if np.isfinite(wrms):
+                scored_all.append((cand_idx, wrms, lat, lon, depth_km, t0_rel))
+                if best is None or wrms < best[0]:
+                    best = (wrms, lat, lon, depth_km, t0_rel)
 
     if best is not None:
         _, lat, lon, depth_km, t0_rel = best
+        if event_index < len(data.fallback_seeds):
+            n_anchors = len(anchors)
+            anchor_part = [s for s in reversed(scored_all) if s[0] < n_anchors]
+            extra_part = sorted(
+                (s for s in scored_all if s[0] >= n_anchors), key=lambda s: s[1]
+            )
+            seen_starts = [(lat, lon)]
+            fallbacks: list[tuple[float, float, float, float]] = []
+            for _, _, fb_lat, fb_lon, fb_z, fb_t0 in anchor_part + extra_part:
+                if any(
+                    abs(fb_lat - s_lat) < 1e-4 and abs(fb_lon - s_lon) < 1e-4
+                    for s_lat, s_lon in seen_starts
+                ):
+                    continue
+                seen_starts.append((fb_lat, fb_lon))
+                fallbacks.append((fb_lat, fb_lon, fb_z, fb_t0))
+                if len(fallbacks) >= 3:
+                    break
+            data.fallback_seeds[event_index] = fallbacks
     else:
         lat, lon, depth_km, t0_rel = fallback  # type: ignore[misc]
     data.locations[event_index] = (lat, lon, depth_km)
@@ -889,11 +898,13 @@ def seed_locations(
     ``propagation_engine`` (the optional initial table) runs travel-time
     grid search. Otherwise a multi-start heuristic proposes the catalog
     Origin (when requested), the network mean, an early-P epicenter
-    extrapolated outside the station hull, and Gaussian samples.
-    A nearly linear array uses mirror pairs one network-radius off the
-    line instead of thinning those samples to the station strip.
-    Those candidates are scored with ``scoring_engine`` — the same
-    forward model used for inversion — not a 6 km/s straight-line time.
+    extrapolated outside the station hull, and the earliest-P station.
+    Extra trials, within ``num_trials``, are Gaussian samples about
+    those anchors. A nearly linear array (``λ_min/λ_max < 0.1``) draws
+    them along the array with cross-track scatter ``sqrt(λ_min)``.
+    Candidates are scored with ``scoring_engine``, the inversion
+    forward model. A 6 km/s straight-line time is used when that
+    model is absent or scores none of them.
     """
     stations_by_key = {
         sta: (

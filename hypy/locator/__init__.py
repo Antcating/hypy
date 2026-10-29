@@ -283,12 +283,14 @@ class EventLocator:
             initialization. Set this to an integer to make this location run
             reproducible. If None, results are non-deterministic. Default is None.
         num_trials : int, optional
-            Total number of heuristic seed candidates to evaluate, including
-            the catalog Origin when ``use_origins`` is True, then the
-            network-mean and early-P anchors. Extra trials are Gaussian
-            samples around those anchors. ``num_trials=1`` with
-            ``use_origins=True`` keeps only the Origin seed. Must be >= 1.
-            Default is 8.
+            Total number of heuristic seed candidates to evaluate. Anchors
+            are taken first: the catalog Origin when ``use_origins`` is
+            True, then the network mean, the extrapolated early-P
+            epicenter, and the earliest-P station. Extra trials are
+            Gaussian samples around those anchors; on a nearly linear
+            array the cross-track scatter is limited to the station
+            strip. ``num_trials=1`` with ``use_origins=True`` keeps only
+            the Origin seed. Must be >= 1. Default is 8.
         use_origins : bool, optional
             When True, events that already contain an Origin use ``origins[-1]``
             as the first seed candidate. The origin's latitude, longitude,
