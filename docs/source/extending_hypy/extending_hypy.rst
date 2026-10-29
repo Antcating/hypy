@@ -41,7 +41,7 @@ your data in ``__init__``. Pass an instance to your propagation engine:
    model = MyVelocityModel("/path/to/model.custom")
    engine = SomeEngine(model)
 
-See :doc:`_model` for the full contract.
+See :doc:`addon_model` for the full contract.
 
 Custom propagation engine
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -58,7 +58,7 @@ such as :class:`hypy.propagation.layered.LayeredPropagationEngine`), declare
    engine = MyPropagationEngine(model)
    locator = EventLocator(engine, phases=("P", "S"), derivative_method="numerical")
 
-See :doc:`_propagation` for the full contract.
+See :doc:`addon_propagation` for the full contract.
 
 
 The compatibility contract
@@ -112,7 +112,7 @@ A backend may also expose inferred flags at runtime through
 Recommended testing
 --------------------
 
-For every , add tests that cover:
+For every custom model or engine, add tests that cover:
 
 1. Constructor compatibility — your model loads, and your engine accepts the
    model.

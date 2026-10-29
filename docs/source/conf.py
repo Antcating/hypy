@@ -1,3 +1,5 @@
+"""Configuration for the Sphinx documentation builder."""
+
 # Configuration file for the Sphinx documentation builder.
 #
 # For the full list of built-in configuration values, see the documentation:
@@ -19,7 +21,15 @@ print(f"Added {ROOT} to sys.path for Sphinx autodoc")
 project = "hypy"
 copyright = "2026, Yevhenii Fedorchenko"
 author = "Yevhenii Fedorchenko"
-release = "1.1.0"
+
+# Keep the documented release in sync with the package version.
+try:
+    import tomllib
+
+    with open(ROOT / "pyproject.toml", "rb") as _pyproject:
+        release = tomllib.load(_pyproject)["project"]["version"]
+except Exception:
+    release = "1.2.1"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -27,6 +37,7 @@ release = "1.1.0"
 extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.autodoc",
+    "sphinx.ext.mathjax",
 ]
 
 autodoc_default_options = {
@@ -73,3 +84,11 @@ def run_apidoc(app):
             str(module_dir),
         ]
     )
+
+
+def setup(app):
+    """Register Sphinx event handlers."""
+    # Regenerate the API pages before sources are read so that added,
+    # renamed, or removed modules never leave stale .rst files behind.
+    app.connect("builder-inited", run_apidoc)
+    return {"version": "1.0", "parallel_read_safe": True}

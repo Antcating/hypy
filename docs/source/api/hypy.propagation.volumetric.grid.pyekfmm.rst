@@ -1,5 +1,5 @@
 hypy.propagation.volumetric.grid.pyekfmm package
-===============================================
+================================================
 
 .. automodule:: hypy.propagation.volumetric.grid.pyekfmm
    :members:

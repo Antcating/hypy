@@ -25,12 +25,20 @@ in related fields who need to locate seismic events accurately and efficiently.
 
    getting_started/installation
    getting_started/quick_start
+   getting_started/starting_guide
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Theory
+
+   theory/inversion
 
 .. toctree::
    :maxdepth: 2
    :caption: Extending hypy
 
    extending_hypy/extending_hypy
+   extending_hypy/custom_propagation_engines
 
 .. toctree::
    :maxdepth: 3

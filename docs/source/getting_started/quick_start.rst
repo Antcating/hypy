@@ -44,7 +44,7 @@ Minimal example
    locator.load_data(inventory, catalog)
 
    # 5. Locate. Returns the relocated catalog and indices of failed events.
-   located_catalog, invalid_indices = locator.locate(solver="lsqr")
+   located_catalog, invalid_indices = locator.locate()
 
    print(located_catalog[0].origins[-1])
 
@@ -73,20 +73,23 @@ they are interchangeable from the locator's point of view.
      - 1D ray tracing through ObsPy TauP.
    * - ``PyrockoRayTracer``
      - ``hypy.propagation.layered.ray_tracer.pyrocko``
-     - 1D ray tracing through Pyrocko (requires ``[pyrocko]``).
+     - 1D ray tracing through Pyrocko (requires the ``pyrocko`` package).
    * - ``TauTravelTimeGrid``
      - ``hypy.propagation.layered.grid.tau``
      - Precomputed 1D travel-time tables (fast repeated lookups).
    * - ``FmmTravelTimeGrid1D``
      - ``hypy.propagation.layered.grid.fmm``
-     - 1D fast-marching travel-time grid (requires ``[fmm]``).
+     - 1D fast-marching travel-time grid (requires ``scikit-fmm``).
    * - ``FmmTravelTimeGrid3D``
      - ``hypy.propagation.volumetric.grid.pyekfmm``
-     - 3D fast-marching travel-time grid (requires ``[3d]``).
+     - 3D fast-marching travel-time grid (requires ``pyekfmm``).
 
-Table-based engines need grid extents at construction time, for example::
+Table-based engines need grid extents at construction time.
+``TauTravelTimeGrid`` also requires a ``tracer`` — an instantiated
+layered ray tracer (not a backend name) that fills the table::
 
    from hypy.propagation.layered.grid.tau import TauTravelTimeGrid
+   from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
 
    engine = TauTravelTimeGrid(
        model,
@@ -95,7 +98,7 @@ Table-based engines need grid extents at construction time, for example::
        max_distance_km=300.0,
        depth_step_km=1.0,
        distance_step_km=1.0,
-       engine="taup",
+       tracer=TauPRayTracer(model=model),
    )
 
 A 3D volumetric model is wired the same way::
@@ -125,9 +128,9 @@ Key ``EventLocator`` options
      - Default
    * - ``phases``
      - Phases to use (``"P"``, ``"S"``).
-     - ``("P", "S")``
+     - ``("p", "s")``
    * - ``initial_propagation_engine``
-     - Optional coarse/table engine for seed scoring; if omitted, heuristic/random seeds are used.
+     - Optional coarse/table engine for seed scoring; if omitted, heuristic seeds are used.
      - ``None``
    * - ``derivative_method``
      - ``"numerical"`` or ``"analytical"``. Must be supported by the engine.
@@ -139,15 +142,19 @@ Key ``EventLocator`` options
      - Minimum picks required to attempt a location.
      - ``4``
 
-``locate()`` accepts ``solver`` (``"lsqr"`` / ``"svd"``), ``max_iterations``,
-``conv_threshold``, ``trial_depth_km``, ``solve_airquakes`` (if false, an
-airquake means depth is unresolved and is fixed at the seed hypocenter), and
-``safe_iteration_limit``. It also takes the per-run knobs that were previously
-constructor arguments, so they can be varied between runs on the same loaded
-data: ``distance_weight_start_km`` / ``distance_weight_end_km`` (distance-based
-observation weighting window), ``full_data_covariance`` /
-``correlation_length_km`` (correlated observation covariance for uncertainty
-estimation), ``error_coefficient``, and ``seed``.
+``locate()`` takes per-run options that can be varied between runs on
+the same loaded data: ``max_iterations`` (100), ``conv_threshold``,
+``unresolved_depth`` (``"seed"`` / ``"current"`` / ``None``; how an
+out-of-bounds depth is frozen) with ``depth_elimination_iteration``,
+``trial_depth_km``, ``num_trials`` and ``use_origins`` (seeding),
+``distance_weight_start_km`` / ``distance_weight_end_km`` with
+``weight_start`` / ``weight_end`` (distance weighting),
+``residual_weighting_iteration`` and its thresholds (residual
+weighting), ``full_data_covariance`` / ``correlation_length_km``
+(correlated observation covariance), ``model_uncertainty_s``
+(velocity-model uncertainty, HypoInverse RDERR), and ``seed``.
+The damped system is always solved with LSQR; there is no solver
+choice. See :doc:`/theory/inversion` for what these controls do.
 
 Station time corrections
 ------------------------
@@ -172,8 +179,7 @@ you like (typically ``pandas.read_csv``) and pass the DataFrame:
 Required columns are ``network``, ``station``, and ``delay_s``. Optional
 ``phase`` (missing / NaN / ``*``) applies to all configured phases; a
 phase row overrides the station-wide value. Stations listed in the table
-but missing from the loaded inventory/picks are ignored. A Python mapping
-``{("IU", "ANMO"): 0.15, ("IU", "ANMO", "S"): 0.25}`` is also accepted.
+but missing from the loaded inventory/picks are ignored.
 
 Compatibility checks
 --------------------

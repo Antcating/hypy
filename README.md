@@ -19,7 +19,7 @@ uncertainty estimates.
 
 - **Extensible forward models** — layered and volumetric models (with precomputed travel-time tables if needed).
 - **Multiple phases** — locate using `P`, `S`, or both.
-- **Flexible inversion** — `lsqr` / `svd` solvers, optional depth fixing, and distance-based observation weighting.
+- **Flexible inversion** — damped least-squares (LSQR) inversion, optional depth fixing, and distance-based observation weighting.
 - **Uncertainty estimates** — diagonal or full (correlated) data covariance and error-ellipsoid computation.
 - **ObsPy-native I/O** — input provided and output served are ObsPy objects.
 
@@ -33,16 +33,17 @@ cd hypy
 pip install .
 ```
 
-Optional dependency groups are available for extended additional forward models:
+Optional backends require extra packages, available as
+[uv](https://docs.astral.sh/uv/) dependency groups from a source checkout:
 
 ```bash
-# 1D TauP based model (alternative for TauP backend)
-pip install ".[pyrocko]"    # Pyrocko ray-tracing model
-# 1D grid-based model (fastest 1D numerical model)
-pip install ".[fmm]"        # scikit-fmm fast-marching model
-# 3D volumetric model (3D volumetric model support)
-pip install ".[3d]"         # netcdf4, nllgrid, pyekfmm
+uv sync --group pyrocko  # Pyrocko ray tracer
+uv sync --group fmm      # scikit-fmm 1D travel-time tables
+uv sync --group 3d       # 3D volumetric models (netcdf4, nllgrid, pyekfmm)
 ```
+
+With plain `pip`, install the corresponding packages instead
+(`pyrocko`, `scikit-fmm`, `netcdf4`, `nllgrid`, `pyekfmm`).
 
 ## Usage
 
@@ -68,7 +69,7 @@ catalog = read_events("picks.xml")
 locator.load_data(inventory, catalog)
 
 # 5. Locate — returns relocated origins and indices of events that failed
-located_catalog, invalid_indices = locator.locate(solver="lsqr")
+located_catalog, invalid_indices = locator.locate()
 ```
 
 Each successfully located event gets an ObsPy `Origin` (with latitude,
@@ -78,14 +79,15 @@ longitude, depth, origin time, and uncertainties) appended to it.
 
 | Argument | Description | Default |
 | --- | --- | --- |
-| `phases` | Phases to use (`"P"`, `"S"`). | `("P", "S")` |
+| `phases` | Phases to use (`"P"`, `"S"`). | `("p", "s")` |
 | `derivative_method` | `"numerical"` or `"analytical"`. | `"numerical"` |
-| `distance_weight_start_km` / `distance_weight_end_km` | Distance-based observation weighting window. | `None` |
+| `distance_weight_start_km` / `distance_weight_end_km` | Distance-based observation weighting window (a `locate()` option). | `None` |
 | `min_picks_per_event` | Minimum picks required to attempt a location. | `4` |
 
-`locate()` accepts `solver` (`"lsqr"`/`"svd"`), `max_iterations`,
-`conv_threshold`, `trial_depth_km`, `fix_depth_km`, and more — see the
-documentation for details.
+`locate()` accepts `max_iterations`, `conv_threshold`,
+`trial_depth_km`, `unresolved_depth`, distance/residual weighting
+options, `model_uncertainty_s`, and more; `fix_depth_km` is an
+`EventLocator` constructor option — see the documentation for details.
 
 ## Project structure
 
@@ -100,7 +102,7 @@ hypy/
 ## Testing
 
 ```bash
-pip install ".[dev]"
+uv sync --group dev   # or: pip install pytest pytest-cov
 pytest
 ```
 

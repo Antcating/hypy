@@ -14,6 +14,7 @@ Subpackages
 
    hypy.utils.math
    hypy.utils.nllgrid
+   hypy.utils.stations
 
 Submodules
 ----------
@@ -21,7 +22,6 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   hypy.utils.damping
    hypy.utils.geo
    hypy.utils.seismic
    hypy.utils.weighting

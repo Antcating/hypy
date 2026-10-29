@@ -1,5 +1,5 @@
 hypy.propagation.volumetric.grid package
-=======================================
+========================================
 
 .. automodule:: hypy.propagation.volumetric.grid
    :members:

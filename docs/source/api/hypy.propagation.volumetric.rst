@@ -13,4 +13,3 @@ Subpackages
    :maxdepth: 4
 
    hypy.propagation.volumetric.grid
-

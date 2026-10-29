@@ -42,14 +42,16 @@ model, records grid extents, and runs
 The base ``__init__`` accepts optional keyword arguments that the locator reads
 during ``locate()``: ``max_depth_km``, ``max_distance_km``, ``depth_step_km``,
 and ``distance_step_km``. Table-based engines should set these; pure ray
-tracers can leave them at ``None``.
+tracers may omit them (``max_depth_km`` then defaults to the planet
+radius, the others to ``None``).
 
 Required instance members
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * ``dim`` property returning ``int`` (``1`` for 1D, ``3`` for 3D).
 * ``compute_travel_time_params(...)`` — the method the locator calls for every
-  event/station/phase on every iteration:
+  event/station/phase on every iteration (or its batched counterpart
+  when ``derivative.batch`` is advertised):
 
   .. code-block:: python
 

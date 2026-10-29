@@ -23,8 +23,8 @@ The base class provides the compatibility surface used during setup:
 * ``feature_flags`` — declared by you (class attribute).
 * ``supported_features`` — ``feature_flags`` plus inferred flags such as
   ``dimension.1d`` (derived from ``dim``).
-* ``supports_feature(...)`` / ``supports_all_features(...)`` — convenience
-  checks used by engines and the locator.
+* ``supports_feature(...)`` — convenience check used by engines and
+  the locator.
 
 Minimal example
 ---------------
@@ -39,7 +39,7 @@ Minimal example
 
 
    class XYZModel(VelocityModel):
-       """1D velocity model loaded from a simple two-column text file."""
+       """1D velocity model loaded from a three-column (depth, Vp, Vs) text file."""
 
        feature_flags = frozenset(
            {
@@ -79,11 +79,15 @@ locator:
 .. code-block:: python
 
    from hypy.locator import EventLocator
-   from hypy.propagation.layered.ray_tracer.hypo import HypoRayTracer
 
    model = XYZModel("/path/to/model.xyz")
-   engine = HypoRayTracer(model)
+   engine = MyPropagationEngine(model)  # an engine written for this model
    locator = EventLocator(engine, phases=("P", "S"))
+
+Note that built-in engines may require a specific model class — for
+example, ``HypoRayTracer`` only accepts a ``TvelModel`` — so a custom
+model is normally paired with a custom engine (see
+:doc:`addon_propagation`).
 
 What the engine expects from the model
 --------------------------------------
