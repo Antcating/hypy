@@ -281,7 +281,7 @@ class RunConfig:
                     "unresolved_depth must be a string or None, "
                     f"got {type(self.unresolved_depth)}."
                 )
-            normalized_depth = self.unresolved_depth.lower()
+            normalized_depth = self.unresolved_depth.strip().lower()
             if normalized_depth not in VALID_UNRESOLVED_DEPTHS:
                 allowed = ", ".join(sorted(VALID_UNRESOLVED_DEPTHS))
                 raise ValueError(
