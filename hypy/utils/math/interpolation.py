@@ -65,6 +65,27 @@ def linear_interp(x, x0, x1, y0, y1):
     return y0 + (x - x0) / (x1 - x0) * (y1 - y0)
 
 
+@njit(cache=True, inline="always")
+def lagrange_interp_scalars(
+    x: float,
+    xA: float,
+    xB: float,
+    xC: float,
+    yA: float,
+    yB: float,
+    yC: float,
+) -> float:
+    """Evaluate a three-point Lagrange interpolant from scalar coordinates."""
+    denomA = (xA - xB) * (xA - xC)
+    denomB = (xB - xA) * (xB - xC)
+    denomC = (xC - xA) * (xC - xB)
+    return (
+        yA * (x - xB) * (x - xC) / denomA
+        + yB * (x - xA) * (x - xC) / denomB
+        + yC * (x - xA) * (x - xB) / denomC
+    )
+
+
 @njit(cache=True)
 def lagrange_interp(x, x_vals, y_vals):
     """Evaluate a three-point Lagrange interpolant.
@@ -87,18 +108,33 @@ def lagrange_interp(x, x_vals, y_vals):
     -----
     The caller is responsible for providing three distinct sample positions.
     """
-    xA, xB, xC = x_vals[0], x_vals[1], x_vals[2]
-    yA, yB, yC = y_vals[0], y_vals[1], y_vals[2]
-    denomA = (xA - xB) * (xA - xC)
-    denomB = (xB - xA) * (xB - xC)
-    denomC = (xC - xA) * (xC - xB)
-    termA = yA * (x - xB) * (x - xC) / denomA
-    termB = yB * (x - xA) * (x - xC) / denomB
-    termC = yC * (x - xA) * (x - xB) / denomC
-    return termA + termB + termC
+    return lagrange_interp_scalars(
+        x,
+        x_vals[0],
+        x_vals[1],
+        x_vals[2],
+        y_vals[0],
+        y_vals[1],
+        y_vals[2],
+    )
 
 
-@njit(cache=True)
+@njit(cache=True, inline="always")
+def _grid_upper_index(x: float, x_grid: np.ndarray) -> int:
+    """Return ``np.searchsorted(x_grid, x)`` with an O(1) uniform-grid fast path."""
+    n = len(x_grid)
+    if n >= 2:
+        step = (x_grid[n - 1] - x_grid[0]) / (n - 1)
+        if step > 0.0:
+            idx = int((x - x_grid[0]) / step) + 1
+            if idx >= n:
+                idx = n - 1
+            if idx >= 1 and x_grid[idx - 1] < x <= x_grid[idx]:
+                return idx
+    return int(np.searchsorted(x_grid, x))
+
+
+@njit(cache=True, inline="always")
 def adaptive_interp_1d(x, x_grid, y_row):
     """Interpolate one-dimensional tabulated data with adaptive stencils.
 
@@ -129,7 +165,7 @@ def adaptive_interp_1d(x, x_grid, y_row):
     if x >= x_grid[-1]:
         return linear_interp(x, x_grid[-2], x_grid[-1], y_row[-2], y_row[-1])
 
-    j1 = np.searchsorted(x_grid, x)
+    j1 = _grid_upper_index(x, x_grid)
     j0 = j1 - 1
 
     if j0 < 0:
@@ -141,18 +177,24 @@ def adaptive_interp_1d(x, x_grid, y_row):
 
     if j0 >= 1 and j1 < n - 1:
         if (x - x_grid[j0]) < (x_grid[j1] - x):
-            idxs = np.array([j0 - 1, j0, j1])
+            i0, i1, i2 = j0 - 1, j0, j1
         else:
-            idxs = np.array([j0, j1, j1 + 1])
-        x_vals = np.array([x_grid[i] for i in idxs])
-        y_vals = np.array([y_row[i] for i in idxs])
-        return lagrange_interp(x, x_vals, y_vals)
+            i0, i1, i2 = j0, j1, j1 + 1
+        return lagrange_interp_scalars(
+            x,
+            x_grid[i0],
+            x_grid[i1],
+            x_grid[i2],
+            y_row[i0],
+            y_row[i1],
+            y_row[i2],
+        )
 
     # Fallback to linear interpolation
     return linear_interp(x, x_grid[j0], x_grid[j1], y_row[j0], y_row[j1])
 
 
-@njit(cache=True)
+@njit(cache=True, inline="always")
 def interp_one_depth(
     distance: float, distance_grid: np.ndarray, depth_slice: np.ndarray
 ) -> float:
@@ -233,7 +275,7 @@ def interp_quant(
     distance = max(distance, distance_grid[0])
 
     # Locate depth bounds
-    i1 = int(np.searchsorted(depth_grid, depth))
+    i1 = _grid_upper_index(depth, depth_grid)
     i0 = max(i1 - 1, 0)
     if i1 > len(depth_grid) - 1:
         i1 = len(depth_grid) - 1
@@ -259,6 +301,7 @@ def interp_quant_batch(
     distance_grid: np.ndarray,
     table: np.ndarray,
 ) -> np.ndarray:
+    """Interpolate many depth-distance pairs on one travel-time table."""
     out = np.empty(depths.size, dtype=np.float64)
     for i in prange(depths.size):
         out[i] = interp_quant(depths[i], distances[i], depth_grid, distance_grid, table)

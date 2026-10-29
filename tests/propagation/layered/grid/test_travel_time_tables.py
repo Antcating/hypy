@@ -409,3 +409,22 @@ def test_get_arrival_max_distance_exceeded(
         assert pytest.approx(azimuth_deg_s, rel=1e-1) == 90.0
         assert isinstance(arc_distance_km_s, float)
         assert pytest.approx(arc_distance_km_s, rel=1e-3) == 1111.9
+
+
+def test_interp_quant_uniform_and_non_uniform_grids():
+    """Uniform fast path and non-uniform fallback match quadratic polynomial."""
+    from hypy.utils.math.interpolation import interp_quant
+
+    for d_grid in (
+        np.linspace(0.0, 50.0, 11),
+        np.array([0.0, 2.0, 7.0, 15.0, 30.0, 50.0]),
+    ):
+        for r_grid in (
+            np.linspace(0.0, 200.0, 21),
+            np.array([0.0, 5.0, 20.0, 60.0, 120.0, 200.0]),
+        ):
+            table = 2.0 * d_grid[:, None] + 0.01 * (r_grid[None, :] ** 2)
+            for z in (0.0, 2.0, 12.3, 50.0):
+                for r in (0.0, 5.0, 42.7, 200.0):
+                    val = interp_quant(z, r, d_grid, r_grid, table)
+                    assert np.isclose(val, 2.0 * z + 0.01 * (r**2), rtol=1e-12)
