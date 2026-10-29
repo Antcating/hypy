@@ -52,6 +52,7 @@ class DataHandler:
         # Avoids big float imprecisions.
         self.time_refs = np.empty((0,), dtype=float)
         self.station_time_corrections = np.empty((0,), dtype=float)
+        self.fallback_seeds: list[list[tuple[float, float, float, float]]] = []
 
     def resolve_fixed_depth_mask(self) -> np.ndarray:
         """Return the per-event depth-freeze flags as a boolean array.
@@ -183,7 +184,7 @@ class DataHandler:
         self.arrivals = np.full((n_events, n_cols), np.nan)
         self.arrival_time_errors = np.full((n_events, n_cols), np.nan)
         self.theoretical_travel_times = np.zeros((n_events, n_cols))
-        self.jacobian_matrix = np.zeros((n_obs, n_events * DIM), dtype=float)
+        self.jacobian_matrix = np.zeros((n_obs, DIM), dtype=float)
         self.time_error_W = np.ones(n_obs, dtype=float)
         self.distance_W = np.ones(n_obs, dtype=float)
         self.residual_W = np.ones(n_obs, dtype=float)
@@ -192,6 +193,7 @@ class DataHandler:
         self.time_refs = np.zeros(n_events)
         self.invalid_events = np.zeros(n_events, dtype=bool)
         self.station_time_corrections = np.zeros(n_cols, dtype=float)
+        self.fallback_seeds = [[] for _ in range(n_events)]
 
     def observation_residuals(self) -> np.ndarray:
         """Return ``(t_obs - t0) - T_pred - dt_sta`` for every observation."""

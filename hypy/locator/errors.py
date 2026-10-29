@@ -370,11 +370,12 @@ def compute_error_ellipsoids(
         )
     dim = DIM
     expected_cols = data.n_events * dim
-    if jacobian_matrix.shape[1] != expected_cols:
+    if jacobian_matrix.shape[1] not in (dim, expected_cols):
         raise ValueError(
             f"A_final has {jacobian_matrix.shape[1]} columns but expected "
-            f"{expected_cols} (n_events={data.n_events}, dim={dim})"
+            f"{dim} or {expected_cols} (n_events={data.n_events}, dim={dim})"
         )
+    per_event_cols = jacobian_matrix.shape[1] == dim
 
     spatial_dim = min(3, dim - 1 if dim > 1 else dim)
     spatial_covariances = np.zeros(
@@ -413,8 +414,9 @@ def compute_error_ellipsoids(
             )
             if observation_covariance is None:
                 continue
+        col_slice = slice(0, dim) if per_event_cols else slice(ev * dim, (ev + 1) * dim)
         errinfo = compute_event_errors(
-            jacobian_matrix=jacobian_matrix[event_rows, ev * dim : (ev + 1) * dim],
+            jacobian_matrix=jacobian_matrix[event_rows, col_slice],
             residuals=residuals_flat[event_rows],
             pick_errors=pick_errors[sel],
             dim=dim,

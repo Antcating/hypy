@@ -5,6 +5,7 @@ import numpy as np
 from hypy.locator.config import LocatorConfig, RunConfig
 from hypy.locator.data import DataHandler
 from hypy.locator.derivatives import DerivativesHandler
+from hypy.locator.errors import build_observation_covariance_from_stations
 from hypy.locator.inversion import InversionEngine
 
 
@@ -159,6 +160,62 @@ def test_weighted_rms_uses_step_weights():
 
     residuals[0] = np.nan
     assert engine._weighted_rms(residuals, rows, weights) == np.inf
+
+
+def _full_covariance_engine(correlation_length_km: float):
+    """One event, four stations on a line; station 2 is residual-weighted out."""
+    engine = _engine_with_depths([10.0])
+    engine.run_config = RunConfig(
+        full_data_covariance=True, correlation_length_km=correlation_length_km
+    )
+    data = engine.data
+    data.n_stations = 4
+    data.arrival_time_errors = np.array([[0.1, 0.2, 0.1, 0.3]])
+    data.distance_W = np.array([1.0, 0.5, 0.8, 1.0])
+    data.residual_W = np.array([1.0, 1.0, 0.0, 0.9])
+    x_km = np.array([0.0, 1.0, 2.5, 4.0])
+    engine.station_distances_km = np.abs(np.subtract.outer(x_km, x_km))
+    row_W = data.distance_W * data.residual_W / data.arrival_time_errors[0]
+    return engine, np.arange(4), row_W
+
+
+def test_full_covariance_whitener_matches_gls_weight():
+    """M^T M = D C^-1 D on weighted rows, and WRMS is the matching Mahalanobis norm."""
+    engine, rows, row_W = _full_covariance_engine(correlation_length_km=2.0)
+    ((pos, event_idx, whitener),) = engine._event_whiteners(rows, row_W)
+    assert pos.tolist() == [0, 1, 3] and event_idx == 0
+
+    data = engine.data
+    C = build_observation_covariance_from_stations(
+        data.arrival_time_errors[0, pos],
+        pos,
+        np.zeros(3, dtype=int),
+        engine.station_distances_km,
+        2.0,
+    )
+    D = np.diag(data.distance_W[pos] * data.residual_W[pos])
+    expected = D @ np.linalg.inv(C) @ D
+    np.testing.assert_allclose(whitener.T @ whitener, expected, rtol=1e-8)
+
+    residuals = np.array([0.05, -0.1, 99.0, 0.2])
+    r = residuals[pos]
+    wrms = engine._weighted_rms(residuals, rows, row_W, [(pos, 0, whitener)])
+    assert np.isclose(wrms, np.sqrt(r @ expected @ r / np.trace(expected)))
+
+
+def test_full_covariance_reduces_to_diagonal_without_correlation():
+    """Uncorrelated stations give the existing diagonal row weights and WRMS."""
+    engine, rows, row_W = _full_covariance_engine(correlation_length_km=1e-6)
+    whiteners = engine._event_whiteners(rows, row_W)
+    ((pos, _, whitener),) = whiteners
+    np.testing.assert_allclose(whitener, np.diag(row_W[pos]), rtol=1e-5, atol=1e-12)
+
+    residuals = np.array([0.05, -0.1, 99.0, 0.2])
+    assert np.isclose(
+        engine._weighted_rms(residuals, rows, row_W, whiteners),
+        engine._weighted_rms(residuals, rows, row_W),
+        rtol=1e-5,
+    )
 
 
 def test_depth_elimination_before_window():

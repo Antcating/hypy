@@ -7,7 +7,6 @@ from ..propagation import PropagationEngine
 from ..utils.weighting import distance_weight
 from .config import LocatorConfig, RunConfig
 from .data import DataHandler
-from .types import DIM
 
 
 class DerivativesHandler:
@@ -54,18 +53,19 @@ class DerivativesHandler:
         data: DataHandler,
         config: LocatorConfig,
         run_config: RunConfig,
+        event_indices: np.ndarray,
     ) -> np.ndarray:
         observed = ~np.isnan(data.arrivals)
         valid_rows = np.zeros(data.jacobian_matrix.shape[0], dtype=bool)
         n_obs = data.n_stations * config.n_phases
 
-        for event_index in range(data.n_events):
+        for event_index in event_indices:
+            event_index = int(event_index)
             if data.invalid_events[event_index]:
                 continue
 
             event_location = tuple(data.locations[event_index])
             event_row0 = event_index * n_obs
-            col0 = event_index * DIM
             skipped = 0
 
             for obs_col in np.flatnonzero(observed[event_index]):
@@ -106,11 +106,11 @@ class DerivativesHandler:
                     continue
 
                 data.theoretical_travel_times[event_index, obs_col] = travel_time
-                data.jacobian_matrix[row, col0] = dt_dy
-                data.jacobian_matrix[row, col0 + 1] = dt_dx
+                data.jacobian_matrix[row, 0] = dt_dy
+                data.jacobian_matrix[row, 1] = dt_dx
                 if not data.fixed_depth_mask[event_index]:
-                    data.jacobian_matrix[row, col0 + 2] = dt_dz
-                data.jacobian_matrix[row, col0 + 3] = 1.0
+                    data.jacobian_matrix[row, 2] = dt_dz
+                data.jacobian_matrix[row, 3] = 1.0
 
                 if run_config.distance_weighting_enabled:
                     data.distance_W[row] = distance_weight(
@@ -136,6 +136,7 @@ class DerivativesHandler:
         data: DataHandler,
         config: LocatorConfig,
         run_config: RunConfig,
+        event_indices: np.ndarray,
     ) -> np.ndarray:
         observed = ~np.isnan(data.arrivals)
         valid_rows = np.zeros(data.jacobian_matrix.shape[0], dtype=bool)
@@ -145,13 +146,13 @@ class DerivativesHandler:
         station_lons = np.asarray(data.stations_locations[:, 1], dtype=np.float64)
         station_elevs = np.asarray(data.stations_locations[:, 2], dtype=np.float64)
 
-        for event_index in range(data.n_events):
+        for event_index in event_indices:
+            event_index = int(event_index)
             if data.invalid_events[event_index]:
                 continue
 
             event_lat, event_lon, event_depth_km = data.locations[event_index]
             event_row0 = event_index * n_obs
-            col0 = event_index * DIM
 
             for phase_index, phase in enumerate(config.phases):
                 obs_cols = np.arange(
@@ -195,11 +196,11 @@ class DerivativesHandler:
                 data.theoretical_travel_times[event_index, active_obs_cols] = (
                     travel_times[finite]
                 )
-                data.jacobian_matrix[rows, col0] = dt_dy[finite]
-                data.jacobian_matrix[rows, col0 + 1] = dt_dx[finite]
+                data.jacobian_matrix[rows, 0] = dt_dy[finite]
+                data.jacobian_matrix[rows, 1] = dt_dx[finite]
                 if not data.fixed_depth_mask[event_index]:
-                    data.jacobian_matrix[rows, col0 + 2] = dt_dz[finite]
-                data.jacobian_matrix[rows, col0 + 3] = 1.0
+                    data.jacobian_matrix[rows, 2] = dt_dz[finite]
+                data.jacobian_matrix[rows, 3] = 1.0
 
                 if run_config.distance_weighting_enabled:
                     data.distance_W[rows] = distance_weight(
@@ -216,14 +217,17 @@ class DerivativesHandler:
         self,
         data: DataHandler,
         config: LocatorConfig,
+        event_indices: np.ndarray,
     ) -> np.ndarray:
+        """Refresh predicted travel times with scalar ``get_arrival``."""
         observed = ~np.isnan(data.arrivals)
         valid_rows = np.zeros(data.jacobian_matrix.shape[0], dtype=bool)
         n_obs = data.n_stations * config.n_phases
-        data.theoretical_travel_times.fill(np.nan)
+        data.theoretical_travel_times[event_indices] = np.nan
         max_distance_km = getattr(self.propagation_engine, "max_distance_km", None)
 
-        for event_index in range(data.n_events):
+        for event_index in event_indices:
+            event_index = int(event_index)
             if data.invalid_events[event_index]:
                 continue
 
@@ -258,6 +262,7 @@ class DerivativesHandler:
         self,
         data: DataHandler,
         config: LocatorConfig,
+        event_indices: np.ndarray,
     ) -> np.ndarray:
         """Refresh predicted travel times with ``get_arrival_batch``."""
         observed = ~np.isnan(data.arrivals)
@@ -268,9 +273,10 @@ class DerivativesHandler:
         station_lons = np.asarray(data.stations_locations[:, 1], dtype=np.float64)
         station_elevs = np.asarray(data.stations_locations[:, 2], dtype=np.float64)
 
-        data.theoretical_travel_times.fill(np.nan)
+        data.theoretical_travel_times[event_indices] = np.nan
 
-        for event_index in range(data.n_events):
+        for event_index in event_indices:
+            event_index = int(event_index)
             if data.invalid_events[event_index]:
                 continue
 
@@ -318,19 +324,31 @@ class DerivativesHandler:
         data: DataHandler,
         config: LocatorConfig,
         run_config: RunConfig,
+        event_index: int | None = None,
     ) -> np.ndarray:
-        """Fill the Jacobian and theoretical travel times for all events."""
-        data.jacobian_matrix.fill(0.0)
-        data.theoretical_travel_times.fill(0.0)
-        data.distance_W.fill(0.0 if run_config.distance_weighting_enabled else 1.0)
+        """Fill the Jacobian and theoretical travel times for one or all events."""
+        n_obs = data.n_stations * config.n_phases
+        w_init = 0.0 if run_config.distance_weighting_enabled else 1.0
+        if event_index is None:
+            event_indices = np.arange(data.n_events, dtype=np.int64)
+            data.jacobian_matrix.fill(0.0)
+            data.theoretical_travel_times.fill(0.0)
+            data.distance_W.fill(w_init)
+        else:
+            event_indices = np.array([event_index], dtype=np.int64)
+            r0, r1 = event_index * n_obs, (event_index + 1) * n_obs
+            data.jacobian_matrix[r0:r1].fill(0.0)
+            data.theoretical_travel_times[event_index].fill(0.0)
+            data.distance_W[r0:r1].fill(w_init)
 
         if self.propagation_engine.supports_feature("derivative.batch"):
-            valid_rows = self._build_table_batch(data, config, run_config)
+            valid_rows = self._build_table_batch(
+                data, config, run_config, event_indices
+            )
         else:
-            valid_rows = self._build_table(data, config, run_config)
+            valid_rows = self._build_table(data, config, run_config, event_indices)
 
         if valid_rows.size:
-            n_obs = data.n_stations * config.n_phases
             obs_cols = valid_rows % n_obs
             station_indices = np.unique(obs_cols // config.n_phases)
             logger.debug(
@@ -346,8 +364,14 @@ class DerivativesHandler:
         data: DataHandler,
         config: LocatorConfig,
         run_config: RunConfig,
+        event_index: int | None = None,
     ) -> np.ndarray:
         """Refresh predicted travel times without rebuilding derivatives."""
+        event_indices = (
+            np.arange(data.n_events, dtype=np.int64)
+            if event_index is None
+            else np.array([event_index], dtype=np.int64)
+        )
         if self.propagation_engine.supports_feature("derivative.batch"):
-            return self.refresh_ttt_batch(data, config)
-        return self.refresh_ttt(data, config)
+            return self.refresh_ttt_batch(data, config, event_indices)
+        return self.refresh_ttt(data, config, event_indices)

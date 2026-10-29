@@ -3,19 +3,70 @@
 from typing import Optional
 
 import numpy as np
+from numba import njit  # type: ignore[import-untyped]
 from obspy.geodetics import kilometer2degrees  # type: ignore[import-untyped]
-from scipy.sparse.linalg import lsqr  # type: ignore[import-untyped]
 
 from ..logger import logger
 from ..utils.weighting import residual_weight_factor
 from .config import LocatorConfig, RunConfig
 from .data import DataHandler
 from .derivatives import DerivativesHandler
-from .types import DIM, InversionResults, UnresolvedDepthLiteral
+from .types import InversionResults, UnresolvedDepthLiteral
 
 # Ceiling for the Levenberg-Marquardt damping factor. Past this the step is
 # so short that further trials cannot rescue the iteration.
 MAX_DAMPING = 10.0
+
+
+@njit(cache=True)
+def _solve_damped_4x4(
+    jacobian: np.ndarray,
+    residuals: np.ndarray,
+    rows: np.ndarray,
+    row_weights: np.ndarray,
+    n_obs_per_event: int,
+    n_events: int,
+    fixed_depth: np.ndarray,
+    damping: float,
+) -> np.ndarray:
+    """Solve damped 4x4 normal equations per event without allocating full A."""
+    GtG = np.zeros((n_events, 4, 4), dtype=np.float64)
+    Gtb = np.zeros((n_events, 4), dtype=np.float64)
+    damp2 = damping * damping
+
+    for r_idx in range(rows.size):
+        row = rows[r_idx]
+        w = row_weights[r_idx]
+        if w == 0.0:
+            continue
+        ev = row // n_obs_per_event if n_obs_per_event > 0 else 0
+        col0 = ev * 4 if jacobian.shape[1] > 4 else 0
+        w2 = w * w
+        wr = w2 * residuals[row]
+        fix_z = fixed_depth[ev]
+        for j in range(4):
+            if fix_z and j == 2:
+                continue
+            gj = jacobian[row, col0 + j]
+            Gtb[ev, j] += gj * wr
+            w2_gj = w2 * gj
+            for k in range(4):
+                if fix_z and k == 2:
+                    continue
+                GtG[ev, j, k] += w2_gj * jacobian[row, col0 + k]
+
+    dx = np.zeros((n_events, 4), dtype=np.float64)
+    for ev in range(n_events):
+        has_obs = False
+        for j in range(4):
+            if GtG[ev, j, j] > 0.0:
+                has_obs = True
+            GtG[ev, j, j] += damp2 if damp2 > 1e-24 else 1e-24
+        if has_obs:
+            dx[ev] = np.linalg.solve(GtG[ev], Gtb[ev])
+            if fixed_depth[ev]:
+                dx[ev, 2] = 0.0
+    return dx
 
 
 class InversionEngine:
@@ -116,14 +167,22 @@ class InversionEngine:
 
     def _solve_dx(
         self,
-        design: np.ndarray,
-        rhs: np.ndarray,
+        valid_rows: np.ndarray,
+        residuals_flat: np.ndarray,
+        row_weights: np.ndarray,
         damping: float,
     ) -> np.ndarray:
-        """Solve the damped normal equations for one Marquardt trial."""
-        return np.asarray(
-            lsqr(design, rhs, damp=float(damping), atol=1.0e-10, btol=1.0e-10)[0],
-            dtype=float,
+        """Solve the damped 4x4 normal equations per event."""
+        data = self.data
+        return _solve_damped_4x4(
+            data.jacobian_matrix,
+            residuals_flat,
+            np.asarray(valid_rows, dtype=np.int64),
+            np.asarray(row_weights, dtype=np.float64),
+            data.n_stations * self.config.n_phases,
+            data.n_events,
+            data.resolve_fixed_depth_mask(),
+            float(damping),
         )
 
     def _apply_row_weights(
@@ -132,7 +191,7 @@ class InversionEngine:
         valid_rows: np.ndarray,
         iteration_index: int,
     ) -> np.ndarray:
-        """Refresh ``data.residual_W`` and return the combined row weights.
+        """Refresh ``data.residual_W[valid_rows]`` and return combined row weights.
 
         Residual down-weighting only starts at ``residual_start_iteration``
         so that early iterations are not steered by residuals still
@@ -140,7 +199,7 @@ class InversionEngine:
         """
         data = self.data
         run_config = self.run_config
-        data.residual_W[:] = 1.0
+        data.residual_W[valid_rows] = 1.0
         base_W = data.distance_W[valid_rows] * data.time_error_W[valid_rows]
         if (
             run_config.residual_weighting_enabled
@@ -247,16 +306,15 @@ class InversionEngine:
 
     def _run_lm_trials(
         self,
-        design: np.ndarray,
-        rhs: np.ndarray,
         valid_rows: np.ndarray,
         residuals_flat: np.ndarray,
         wrms_before: float,
         row_weights: np.ndarray,
-        base_state: tuple[np.ndarray, np.ndarray, np.ndarray],
+        base_state: tuple[np.ndarray, np.ndarray, np.ndarray, list, np.ndarray],
         iteration_index: int,
         max_lm_trials: int,
         lm_acceptance_tol: float,
+        event_index: Optional[int] = None,
     ) -> tuple[bool, np.ndarray, np.ndarray, float]:
         """Search damping factors until a step lowers the WRMS enough.
 
@@ -266,37 +324,42 @@ class InversionEngine:
         trial was accepted.
         """
         data = self.data
-        base_locations, base_origin_times, base_invalid_events = base_state
+        (
+            base_locations,
+            base_origin_times,
+            base_invalid_events,
+            base_fixed_depth_mask,
+            base_freeze_depth_km,
+        ) = base_state
 
         for lm_trial in range(max_lm_trials):
             data.locations[:] = base_locations
             data.origin_times[:] = base_origin_times
             data.invalid_events[:] = base_invalid_events
+            data.fixed_depth_mask[:] = base_fixed_depth_mask
+            self.freeze_depth_km[:] = base_freeze_depth_km
 
             dx = self._clip_updates(
                 iteration_index,
-                self._solve_dx(design, rhs, self.damping).reshape((data.n_events, DIM)),
+                self._solve_dx(valid_rows, residuals_flat, row_weights, self.damping),
             )
             newly_constrained = self._freeze_out_of_bounds_depths(
                 dx, iteration_index=iteration_index, lm_trial=lm_trial
             )
             if np.any(newly_constrained):
-                # Drop the depth column so the re-solve cannot move it.
-                for event_idx in np.flatnonzero(newly_constrained):
-                    design[:, int(event_idx) * DIM + 2] = 0.0
                 dx = self._clip_updates(
                     iteration_index,
-                    self._solve_dx(design, rhs, self.damping).reshape(
-                        (data.n_events, DIM)
+                    self._solve_dx(
+                        valid_rows, residuals_flat, row_weights, self.damping
                     ),
                 )
 
             self._apply_step(dx, base_locations, iteration_index, lm_trial)
 
             valid_rows_trial = self.derivative_engine.refresh_theoretical_travel_times(
-                data, self.config, self.run_config
+                data, self.config, self.run_config, event_index=event_index
             )
-            if len(valid_rows_trial) == 0:
+            if len(valid_rows_trial) < self.config.min_picks_per_event:
                 logger.debug(
                     "Iteration %s, LM trial %s: no valid observations after "
                     "trial update; increasing damping.",
@@ -307,7 +370,16 @@ class InversionEngine:
                 continue
 
             residuals_trial = self.data.observation_residuals().flatten()
-            wrms_trial = self._weighted_rms(residuals_trial, valid_rows, row_weights)
+            eval_rows = valid_rows
+            eval_weights = row_weights
+            if not np.all(np.isfinite(residuals_trial[valid_rows])):
+                finite_mask = np.isfinite(residuals_trial[valid_rows])
+                if int(np.sum(finite_mask)) < self.config.min_picks_per_event:
+                    self.damping = min(self.damping * 5.0, MAX_DAMPING)
+                    continue
+                eval_rows = valid_rows[finite_mask]
+                eval_weights = row_weights[finite_mask]
+            wrms_trial = self._weighted_rms(residuals_trial, eval_rows, eval_weights)
             rel_impr = (wrms_before - wrms_trial) / max(wrms_before, 1e-12)
             if rel_impr > lm_acceptance_tol:
                 self.damping = max(self.damping * 0.5, 1e-8)
@@ -428,129 +500,236 @@ class InversionEngine:
             engine.name,
         )
 
-        self.damping = 1.0
-        residuals_flat = np.array([], dtype=float)
-        valid_rows = np.array([], dtype=int)
-        prev_wrms = None
+        data.residual_W[:] = 1.0
+        all_valid_rows: list[np.ndarray] = []
+        wrms = np.inf
         iteration_index = 0
 
-        for iteration_index in range(max_iterations):
-            valid_rows = self.derivative_engine.build_derivative_matrix(
-                data, config, run_config
-            )
-            if len(valid_rows) == 0:
-                logger.error("No valid observations available for inversion. Aborting.")
-                break
+        for event_idx in range(data.n_events):
+            if data.invalid_events[event_idx]:
+                continue
 
-            valid_rows = self._mark_underdetermined_events(valid_rows)
-            if len(valid_rows) == 0:
-                logger.error(
-                    "No valid observations remain after dropping underdetermined "
-                    "events. Aborting."
+            fix_z_iters = (
+                2
+                if (
+                    not self.originally_fixed[event_idx]
+                    and config.fix_depth_km is None
+                    and max_iterations > 4
                 )
-                break
-
-            residuals_flat = self.data.observation_residuals().flatten()
-            row_W = self._apply_row_weights(residuals_flat, valid_rows, iteration_index)
-            wrms_before = self._weighted_rms(residuals_flat, valid_rows, row_W)
-            design_rows = valid_rows
-            b = row_W * residuals_flat[design_rows]
-            A = data.jacobian_matrix[design_rows, :] * row_W[:, np.newaxis]
-
-            base_state = (
-                data.locations.copy(),
-                data.origin_times.copy(),
-                data.invalid_events.copy(),
+                else 0
             )
-
-            accepted, valid_rows, residuals_flat, wrms_after = self._run_lm_trials(
-                A,
-                b,
-                design_rows,
-                residuals_flat,
-                wrms_before,
-                row_W,
-                base_state,
-                iteration_index,
-                max_lm_trials,
-                lm_acceptance_tol,
-            )
-
-            if not accepted:
-                base_locations, base_origin_times, base_invalid_events = base_state
-                data.locations[:] = base_locations
-                data.origin_times[:] = base_origin_times
-                data.invalid_events[:] = base_invalid_events
-                self._restore_frozen_depths()
-
-                valid_rows = self.derivative_engine.refresh_theoretical_travel_times(
-                    data, config, run_config
+            starts = [
+                (
+                    float(data.locations[event_idx, 0]),
+                    float(data.locations[event_idx, 1]),
+                    float(data.locations[event_idx, 2]),
+                    float(data.origin_times[event_idx]),
                 )
-                if len(valid_rows) == 0:
-                    logger.error(
-                        "No valid observations available after failed LM trials. "
-                        "Aborting."
+            ]
+            if event_idx < len(data.fallback_seeds):
+                starts.extend(data.fallback_seeds[event_idx])
+
+            retry_threshold = max(float(run_config.model_uncertainty_s), conv_threshold)
+            best_trial: Optional[
+                tuple[float, np.ndarray, float, bool, float, bool, int]
+            ] = None
+            trial_idx = 0
+
+            for trial_idx, (s_lat, s_lon, s_z, s_t0) in enumerate(starts):
+                data.locations[event_idx] = (s_lat, s_lon, s_z)
+                data.origin_times[event_idx] = s_t0
+                data.fixed_depth_mask[event_idx] = bool(
+                    self.originally_fixed[event_idx]
+                )
+                self.freeze_depth_km[event_idx] = s_z
+                data.invalid_events[event_idx] = False
+                self.damping = 1.0
+                prev_wrms = None
+                valid_rows = np.array([], dtype=int)
+
+                for iteration_index in range(max_iterations):
+                    if fix_z_iters > 0:
+                        if iteration_index < fix_z_iters:
+                            data.fixed_depth_mask[event_idx] = True
+                        elif iteration_index == fix_z_iters:
+                            data.fixed_depth_mask[event_idx] = False
+
+                    valid_rows = self.derivative_engine.build_derivative_matrix(
+                        data, config, run_config, event_index=event_idx
                     )
-                    break
+                    if len(valid_rows) < config.min_picks_per_event:
+                        data.invalid_events[event_idx] = True
+                        logger.warning(
+                            "Event %s: only %d usable observations remain "
+                            "(min_picks_per_event=%d); marking invalid. "
+                            "Stations beyond the propagation engine "
+                            "max_distance_km are skipped.",
+                            event_idx,
+                            len(valid_rows),
+                            config.min_picks_per_event,
+                        )
+                        break
 
-                residuals_flat = self.data.observation_residuals().flatten()
-                wrms_after = self._weighted_rms(residuals_flat, design_rows, row_W)
-                logger.debug(
-                    "Iteration %s: no acceptable LM step found after %s trials. "
-                    "Keeping previous model state.",
-                    iteration_index + 1,
-                    max_lm_trials,
-                )
-
-            logger.debug(
-                "Iteration %s: WRMS before=%.6f s, WRMS after=%.6f s, "
-                "Damping=%.6f, accepted=%s",
-                iteration_index + 1,
-                wrms_before,
-                wrms_after,
-                self.damping,
-                accepted,
-            )
-            logger.debug(
-                "Iteration %s: Origin for first event: "
-                "Lat=%.4f, Lon=%.4f, Depth=%.2f km, t0_rel=%.2fs, t0_abs=%.2fs",
-                iteration_index + 1,
-                data.locations[0, 0],
-                data.locations[0, 1],
-                data.locations[0, 2],
-                data.origin_times[0],
-                data.origin_times[0] + data.time_refs[0],
-            )
-
-            if prev_wrms is not None:
-                rel_impr = np.abs((prev_wrms - wrms_after) / max(prev_wrms, 1e-12))
-                if wrms_after < conv_threshold or rel_impr < 1e-8:
-                    logger.info(
-                        "conv_threshold=%s, wrms=%.6f s, rel_impr=%.6e",
-                        conv_threshold,
-                        wrms_after,
-                        rel_impr,
+                    residuals_flat = self.data.observation_residuals().flatten()
+                    row_W = self._apply_row_weights(
+                        residuals_flat, valid_rows, iteration_index
                     )
-                    logger.info(
-                        "Convergence reached at iteration %s: "
-                        "WRMS=%.6f s, Relative improvement=%.6e",
+                    wrms_before = self._weighted_rms(residuals_flat, valid_rows, row_W)
+                    design_rows = valid_rows
+
+                    base_state = (
+                        data.locations.copy(),
+                        data.origin_times.copy(),
+                        data.invalid_events.copy(),
+                        list(data.fixed_depth_mask),
+                        self.freeze_depth_km.copy(),
+                    )
+
+                    accepted, valid_rows, residuals_flat, wrms_after = (
+                        self._run_lm_trials(
+                            design_rows,
+                            residuals_flat,
+                            wrms_before,
+                            row_W,
+                            base_state,
+                            iteration_index,
+                            max_lm_trials,
+                            lm_acceptance_tol,
+                            event_index=event_idx,
+                        )
+                    )
+
+                    if not accepted:
+                        (
+                            base_locations,
+                            base_origin_times,
+                            base_invalid_events,
+                            base_fixed_depth_mask,
+                            base_freeze_depth_km,
+                        ) = base_state
+                        data.locations[:] = base_locations
+                        data.origin_times[:] = base_origin_times
+                        data.invalid_events[:] = base_invalid_events
+                        data.fixed_depth_mask[:] = base_fixed_depth_mask
+                        self.freeze_depth_km[:] = base_freeze_depth_km
+                        self._restore_frozen_depths()
+
+                        valid_rows = (
+                            self.derivative_engine.refresh_theoretical_travel_times(
+                                data, config, run_config, event_index=event_idx
+                            )
+                        )
+                        if len(valid_rows) == 0:
+                            logger.error(
+                                "No valid observations available after failed LM "
+                                "trials. Aborting."
+                            )
+                            break
+
+                        residuals_flat = self.data.observation_residuals().flatten()
+                        wrms_after = self._weighted_rms(
+                            residuals_flat, design_rows, row_W
+                        )
+                        logger.debug(
+                            "Event %s, Iteration %s: no acceptable LM step found "
+                            "after %s trials. Keeping previous model state.",
+                            event_idx,
+                            iteration_index + 1,
+                            max_lm_trials,
+                        )
+
+                    logger.debug(
+                        "Event %s, Iteration %s: WRMS before=%.6f s, WRMS after="
+                        "%.6f s, Damping=%.6f, accepted=%s",
+                        event_idx,
                         iteration_index + 1,
+                        wrms_before,
                         wrms_after,
-                        rel_impr,
+                        self.damping,
+                        accepted,
                     )
+
+                    if prev_wrms is not None and iteration_index > fix_z_iters:
+                        rel_impr = np.abs(
+                            (prev_wrms - wrms_after) / max(prev_wrms, 1e-12)
+                        )
+                        if wrms_after < conv_threshold or rel_impr < 1e-8:
+                            logger.info(
+                                "Event %s convergence reached at iteration %s: "
+                                "WRMS=%.6f s, Relative improvement=%.6e",
+                                event_idx,
+                                iteration_index + 1,
+                                wrms_after,
+                                rel_impr,
+                            )
+                            break
+
+                    prev_wrms = wrms_after
+
+                trial_wrms = np.inf
+                if not data.invalid_events[event_idx]:
+                    valid_rows = self.derivative_engine.build_derivative_matrix(
+                        data, config, run_config, event_index=event_idx
+                    )
+                    if len(valid_rows) >= config.min_picks_per_event:
+                        residuals_flat = self.data.observation_residuals().flatten()
+                        row_W = self._apply_row_weights(
+                            residuals_flat, valid_rows, iteration_index
+                        )
+                        trial_wrms = self._weighted_rms(
+                            residuals_flat, valid_rows, row_W
+                        )
+
+                if best_trial is None or trial_wrms < best_trial[0]:
+                    best_trial = (
+                        trial_wrms,
+                        data.locations[event_idx].copy(),
+                        float(data.origin_times[event_idx]),
+                        bool(data.fixed_depth_mask[event_idx]),
+                        float(self.freeze_depth_km[event_idx]),
+                        bool(data.invalid_events[event_idx]),
+                        trial_idx,
+                    )
+                if trial_wrms <= retry_threshold:
                     break
 
-            prev_wrms = wrms_after
+            assert best_trial is not None
+            if best_trial[6] != trial_idx or not np.isfinite(trial_wrms):
+                (
+                    wrms,
+                    best_loc,
+                    best_t0,
+                    best_fix,
+                    best_freeze,
+                    best_inv,
+                    _,
+                ) = best_trial
+                data.locations[event_idx] = best_loc
+                data.origin_times[event_idx] = best_t0
+                data.fixed_depth_mask[event_idx] = best_fix
+                self.freeze_depth_km[event_idx] = best_freeze
+                data.invalid_events[event_idx] = best_inv
+                if not best_inv:
+                    valid_rows = self.derivative_engine.build_derivative_matrix(
+                        data, config, run_config, event_index=event_idx
+                    )
+                    if len(valid_rows) > 0:
+                        residuals_flat = self.data.observation_residuals().flatten()
+                        row_W = self._apply_row_weights(
+                            residuals_flat, valid_rows, iteration_index
+                        )
+                        wrms = self._weighted_rms(residuals_flat, valid_rows, row_W)
+                        all_valid_rows.append(valid_rows)
+            elif not data.invalid_events[event_idx] and len(valid_rows) > 0:
+                wrms = trial_wrms
+                all_valid_rows.append(valid_rows)
 
-        valid_rows = self.derivative_engine.build_derivative_matrix(
-            data, config, run_config
+        valid_rows = (
+            np.concatenate(all_valid_rows)
+            if all_valid_rows
+            else np.array([], dtype=int)
         )
         residuals_flat = self.data.observation_residuals().flatten()
-        if len(valid_rows) > 0:
-            row_W = self._apply_row_weights(residuals_flat, valid_rows, iteration_index)
-            wrms = self._weighted_rms(residuals_flat, valid_rows, row_W)
-        else:
-            wrms = np.inf
 
         logger.info(
             "Location iterations completed in %s iterations.",
