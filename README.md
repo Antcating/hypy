@@ -120,4 +120,4 @@ guess of the source parameters.
 
 ## License
 
-`hypy` is released under the MIT License (see `license` in `pyproject.toml`).
+`hypy` is released under the MIT License.
