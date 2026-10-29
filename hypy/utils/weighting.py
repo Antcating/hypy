@@ -151,37 +151,6 @@ def time_error_weight(time_error: float | np.ndarray, **kwargs) -> float | np.nd
     return 1 / time_error
 
 
-def weighted_median(values, weights):
-    """
-    Weighted median.
-
-    Parameters
-    ----------
-    values : array-like
-    weights : array-like
-        Statistical weights, not least-squares row scales.
-    """
-    values = np.asarray(values, dtype=float)
-    weights = np.asarray(weights, dtype=float)
-
-    valid = np.isfinite(values) & np.isfinite(weights) & (weights > 0.0)
-
-    values = values[valid]
-    weights = weights[valid]
-
-    if values.size == 0:
-        return np.nan
-
-    order = np.argsort(values)
-    values = values[order]
-    weights = weights[order]
-
-    cumulative = np.cumsum(weights)
-    cutoff = 0.5 * np.sum(weights)
-
-    return float(values[np.searchsorted(cumulative, cutoff)])
-
-
 def residual_weight_factor(
     residuals: np.ndarray,
     base_weights: np.ndarray,
@@ -190,33 +159,32 @@ def residual_weight_factor(
     residual_full_weight_factor: float = 1.0,
     residual_zero_weight_factor: float = 3.0,
 ) -> np.ndarray:
-    """
-    Robust MAD-based cosine residual weighting.
+    """Compute HypoInverse-style cosine residual weights.
+
+    Let ``rms_scale = max(weighted_rms, residual_rms_floor_s)``. Then:
+
+    - ``|residual| <= residual_full_weight_factor * rms_scale`` → weight 1
+    - ``|residual| >= residual_zero_weight_factor * rms_scale`` → weight 0
+    - in between → cosine taper from 1 to 0
 
     Parameters
     ----------
-    residuals
+    residuals : numpy.ndarray
         Arrival-time residuals [s].
-
-    base_weights
+    base_weights : numpy.ndarray
         Least-squares row scales before residual weighting,
-        e.g. distance_W * time_error_W.
-
-    residual_rms_floor_s
-        Minimum robust scale [s]. The existing parameter name
-        is kept for API compatibility, although the scale is
-        now MAD-based.
-
-    residual_full_weight_factor
-        Residual deviation <= factor * scale gets full weight.
-
-    residual_zero_weight_factor
-        Residual deviation >= factor * scale gets zero weight.
+        e.g. ``distance_W * time_error_W``.
+    residual_rms_floor_s : float, default=0.1
+        Minimum RMS scale [s] (HypoInverse ``RMSCUT``).
+    residual_full_weight_factor : float, default=1.0
+        Full-weight cutoff multiple of scale (HypoInverse ``RMSW1``).
+    residual_zero_weight_factor : float, default=3.0
+        Zero-weight cutoff multiple of scale (HypoInverse ``RMSW2``).
 
     Returns
     -------
     numpy.ndarray
-        Least-squares row multipliers sqrt(weight), in [0, 1].
+        Least-squares row multipliers ``sqrt(weight)`` in ``[0, 1]``.
     """
     residuals = np.asarray(residuals, dtype=float)
     base_weights = np.asarray(base_weights, dtype=float)
@@ -228,80 +196,31 @@ def residual_weight_factor(
         return np.ones_like(residuals)
 
     valid = np.isfinite(residuals) & np.isfinite(base_weights) & (base_weights > 0.0)
-
     if not np.any(valid):
         return np.ones_like(residuals)
 
-    r = residuals[valid]
+    w_valid = base_weights[valid]
+    r_valid = residuals[valid]
+    weight_norm_sq = float(np.dot(w_valid, w_valid))
+    if weight_norm_sq <= 0.0:
+        return np.ones_like(residuals)
 
-    # base_weights are LS row multipliers.
-    # Their corresponding statistical weights are squared.
-    statistical_weights = base_weights[valid] ** 2
-
-    # ---------------------------------------------------------
-    # 1. Robust residual center
-    # ---------------------------------------------------------
-
-    center = weighted_median(
-        r,
-        statistical_weights,
-    )
-
-    # ---------------------------------------------------------
-    # 2. Weighted MAD
-    # ---------------------------------------------------------
-
-    absolute_deviation = np.abs(r - center)
-
-    mad = weighted_median(
-        absolute_deviation,
-        statistical_weights,
-    )
-
-    # Gaussian consistency:
-    # sigma ~= 1.4826 * MAD
-    robust_sigma = 1.4826 * mad
-
-    if not np.isfinite(robust_sigma):
-        robust_sigma = 0.0
-
-    scale = max(
-        robust_sigma,
-        float(residual_rms_floor_s),
-    )
-
-    # ---------------------------------------------------------
-    # 3. Define rejection thresholds
-    # ---------------------------------------------------------
+    weighted_rms = float(np.sqrt(np.sum((w_valid * r_valid) ** 2) / weight_norm_sq))
+    scale = max(weighted_rms, float(residual_rms_floor_s))
 
     full_weight_cutoff = float(residual_full_weight_factor) * scale
-
     zero_weight_cutoff = float(residual_zero_weight_factor) * scale
-
     if zero_weight_cutoff <= full_weight_cutoff:
         raise ValueError(
             "residual_zero_weight_factor must be greater than "
             "residual_full_weight_factor."
         )
 
-    # Important:
-    # determine outliers relative to robust residual center.
-    deviation = np.abs(residuals - center)
-
-    # ---------------------------------------------------------
-    # 4. Cosine taper
-    # ---------------------------------------------------------
-
-    weight = np.ones_like(
-        residuals,
-        dtype=float,
-    )
-
-    # Invalid residuals get zero weight
+    deviation = np.abs(residuals)
+    weight = np.ones_like(residuals, dtype=float)
     weight[~np.isfinite(residuals)] = 0.0
 
     zero_mask = deviation >= zero_weight_cutoff
-
     taper_mask = (
         (deviation > full_weight_cutoff)
         & (deviation < zero_weight_cutoff)
@@ -309,13 +228,9 @@ def residual_weight_factor(
     )
 
     weight[zero_mask] = 0.0
-
     taper_fraction = (deviation[taper_mask] - full_weight_cutoff) / (
         zero_weight_cutoff - full_weight_cutoff
     )
-
     weight[taper_mask] = 0.5 * (1.0 + np.cos(np.pi * taper_fraction))
 
-    # LS row scale.
-    # Squaring this in least-squares gives the intended weight.
     return np.sqrt(weight)
