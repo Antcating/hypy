@@ -85,3 +85,68 @@ def test_origin_exporter_event_validation():
 
     invalid_indices = np.flatnonzero(data.invalid_events)
     assert np.array_equal(invalid_indices, np.array([0]))
+
+
+def test_confidence_ellipsoid_quakeml_tait_bryan_roundtrip():
+    """Exported ConfidenceEllipsoid reconstructs the 95% NED shape via Rz(az)Ry(pl)Rx(rot)."""
+    from scipy.stats import chi2
+
+    from hypy.locator.errors import ellipsoid_axes
+
+    rng = np.random.default_rng(0)
+    config = type("C", (), {"phases": ["P"], "n_phases": 1})()
+    scale95_3d = float(np.sqrt(chi2.ppf(0.95, df=3)))
+
+    for _ in range(5):
+        A = rng.normal(size=(3, 3))
+        C_ned = A @ A.T + 0.1 * np.eye(3)
+        std_axes, evecs, erz, erh = ellipsoid_axes(C_ned)
+
+        data = build_test_event_data([False])
+        error_results = ErrorResults(
+            spatial_covariances=C_ned[None, :, :],
+            principal_std=std_axes[None, :],
+            principal_axes=evecs.T[None, :, :],
+            erz_erh=np.array([[erz, erh]], dtype=float),
+        )
+        ce = (
+            finalize_origins(config, data, error_results)[0]
+            .origins[0]
+            .origin_uncertainty.confidence_ellipsoid
+        )
+
+        az = np.radians(ce.major_axis_azimuth)
+        pl = np.radians(ce.major_axis_plunge)
+        rot = np.radians(ce.major_axis_rotation)
+        Rz = np.array(
+            [
+                [np.cos(az), -np.sin(az), 0.0],
+                [np.sin(az), np.cos(az), 0.0],
+                [0.0, 0.0, 1.0],
+            ]
+        )
+        Ry = np.array(
+            [
+                [np.cos(pl), 0.0, np.sin(pl)],
+                [0.0, 1.0, 0.0],
+                [-np.sin(pl), 0.0, np.cos(pl)],
+            ]
+        )
+        Rx = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [0.0, np.cos(rot), -np.sin(rot)],
+                [0.0, np.sin(rot), np.cos(rot)],
+            ]
+        )
+        R = Rz @ Ry @ Rx
+        d = np.diag(
+            [
+                ce.semi_major_axis_length**2,
+                ce.semi_minor_axis_length**2,
+                ce.semi_intermediate_axis_length**2,
+            ]
+        )
+        S_reconstructed = R @ d @ R.T
+        S_expected = C_ned * (scale95_3d * 1000.0) ** 2
+        assert np.allclose(S_reconstructed, S_expected, rtol=1e-10, atol=1e-6)

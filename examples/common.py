@@ -27,34 +27,21 @@ def horizontal_projection_ellipse(
     pl = math.radians(major_axis_plunge_deg)
     rot = math.radians(major_axis_rotation_deg)
 
-    # Coordinates: x=east, y=north, z=up
-    # Azimuth clockwise from north, plunge positive downward
-    major = np.array(
+    ca, sa = math.cos(az), math.sin(az)
+    cp, sp = math.cos(pl), math.sin(pl)
+    cr, sr = math.cos(rot), math.sin(rot)
+
+    # QuakeML Tait-Bryan R = Rz(azimuth) Ry(plunge) Rx(rotation) in NED,
+    # columns = (major, minor, intermediate); permute to ENU.
+    R_ned = np.array(
         [
-            math.cos(pl) * math.sin(az),  # east
-            math.cos(pl) * math.cos(az),  # north
-            -math.sin(pl),  # up
-        ]
+            [ca * cp, ca * sp * sr - sa * cr, ca * sp * cr + sa * sr],
+            [sa * cp, sa * sp * sr + ca * cr, sa * sp * cr - ca * sr],
+            [-sp, cp * sr, cp * cr],
+        ],
+        dtype=float,
     )
-    major /= np.linalg.norm(major)
-
-    # Build two perpendicular directions around major
-    up = np.array([0.0, 0.0, 1.0])
-    ref = np.cross(up, major)
-
-    if np.linalg.norm(ref) < 1e-12:
-        ref = np.array([1.0, 0.0, 0.0])
-    else:
-        ref /= np.linalg.norm(ref)
-
-    other = np.cross(major, ref)
-    other /= np.linalg.norm(other)
-
-    # Rotate around major axis to define minor/intermediate directions
-    minor = math.cos(rot) * ref + math.sin(rot) * other
-    intermediate = -math.sin(rot) * ref + math.cos(rot) * other
-
-    R = np.column_stack([major, minor, intermediate])
+    R = np.array([R_ned[1], R_ned[0], -R_ned[2]], dtype=float)
 
     # 3D ellipsoid shape matrix
     S3 = R @ np.diag([a * a, b * b, c * c]) @ R.T
