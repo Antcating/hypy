@@ -198,6 +198,7 @@ class EventLocator:
         weight_end: Optional[float] = 0.01,
         residual_weighting_iteration: Optional[int] = None,
         residual_rms_floor_s: float = 0.1,
+        error_coefficient: float = 0.1,
         residual_full_weight_factor: float = 1.0,
         residual_zero_weight_factor: float = 3.0,
         full_data_covariance: bool = False,
@@ -278,6 +279,10 @@ class EventLocator:
             uncertainties only set the relative row weighting. Default is 0.15,
             the HypoInverse default; use a value comparable to the residual WRMS
             a well-located event achieves with your model. Must be > 0.
+        error_coefficient : float, optional
+            User-defined error scaling coefficient ERCOF. It enters the data variance
+            as ``SIGMA^2 = RDERR^2 + ERCOF * WRMS^2`` and allows for site specific
+            scaling of uncertainties, Default is 1.
         seed : Optional[int], optional
             Seed for the random number generator used during location
             initialization. Set this to an integer to make this location run
@@ -325,6 +330,7 @@ class EventLocator:
             full_data_covariance=bool(full_data_covariance),
             correlation_length_km=float(correlation_length_km),
             model_uncertainty_s=model_uncertainty_s,
+            error_coefficient=error_coefficient,
             unresolved_depth=unresolved_depth,
             seed=seed,
             num_trials=num_trials,
