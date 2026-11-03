@@ -51,22 +51,6 @@ def get_hypo_tracer(max_distance_km: float = 800.0, max_depth_km: float = 50.0):
     )
 
 
-@functools.lru_cache(maxsize=None)
-def get_taup_tracer():
-    """Return a cached TauP ray tracer over iasp91."""
-    from hypy.propagation.layered.ray_tracer.taup import TauPRayTracer
-
-    return TauPRayTracer(model=get_tvel_model(), phases=("p", "s"))
-
-
-@functools.lru_cache(maxsize=None)
-def get_pyrocko_tracer():
-    """Return a cached Pyrocko ray tracer over iasp91."""
-    from hypy.propagation.layered.ray_tracer.pyrocko import PyrockoRayTracer
-
-    return PyrockoRayTracer(model=get_tvel_model(), phases=("p", "s"))
-
-
 # --------------------------------------------------------------------------- #
 # ObsPy data builders
 # --------------------------------------------------------------------------- #

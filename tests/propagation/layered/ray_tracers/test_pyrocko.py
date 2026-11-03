@@ -14,16 +14,6 @@ IMPORT_ERROR_MSG = (
 MODULE_SUBMODULE = f"{MODULE_PATH}.tracer"
 
 
-def _fresh_import():
-    """Import the module after clearing any cached copy."""
-    sys.modules.pop(MODULE_PATH, None)
-    sys.modules.pop(MODULE_SUBMODULE, None)
-    sys.modules.pop("pyrocko", None)
-    sys.modules.pop("pyrocko.cake", None)
-    importlib.invalidate_caches()
-    return importlib.import_module(MODULE_PATH)
-
-
 def test_pyrocko_import_error_on_missing(monkeypatch):
     """Missing Pyrocko should surface a clear import error."""
     original_import = builtins.__import__
