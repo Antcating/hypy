@@ -36,18 +36,6 @@ class VelocityModel:
         self.dim = dim if dim is not None else -1
         self.radius_of_planet_km = radius_of_planet_km
 
-    @property
-    def supported_features(self) -> frozenset[str]:
-        """Return model feature flags exposed for compatibility checks."""
-        inferred: set[str] = set(self.feature_flags)
-        if self.dim > 0:
-            inferred.add(f"dimension.{self.dim}d")
-        return frozenset(inferred)
-
-    def supports_feature(self, feature: str) -> bool:
-        """Return whether this model supports a single feature flag."""
-        return feature in self.supported_features
-
     @classmethod
     def supported_model_file_types(cls) -> tuple[str, ...]:
         """Return built-in model file suffixes supported by hypy."""
@@ -72,9 +60,7 @@ class VelocityModel:
 
     @classmethod
     def create_model(cls, model_path: Union[str, Path], **kwargs) -> "VelocityModel":
-        """Load a velocity model from a file path using built-in suffix
-        routing.
-        """
+        """Load a velocity model from a file path using built-in suffix routing."""
         model_path = Path(model_path).expanduser().resolve()
         if not model_path.exists():
             raise FileNotFoundError(f"Velocity model file not found: {model_path}")
@@ -89,11 +75,6 @@ class VelocityModel:
             )
 
         return loader(model_path, **kwargs)
-
-    @classmethod
-    def from_file(cls, model_path: Union[str, Path], **kwargs) -> "VelocityModel":
-        """Load a velocity model from a file."""
-        return cls.create_model(model_path, **kwargs)
 
 
 def __getattr__(name: str):
