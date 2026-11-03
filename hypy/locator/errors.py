@@ -4,6 +4,7 @@ from typing import Optional
 
 import numpy as np
 
+from ..logger import logger
 from ..utils.geo import gps2dist_azimuth_batch_nb
 from .config import LocatorConfig, RunConfig
 from .data import DataHandler
@@ -314,6 +315,16 @@ def compute_event_errors(
         return None
 
     C_xyz = covariance_full[:spatial_dim, :spatial_dim]
+    if dim >= 4 and covariance_full[2, 2] > 0.0 and covariance_full[3, 3] > 0.0:
+        origin_time_depth_correlation = covariance_full[2, 3] / np.sqrt(
+            covariance_full[2, 2] * covariance_full[3, 3]
+        )
+        if abs(origin_time_depth_correlation) >= 0.9:
+            logger.warning(
+                "Strong origin-time/depth covariance: rho_tz=%.3f, C_tz=%.6g s km",
+                origin_time_depth_correlation,
+                covariance_full[2, 3],
+            )
     if not np.all(np.isfinite(C_xyz)):
         return None
 
