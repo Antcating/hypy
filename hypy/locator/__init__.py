@@ -220,7 +220,8 @@ class EventLocator:
         Parameters
         ----------
         max_iterations : int, optional
-            Maximum number of inversion iterations. Default is 1000.
+            Maximum inversion passes. Each pass steps every event that
+            has not finished. Default is 100.
         conv_threshold : float, optional
             WRMS convergence threshold (seconds). Default is 1e-3.
         unresolved_depth : {'current', 'seed', None}, optional
