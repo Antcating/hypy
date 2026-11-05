@@ -4,6 +4,8 @@ import functools
 import math
 from typing import Any
 
+import numpy as np
+
 from hypy.model import VelocityModel
 from hypy.propagation.layered import LayeredPropagationEngine
 from hypy.utils.seismic import normalize_phase
@@ -114,15 +116,25 @@ class LayeredRayTracer(LayeredPropagationEngine):
             int(round(depth_km * steps_per_km)),
         )
 
-    def clear_arrival_cache(self) -> None:
-        """Clear cached travel-time/takeoff results."""
-        self._cached_arrival.cache_clear()
+    def build_travel_time_table(
+        self,
+        phase: str,
+        depth_grid: np.ndarray,
+        distance_grid: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Fill a depth-distance table by solving one arrival per node.
 
-    def arrival_cache_info(self) -> dict[str, int | float]:
-        """Return basic lazy-arrival-cache settings and current size."""
-        info = self._cached_arrival.cache_info()
-        return {
-            "size": info.currsize,
-            "max_size": info.maxsize,
-            "precision_km": self._arrival_cache_precision_km,
-        }
+        Hypo overrides this with one parallel compiled pass. TauP and Pyrocko
+        use this loop.
+        """
+        n_depth = len(depth_grid)
+        n_distance = len(distance_grid)
+        travel_times = np.empty((n_depth, n_distance), dtype=np.float64)
+        takeoff_angles = np.empty((n_depth, n_distance), dtype=np.float64)
+        for i in range(n_depth):
+            depth = float(depth_grid[i])
+            for j in range(n_distance):
+                travel_times[i, j], takeoff_angles[i, j] = self.get_arrival_1d(
+                    float(distance_grid[j]), depth, phase
+                )
+        return travel_times, takeoff_angles

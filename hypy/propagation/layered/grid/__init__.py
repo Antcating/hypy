@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, Optional
 import numpy as np
 from numba import njit, prange
 
-from hypy.logger import logger
 from hypy.model import VelocityModel
 from hypy.propagation.layered import LayeredPropagationEngine
 from hypy.utils.geo import (
@@ -329,15 +328,6 @@ class LayeredGrid1D(LayeredPropagationEngine):
         return (
             self.compute_travel_time_batch(distances, depths, phase),
             self.compute_takeoff_angle_batch(distances, depths, phase),
-        )
-
-    def _limits(
-        self, max_distance_km: float | None
-    ) -> tuple[float | None, float | None]:
-        """Clamp ``get_arrival`` coverage to the tabulated grid."""
-        return (
-            self._effective_max_distance_km(max_distance_km),
-            self._effective_max_depth_km(),
         )
 
     def get_arrival_batch(

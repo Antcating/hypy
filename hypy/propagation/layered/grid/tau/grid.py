@@ -77,8 +77,8 @@ class TauTravelTimeGrid(LayeredGrid1D):
     distance_step_km : float
         The step size for the distance grid.
     tracer : LayeredRayTracer
-        An instantiated layered ray tracer (e.g. ``TauPRayTracer`` or
-        ``PyrockoRayTracer``) used to generate the travel-time tables.
+        Ray tracer that fills the table. ``TauPRayTracer``, ``PyrockoRayTracer``,
+        and ``HypoRayTracer`` all work. Hypo fills the grid in one compiled pass.
     overwrite : bool, optional
         Whether to overwrite existing travel-time tables. by default False
     """  # noqa: E501
@@ -185,18 +185,9 @@ class TauTravelTimeGrid(LayeredGrid1D):
             )
             self.depth_grid = depth_values
             self.distance_grid = distance_values
-
-            self.travel_time_tables[phase] = np.full(
-                (len(depth_values), len(distance_values)), np.nan
-            )
-            self.takeoff_angle_tables[phase] = np.full(
-                (len(depth_values), len(distance_values)), np.nan
-            )
-            for i, depth in enumerate(depth_values):
-                for j, dist in enumerate(distance_values):
-                    if phase in self.travel_time_tables:
-                        time, angle = self.tracer.get_arrival_1d(dist, depth, phase)
-                        self.travel_time_tables[phase][i, j] = time
-                        self.takeoff_angle_tables[phase][i, j] = angle
+            (
+                self.travel_time_tables[phase],
+                self.takeoff_angle_tables[phase],
+            ) = tracer.build_travel_time_table(phase, depth_values, distance_values)
             logger.info(f"Saving travel-time tables to {fname}")
             self.save(fname)
