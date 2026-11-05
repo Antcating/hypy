@@ -69,6 +69,27 @@ def test_table_creation(
         assert normalize_phase(phase) in tables.travel_time_tables
 
 
+def test_grid_samples_match_tracer(
+    travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
+):
+    """Table nodes match the tracer that filled them, for every backend."""
+    tables = travel_time_tables(["P"], True)
+    phase = "p"
+    travel_times = tables.travel_time_tables[phase]
+    takeoff_angles = tables.takeoff_angle_tables[phase]
+    depth_ids = (0, len(tables.depth_grid) // 2, -1)
+    distance_ids = (0, len(tables.distance_grid) // 2, -1)
+    for i in depth_ids:
+        for j in distance_ids:
+            time, angle = tables.tracer.get_arrival_1d(
+                float(tables.distance_grid[j]),
+                float(tables.depth_grid[i]),
+                phase,
+            )
+            assert travel_times[i, j] == pytest.approx(time, abs=1e-4)
+            assert takeoff_angles[i, j] == pytest.approx(angle, abs=1e-3)
+
+
 def test_table_reuse(
     travel_time_tables: Callable[[list[str], bool], TauTravelTimeGrid],
 ):
