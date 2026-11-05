@@ -42,6 +42,7 @@ class DataHandler:
         self.arrivals = np.empty((0, 0))
         self.arrival_time_errors = np.empty((0, 0))
         self.theoretical_travel_times = np.empty((0, 0))
+        self.residuals = np.empty((0, 0))
         self.jacobian_matrix = np.empty((0, 0))
         self.time_error_W = np.empty((0,), dtype=float)
         self.distance_W = np.empty((0,), dtype=float)
@@ -184,6 +185,7 @@ class DataHandler:
         self.arrivals = np.full((n_events, n_cols), np.nan)
         self.arrival_time_errors = np.full((n_events, n_cols), np.nan)
         self.theoretical_travel_times = np.zeros((n_events, n_cols))
+        self.residuals = np.empty((n_events, n_cols))
         self.jacobian_matrix = np.zeros((n_obs, DIM), dtype=float)
         self.time_error_W = np.ones(n_obs, dtype=float)
         self.distance_W = np.ones(n_obs, dtype=float)
@@ -195,14 +197,25 @@ class DataHandler:
         self.station_time_corrections = np.zeros(n_cols, dtype=float)
         self.fallback_seeds = [[] for _ in range(n_events)]
 
-    def observation_residuals(self) -> np.ndarray:
-        """Return ``(t_obs - t0) - T_pred - dt_sta`` for every observation."""
-        return (
-            self.arrivals
-            - self.origin_times[:, np.newaxis]
-            - self.theoretical_travel_times
-            - self.station_time_corrections[np.newaxis, :]
-        )
+    def observation_residuals(self, event_index: int | None = None) -> np.ndarray:
+        """Return ``(t_obs - t0) - T_pred - dt_sta``.
+
+        ``event_index`` refreshes that row only. Other rows stay stale.
+        """
+        if self.residuals.shape != self.arrivals.shape:
+            self.residuals = np.empty(self.arrivals.shape, dtype=np.float64)
+        if event_index is None:
+            np.subtract(
+                self.arrivals, self.origin_times[:, np.newaxis], out=self.residuals
+            )
+            self.residuals -= self.theoretical_travel_times
+            self.residuals -= self.station_time_corrections
+            return self.residuals
+        row = self.residuals[event_index]
+        np.subtract(self.arrivals[event_index], self.origin_times[event_index], out=row)
+        row -= self.theoretical_travel_times[event_index]
+        row -= self.station_time_corrections
+        return self.residuals
 
     def _fill_data(self) -> None:
         invalid_time_errors = skipped_min_picks = skipped_min_stations = 0

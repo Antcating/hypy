@@ -129,7 +129,7 @@ class InversionEngine:
                 return
             rows = self._derivatives(event_idx)
             if len(rows) > 0:
-                self._score_rows(rows, last)
+                self._score_rows(rows, last, event_idx)
                 kept[event_idx] = rows
 
         # One shared pass count. A finished event is skipped, not restarted.
@@ -173,7 +173,7 @@ class InversionEngine:
         return InversionResults(
             jacobian_matrix=data.jacobian_matrix,
             valid_rows=np.concatenate(present) if present else np.array([], dtype=int),
-            residuals_flat=data.observation_residuals().flatten(),
+            residuals_flat=data.observation_residuals().ravel(),
         )
 
     def _starting_points(self, event_idx):
@@ -226,7 +226,7 @@ class InversionEngine:
         rows = self._derivatives(event_idx)
         if len(rows) < self.config.min_picks_per_event:
             return np.inf, np.array([], dtype=int)
-        return self._score_rows(rows, step)[2], rows
+        return self._score_rows(rows, step, event_idx)[2], rows
 
     def _step_event(self, event_idx, step, fix_z, conv_threshold, prev_wrms):
         """Take one damped step. True means this seed should stop.
@@ -253,7 +253,7 @@ class InversionEngine:
             )
             return True, np.inf
 
-        residuals, weights, wrms_before = self._score_rows(design, step)
+        residuals, weights, wrms_before = self._score_rows(design, step, event_idx)
         base = self._snapshot()
         accepted, wrms_after = self._run_lm_trials(
             design, residuals, wrms_before, weights, base, step, event_idx
@@ -265,7 +265,7 @@ class InversionEngine:
                 logger.error("No valid observations after failed LM trials. Aborting.")
                 return True, wrms_before
             wrms_after = self._weighted_rms(
-                data.observation_residuals().flatten(), design, weights
+                data.observation_residuals(event_idx).ravel(), design, weights
             )
             logger.debug(
                 "Event %s, iteration %s: no acceptable LM step after %s trials.",
@@ -314,7 +314,7 @@ class InversionEngine:
             if len(self._refresh(event_idx)) < self.config.min_picks_per_event:
                 self.damping = min(self.damping * 5.0, MAX_DAMPING)
                 continue
-            trial_residuals = self.data.observation_residuals().flatten()
+            trial_residuals = self.data.observation_residuals(event_idx).ravel()
             eval_rows, eval_weights = rows, weights
             finite = np.isfinite(trial_residuals[rows])
             if not np.all(finite):
@@ -366,8 +366,8 @@ class InversionEngine:
             )[0]
         return dx
 
-    def _score_rows(self, rows, iteration):
-        residuals = self.data.observation_residuals().flatten()
+    def _score_rows(self, rows, iteration, event_idx):
+        residuals = self.data.observation_residuals(event_idx).ravel()
         weights = self._apply_row_weights(residuals, rows, iteration)
         return residuals, weights, self._weighted_rms(residuals, rows, weights)
 
