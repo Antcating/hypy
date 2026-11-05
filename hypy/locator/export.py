@@ -24,17 +24,24 @@ def finalize_origins(
     scale95_2d = float(np.sqrt(chi2.ppf(0.95, df=2)))
     scale95_1d = float(norm.ppf(0.975))
 
+    n_obs_per_event = config.n_phases * data.n_stations
+
     for event_idx, event in enumerate(data.events):
         if data.invalid_events[event_idx]:
             continue
 
-        origin = Origin()
-        origin.latitude = data.locations[event_idx, 0]
-        origin.longitude = data.locations[event_idx, 1]
-        origin.depth = data.locations[event_idx, 2] * 1000.0
-
         t0_abs = float(data.origin_times[event_idx]) + float(data.time_refs[event_idx])
-        origin.time = t0_abs
+        depth_type = (
+            "operator assigned" if data.fixed_depth_mask[event_idx] else "from location"
+        )
+        origin = Origin(
+            latitude=float(data.locations[event_idx, 0]),
+            longitude=float(data.locations[event_idx, 1]),
+            depth=float(data.locations[event_idx, 2] * 1000.0),
+            time=t0_abs,
+            depth_type=depth_type,
+            force_resource_id=False,
+        )
 
         s1, s2, s3 = error_results.principal_std[event_idx]
         evecs = error_results.principal_axes[event_idx]
@@ -77,6 +84,7 @@ def finalize_origins(
                 major_axis_plunge=plunge,
                 major_axis_azimuth=azimuth,
                 major_axis_rotation=rotation,
+                force_resource_id=False,
             )
 
         origin.origin_uncertainty = OriginUncertainty(
@@ -86,6 +94,7 @@ def finalize_origins(
             ),
             preferred_description="confidence ellipsoid",
             confidence_level=95.0,
+            force_resource_id=False,
         )
 
         if np.isfinite(ERZ_1s):
@@ -93,9 +102,6 @@ def finalize_origins(
                 uncertainty=ERZ_1s * scale95_1d * 1000.0,
                 confidence_level=95.0,
             )
-        origin.depth_type = (
-            "operator assigned" if data.fixed_depth_mask[event_idx] else "from location"
-        )
 
         pick_lookup = {
             (
@@ -106,38 +112,36 @@ def finalize_origins(
             for pk in event.picks
         }
 
-        for station_idx, (network, station) in enumerate(data.stations):
-            for phase_idx, phase in enumerate(config.phases):
-                arr_index = config.n_phases * station_idx + phase_idx
-                observed_time_rel = data.arrivals[event_idx, arr_index]
-                if np.isnan(observed_time_rel):
-                    continue
-
-                pick = pick_lookup.get((network, station, phase.lower()))
-
-                travel_time = data.theoretical_travel_times[event_idx, arr_index]
-                observed_travel_time = observed_time_rel - data.origin_times[event_idx]
-                time_correction = float(data.station_time_corrections[arr_index])
-                residual = observed_travel_time - travel_time - time_correction
-
-                # Final weight includes distance and residual scales.
-                # time_error_W is kept separate (ObsPy Arrival has no sigma field
-                # here); residual_W is the last-iteration HypoInverse-style factor.
-                row_index = (
-                    event_idx * config.n_phases * data.n_stations
-                    + config.n_phases * station_idx
-                    + phase_idx
+        obs_cols = np.flatnonzero(~np.isnan(data.arrivals[event_idx]))
+        if obs_cols.size:
+            residuals_row = (
+                data.arrivals[event_idx]
+                - data.origin_times[event_idx]
+                - data.theoretical_travel_times[event_idx]
+                - data.station_time_corrections
+            )
+            event_row0 = event_idx * n_obs_per_event
+            arrivals_batch: list[Arrival] = []
+            for arr_index in obs_cols:
+                arr_index = int(arr_index)
+                station_idx, phase_idx = divmod(arr_index, config.n_phases)
+                network, station = data.stations[station_idx]
+                phase = config.phases[phase_idx]
+                pick = pick_lookup.get((network, station, phase))
+                row_index = event_row0 + arr_index
+                arrivals_batch.append(
+                    Arrival(
+                        pick_id=pick.resource_id if pick is not None else None,
+                        phase=phase,
+                        time_residual=float(residuals_row[arr_index]),
+                        time_weight=float(
+                            data.distance_W[row_index] * data.residual_W[row_index]
+                        ),
+                        time_correction=float(data.station_time_corrections[arr_index]),
+                        force_resource_id=False,
+                    )
                 )
-                final_weight = data.distance_W[row_index] * data.residual_W[row_index]
-
-                arrival = Arrival(
-                    pick_id=pick.resource_id if pick is not None else None,
-                    phase=phase,
-                    time_residual=float(residual),
-                    time_weight=float(final_weight),
-                    time_correction=time_correction,
-                )
-                origin.arrivals.append(arrival)
+            origin.arrivals.extend(arrivals_batch)
 
         event.origins.append(origin)
 
