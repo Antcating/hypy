@@ -34,6 +34,23 @@ def velocity_from_layers(
     return top_v + (bot_v - top_v) * ((depth - top_z) / (bot_z - top_z))
 
 
+@njit(cache=True)
+def velocities_from_layers(
+    depths: np.ndarray,
+    top_depth: np.ndarray,
+    bot_depth: np.ndarray,
+    top_velocity: np.ndarray,
+    bot_velocity: np.ndarray,
+) -> np.ndarray:
+    """``velocity_from_layers`` for many depths."""
+    out = np.empty(depths.shape[0], dtype=np.float64)
+    for i in range(depths.shape[0]):
+        out[i] = velocity_from_layers(
+            depths[i], top_depth, bot_depth, top_velocity, bot_velocity
+        )
+    return out
+
+
 @njit(cache=True, inline="always")
 def linear_interp(x, x0, x1, y0, y1):
     """Perform linear interpolation between two samples.

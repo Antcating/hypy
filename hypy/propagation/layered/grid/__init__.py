@@ -417,14 +417,7 @@ class LayeredGrid1D(LayeredPropagationEngine):
                     distances, depths, phase
                 )
             takeoffs = np.asarray(takeoff_angle_deg, dtype=np.float64)
-            velocities = np.fromiter(
-                (
-                    self.velocity_model.get_velocity_1d(float(depth), phase)
-                    for depth in depths
-                ),
-                dtype=np.float64,
-                count=depths.size,
-            )
+            velocities = self.velocity_model.get_velocity_1d_batch(depths, phase)
             dt_dx, dt_dy, dt_dz = get_analytical_derivative_1d_batch(
                 takeoffs, azimuths, velocities
             )

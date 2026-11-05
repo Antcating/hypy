@@ -24,3 +24,6 @@ def test_get_velocity_1d_direct_layer_lookup(tmp_path: Path) -> None:
             depth, phase.lower()[-1]
         )[0]
         assert np.isclose(model.get_velocity_1d(depth, phase), expected)
+        assert np.isclose(
+            model.get_velocity_1d_batch(np.array([depth]), phase)[0], expected
+        )

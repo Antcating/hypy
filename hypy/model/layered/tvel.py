@@ -7,7 +7,7 @@ from obspy.taup import TauPyModel  # type: ignore[import-untyped]
 from obspy.taup.taup_create import build_taup_model  # type: ignore[import-untyped]
 
 from hypy.model import VelocityModel
-from hypy.utils.math import velocity_from_layers
+from hypy.utils.math import velocities_from_layers, velocity_from_layers
 from hypy.utils.seismic import normalize_phase
 
 
@@ -196,3 +196,32 @@ class TvelModel(VelocityModel):
         phase_lower = normalize_phase(phase)
 
         return self._velocity_from_layers(depth, phase_lower)
+
+    def get_velocity_1d_batch(self, depths: np.ndarray, phase: str) -> np.ndarray:
+        """Return velocities (km/s) at many depths for one phase."""
+        phase_lower = normalize_phase(phase)
+        self._initialize_layer_arrays()
+        depths = np.asarray(depths, dtype=np.float64)
+        top_depth = self._layer_top_depth
+        bot_depth = self._layer_bot_depth
+        if phase_lower == "p":
+            top_velocity = self._layer_top_p_velocity
+            bot_velocity = self._layer_bot_p_velocity
+        else:
+            top_velocity = self._layer_top_s_velocity
+            bot_velocity = self._layer_bot_s_velocity
+        if depths.size and (
+            float(np.min(depths)) < float(top_depth[0])  # type: ignore
+            or float(np.max(depths)) > float(bot_depth[-1])  # type: ignore
+        ):
+            raise ValueError(
+                f"Depths [{float(np.min(depths))}, {float(np.max(depths))}] km "
+                f"are outside model bounds [{top_depth[0]}, {bot_depth[-1]}]."  # type: ignore
+            )
+        return velocities_from_layers(
+            depths,
+            top_depth,  # type: ignore
+            bot_depth,  # type: ignore
+            top_velocity,  # type: ignore
+            bot_velocity,  # type: ignore
+        )
