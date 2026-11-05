@@ -86,39 +86,6 @@ def lagrange_interp_scalars(
     )
 
 
-@njit(cache=True)
-def lagrange_interp(x, x_vals, y_vals):
-    """Evaluate a three-point Lagrange interpolant.
-
-    Parameters
-    ----------
-    x : float
-        Target coordinate.
-    x_vals : numpy.ndarray
-        Three sample coordinates used to build the interpolant.
-    y_vals : numpy.ndarray
-        Sample values corresponding to ``x_vals``.
-
-    Returns
-    -------
-    float
-        Interpolated value at ``x``.
-
-    Notes
-    -----
-    The caller is responsible for providing three distinct sample positions.
-    """
-    return lagrange_interp_scalars(
-        x,
-        x_vals[0],
-        x_vals[1],
-        x_vals[2],
-        y_vals[0],
-        y_vals[1],
-        y_vals[2],
-    )
-
-
 @njit(cache=True, inline="always")
 def _grid_upper_index(x: float, x_grid: np.ndarray) -> int:
     """Return ``np.searchsorted(x_grid, x)`` with an O(1) uniform-grid fast path."""

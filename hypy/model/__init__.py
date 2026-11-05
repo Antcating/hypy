@@ -36,46 +36,6 @@ class VelocityModel:
         self.dim = dim if dim is not None else -1
         self.radius_of_planet_km = radius_of_planet_km
 
-    @classmethod
-    def supported_model_file_types(cls) -> tuple[str, ...]:
-        """Return built-in model file suffixes supported by hypy."""
-        return (".tvel", ".nllgrid", ".nc")
-
-    @classmethod
-    def _resolve_builtin_loader(cls, suffix: str):
-        suffix = suffix.lower()
-        if suffix == ".tvel":
-            from .layered.tvel import TvelModel
-
-            return lambda path, **kwargs: TvelModel(path, **kwargs)
-        if suffix == ".nllgrid":
-            from .volumetric.nllgrid import NllGridModel
-
-            return lambda path, **kwargs: NllGridModel(path, **kwargs)
-        if suffix == ".nc":
-            from .volumetric.netcdf import NCGrid
-
-            return lambda path, **kwargs: NCGrid(path, **kwargs)
-        return None
-
-    @classmethod
-    def create_model(cls, model_path: Union[str, Path], **kwargs) -> "VelocityModel":
-        """Load a velocity model from a file path using built-in suffix routing."""
-        model_path = Path(model_path).expanduser().resolve()
-        if not model_path.exists():
-            raise FileNotFoundError(f"Velocity model file not found: {model_path}")
-
-        suffix = model_path.suffix.lower()
-        loader = cls._resolve_builtin_loader(suffix)
-        if loader is None:
-            supported_file_types = ", ".join(cls.supported_model_file_types())
-            raise ValueError(
-                f"Unsupported velocity model file type: {suffix!r}. "
-                f"Supported types are: {supported_file_types}."
-            )
-
-        return loader(model_path, **kwargs)
-
 
 def __getattr__(name: str):
     """Lazily expose common concrete velocity model backends."""
